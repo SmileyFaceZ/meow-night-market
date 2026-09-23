@@ -22,3 +22,10 @@ export {
   startSeatForRound,
 } from './rules.ts';
 export { chooseRandomAction } from './bots/random.ts';
+export {
+  BOT_DIFFICULTIES,
+  BOT_PERSONALITIES,
+  chooseBotAction,
+  EASY_MISTAKE_RATE,
+} from './bots/index.ts';
+export type { BotDifficulty, BotPersonality } from './bots/index.ts';

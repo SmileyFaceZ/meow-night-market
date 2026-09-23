@@ -7,6 +7,10 @@ export interface PublicPlayer {
   readonly seat: number;
   readonly meowLeft: readonly number[];
   readonly handCount: number;
+  /** Bones in hand — public, since bones always enter and leave a hand face-up. */
+  readonly boneCount: number;
+  /** Cards taken from the market this game. */
+  readonly picks: readonly Card[];
   readonly meals: readonly Meal[];
   readonly mealPoints: number;
   /** Bidding: has chosen a meow card (the value stays secret until everyone has). */
@@ -70,6 +74,8 @@ export function getPlayerView(state: GameState, viewer: PlayerId | null): Player
       seat: p.seat,
       meowLeft: [...p.meowLeft],
       handCount: p.hand.length,
+      boneCount: p.hand.filter((c) => c.kind === 'bone').length,
+      picks: copyCards(p.picks),
       meals: p.meals.map((m) => ({ ...m, cards: copyCards(m.cards) })),
       mealPoints: p.meals.reduce((sum, m) => sum + m.points, 0),
       hasBid: state.phase === 'bidding' && state.bids[p.id] !== null,

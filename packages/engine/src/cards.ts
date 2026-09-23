@@ -12,7 +12,7 @@ export function buildDeck(config: GameConfig): { food: Card[]; hazards: Card[] }
     Array.from({ length: copies }, () => ({ id: id++, kind }));
 
   const food = [
-    ...FOOD_TYPES.flatMap((kind) => make(kind, config.foodCopies)),
+    ...config.foodTypes.flatMap((kind) => make(kind, config.foodCopies)),
     ...make('goldfish', config.goldfishCopies),
   ];
   const hazards = [...make('bone', config.boneCopies), ...make('dog', config.dogCopies)];
@@ -21,7 +21,7 @@ export function buildDeck(config: GameConfig): { food: Card[]; hazards: Card[] }
 
 export function totalCardCount(config: GameConfig): number {
   return (
-    FOOD_TYPES.length * config.foodCopies +
+    config.foodTypes.length * config.foodCopies +
     config.goldfishCopies +
     config.boneCopies +
     config.dogCopies

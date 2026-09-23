@@ -3,16 +3,18 @@ import {
   clearMarket,
   cloneState,
   type Ctx,
+  drawFromTrash,
   endEatTurn,
   endTrashTurn,
   playerById,
   revealBids,
+  returnDog,
   revealDiscards,
   startTrash,
   takeFromHand,
 } from './flow.ts';
 import { createRng } from './rng.ts';
-import { canDigTrash, currentPlayer } from './rules.ts';
+import { currentPlayer } from './rules.ts';
 import type { Action, ActionResult, Card, ErrorKey, GameState } from './types.ts';
 
 /**
@@ -86,7 +88,9 @@ function pick(ctx: Ctx, playerId: string, cardId: number): ErrorKey | null {
   if (index === -1) return 'error.cardNotInMarket';
 
   const [card] = s.market.splice(index, 1) as [Card];
-  playerById(s, playerId).hand.push(card);
+  const player = playerById(s, playerId);
+  player.hand.push(card);
+  player.picks.push({ ...card });
   s.pickQueue.shift();
   ctx.events.push({ type: 'CARD_PICKED', playerId, card: { ...card } });
 
@@ -106,16 +110,8 @@ function dig(ctx: Ctx, playerId: string): ErrorKey | null {
   const error = requireTurn(ctx, 'trash', playerId);
   if (error) return error;
   if (s.pendingDog) return 'error.dogPending';
-  if (!canDigTrash(s)) return 'error.trashEmpty';
-
-  // Only dogs left (or empty): shuffle the discard pile in with them.
-  if (!s.trashDeck.some((c) => c.kind !== 'dog')) {
-    const count = s.discard.length;
-    s.trashDeck = ctx.rng.shuffle([...s.trashDeck, ...s.discard.splice(0)]);
-    ctx.events.push({ type: 'TRASH_RESHUFFLED', count });
-  }
-
-  const card = s.trashDeck.shift()!;
+  const card = drawFromTrash(ctx);
+  if (!card) return 'error.trashEmpty';
   const player = playerById(s, playerId);
 
   if (card.kind === 'bone') {
@@ -166,12 +162,6 @@ function caught(ctx: Ctx, playerId: string, dog: Card): void {
   ctx.events.push({ type: 'DOG_CAUGHT', playerId, lost: lost.map((c) => ({ ...c })) });
   returnDog(ctx, dog);
   endTrashTurn(ctx);
-}
-
-/** Dogs never leave: shuffle it back into the bin. */
-function returnDog(ctx: Ctx, dog: Card): void {
-  ctx.s.trashDeck = ctx.rng.shuffle([...ctx.s.trashDeck, dog]);
-  ctx.events.push({ type: 'DOG_RETURNED' });
 }
 
 function stop(ctx: Ctx, playerId: string): ErrorKey | null {

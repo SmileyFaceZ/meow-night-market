@@ -26,11 +26,19 @@ export function computeTurnOrder(
   players: readonly PlayerState[],
   bids: Readonly<Record<PlayerId, number>>,
   startSeat: number,
+  tieBreak: 'seat' | 'lowestScore' | 'random' = 'seat',
+  randomRank: readonly number[] = [],
 ): PlayerId[] {
   const n = players.length;
-  const seatRank = (p: PlayerState) => (p.seat - startSeat + n) % n;
+  const seatRank = (p: PlayerState) =>
+    tieBreak === 'random' ? (randomRank[p.seat] ?? 0) : (p.seat - startSeat + n) % n;
+  const score = (p: PlayerState) =>
+    tieBreak === 'lowestScore' ? p.meals.reduce((sum, m) => sum + m.points, 0) : 0;
   return [...players]
-    .sort((a, b) => (bids[a.id] ?? 0) - (bids[b.id] ?? 0) || seatRank(a) - seatRank(b))
+    .sort(
+      (a, b) =>
+        (bids[a.id] ?? 0) - (bids[b.id] ?? 0) || score(a) - score(b) || seatRank(a) - seatRank(b),
+    )
     .map((p) => p.id);
 }
 

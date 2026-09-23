@@ -73,7 +73,11 @@ describe('§4 Stall Scramble (simultaneous bidding)', () => {
     s = r.state;
     expect(s.market).toEqual([]);
     expect(s.discard).toEqual(before.slice(1));
-    expect(r.events).toContainEqual({ type: 'MARKET_CLEARED', cards: before.slice(1) });
+    expect(r.events).toContainEqual({
+      type: 'MARKET_CLEARED',
+      cards: before.slice(1),
+      to: 'discard',
+    });
   });
 
   it('if everyone clashes, the whole stall is discarded and digging starts', () => {

@@ -29,6 +29,21 @@ export interface GameConfig {
   readonly varietyMinTypes: number;
   readonly minPlayers: number;
   readonly maxPlayers: number;
+
+  // ── Experimental balance levers (Phase 2 study, NOT in GAME_RULES.md) ──────
+  // Defaults reproduce the official rules. Kept only until the user picks a fix.
+  /** Food types in the deck (each with foodCopies cards). */
+  readonly foodTypes: readonly FoodType[];
+  /** Leftover stall cards are shuffled into the bin instead of discarded. */
+  readonly leftoverMarketToTrash: boolean;
+  /** Free cards each clashed player draws from the bin (a dog there does nothing). */
+  readonly clashConsolationDraws: number;
+  /** Clashed players still pick, after the unique bidders (in turn order). */
+  readonly clashedPickLast: boolean;
+  /** The discard pile is shuffled into the bin at the start of every Trash Dig. */
+  readonly recycleDiscardEachRound: boolean;
+  /** Equal bids: 'seat' (official), 'lowestScore' first then seat, or 'random' (seeded, redrawn each round). */
+  readonly clashTieBreak: 'seat' | 'lowestScore' | 'random';
 }
 
 export const DEFAULT_CONFIG: GameConfig = {
@@ -52,6 +67,13 @@ export const DEFAULT_CONFIG: GameConfig = {
   varietyMinTypes: 2,
   minPlayers: 2,
   maxPlayers: 4,
+
+  foodTypes: FOOD_TYPES,
+  leftoverMarketToTrash: false,
+  clashConsolationDraws: 0,
+  clashedPickLast: false,
+  recycleDiscardEachRound: false,
+  clashTieBreak: 'seat',
 };
 
 export function validateConfig(config: GameConfig): void {
@@ -60,6 +82,9 @@ export function validateConfig(config: GameConfig): void {
   }
   if (new Set(config.meowValues).size !== config.meowValues.length) {
     throw new Error('config.meowValues must be distinct');
+  }
+  if (config.foodTypes.length === 0 || new Set(config.foodTypes).size !== config.foodTypes.length) {
+    throw new Error('config.foodTypes must be a non-empty list of distinct food types');
   }
   if (config.minPrice > config.startPrice) {
     throw new Error('config.minPrice must not exceed config.startPrice');

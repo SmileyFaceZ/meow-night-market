@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { GameState } from '../src/types.ts';
 import { getPlayerView } from '../src/view.ts';
-import { act, newGame, playRandomGame, reachableCardIds } from './helpers.ts';
+import { act, newGame, patchPlayer, playRandomGame, reachableCardIds } from './helpers.ts';
 
 /** Card ids a given seat is allowed to see (GAME_RULES §8). */
 function allowedIds(s: GameState, viewer: string | null): Set<number> {
@@ -14,6 +14,7 @@ function allowedIds(s: GameState, viewer: string | null): Set<number> {
       ...s.discard,
       ...(s.pendingDog ? [s.pendingDog] : []),
       ...s.players.flatMap((p) => p.meals.flatMap((m) => m.cards)),
+      ...s.players.flatMap((p) => p.picks), // public pick history
     ].map((c) => c.id),
   );
 }
@@ -81,6 +82,22 @@ describe('§8 open and hidden information — getPlayerView', () => {
     expect(view.prices).toEqual(s.prices);
     expect(view.players.map((p) => p.handCount)).toEqual([0, 0, 0, 0]);
     expect(view.round).toBe(1);
+  });
+
+  it('shows everyone’s bone count and market picks', () => {
+    let s = act(newGame(3), { type: 'bid', playerId: 'a', value: 5 }).state;
+    s = act(s, { type: 'bid', playerId: 'b', value: 1 }).state;
+    s = act(s, { type: 'bid', playerId: 'c', value: 1 }).state;
+    const picked = s.market[0]!;
+    s = act(s, { type: 'pick', playerId: 'a', cardId: picked.id }).state;
+    const bone = { id: 9001, kind: 'bone' as const };
+    s = patchPlayer(s, 'b', {
+      hand: [bone, { id: 9002, kind: 'fish' }, { id: 9003, kind: 'bone' }],
+    });
+    const view = getPlayerView(s, 'c');
+    expect(view.players.map((p) => p.boneCount)).toEqual([0, 2, 0]);
+    expect(view.players[0]!.picks).toEqual([picked]);
+    expect(view.players[1]!.picks).toEqual([]);
   });
 
   it('gives your own hand to you and nothing to a spectator', () => {

@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "simulate": "node packages/engine/scripts/simulate.ts",
+    "balance": "node packages/engine/scripts/balance.ts",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "tsc -p tsconfig.json && npm run typecheck --workspaces --if-present"

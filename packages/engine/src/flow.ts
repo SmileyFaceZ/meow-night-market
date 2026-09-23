@@ -3,7 +3,7 @@
 
 import { FOOD_TYPES } from './config.ts';
 import type { Rng } from './rng.ts';
-import { computeTurnOrder, marketSize, startSeatForRound } from './rules.ts';
+import { canDigTrash, computeTurnOrder, marketSize, startSeatForRound } from './rules.ts';
 import { scoreGame } from './scoring.ts';
 import type { Card, GameEvent, GameState, PlayerId } from './types.ts';
 
@@ -97,7 +97,14 @@ export function revealBids(ctx: Ctx): void {
     s.players,
     bids,
     startSeatForRound(s.firstStartSeat, s.round, s.players.length),
+    s.config.clashTieBreak,
+    s.config.clashTieBreak === 'random' ? ctx.rng.shuffle(s.players.map((_, i) => i)) : [],
   );
+  const clashedInOrder = s.turnOrder.filter((id) => s.clashed.includes(id));
+  if (s.config.clashedPickLast) s.pickQueue.push(...clashedInOrder);
+  for (const id of clashedInOrder) {
+    for (let i = 0; i < s.config.clashConsolationDraws; i++) clashDraw(ctx, id);
+  }
 
   if (s.pickQueue.length === 0) {
     clearMarket(ctx);
@@ -109,13 +116,48 @@ export function revealBids(ctx: Ctx): void {
   }
 }
 
+/** Experimental: a clashed player draws a free card; a dog just goes back. */
+function clashDraw(ctx: Ctx, playerId: PlayerId): void {
+  const card = drawFromTrash(ctx);
+  if (!card) return;
+  ctx.events.push({ type: 'CLASH_DRAW', playerId, card: { ...card } });
+  if (card.kind === 'dog') returnDog(ctx, card);
+  else playerById(ctx.s, playerId).hand.push(card);
+}
+
 /** GAME_RULES §4.6: leftover stall cards go to the discard pile. */
 export function clearMarket(ctx: Ctx): void {
   const { s } = ctx;
   if (s.market.length === 0) return;
   const cards = s.market.splice(0);
-  s.discard.push(...cards);
-  ctx.events.push({ type: 'MARKET_CLEARED', cards: cards.map((c) => ({ ...c })) });
+  const to = s.config.leftoverMarketToTrash ? 'trash' : 'discard';
+  if (to === 'trash') s.trashDeck = ctx.rng.shuffle([...s.trashDeck, ...cards]);
+  else s.discard.push(...cards);
+  ctx.events.push({ type: 'MARKET_CLEARED', cards: cards.map((c) => ({ ...c })), to });
+}
+
+/**
+ * Top card of the bin, or null if it holds only dogs and the discard pile is empty.
+ * GAME_RULES §5: when only dogs are left, the discard pile is shuffled in first.
+ */
+export function drawFromTrash(ctx: Ctx): Card | null {
+  const { s } = ctx;
+  if (!canDigTrash(s)) return null;
+  if (!s.trashDeck.some((c) => c.kind !== 'dog')) reshuffleDiscardIntoTrash(ctx);
+  return s.trashDeck.shift() ?? null;
+}
+
+function reshuffleDiscardIntoTrash(ctx: Ctx): void {
+  const { s } = ctx;
+  const count = s.discard.length;
+  s.trashDeck = ctx.rng.shuffle([...s.trashDeck, ...s.discard.splice(0)]);
+  ctx.events.push({ type: 'TRASH_RESHUFFLED', count });
+}
+
+/** Dogs never leave: shuffle it back into the bin. */
+export function returnDog(ctx: Ctx, dog: Card): void {
+  ctx.s.trashDeck = ctx.rng.shuffle([...ctx.s.trashDeck, dog]);
+  ctx.events.push({ type: 'DOG_RETURNED' });
 }
 
 export function startTrash(ctx: Ctx): void {
@@ -124,6 +166,7 @@ export function startTrash(ctx: Ctx): void {
   s.turnIndex = 0;
   s.bag = [];
   s.pendingDog = null;
+  if (s.config.recycleDiscardEachRound && s.discard.length > 0) reshuffleDiscardIntoTrash(ctx);
   ctx.events.push({ type: 'PHASE_STARTED', phase: 'trash', turnOrder: [...s.turnOrder] });
   ctx.events.push({ type: 'TURN_STARTED', playerId: s.turnOrder[0]! });
 }

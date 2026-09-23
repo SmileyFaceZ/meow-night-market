@@ -36,6 +36,8 @@ export interface PlayerState {
   readonly meowLeft: readonly number[];
   readonly hand: readonly Card[];
   readonly meals: readonly Meal[];
+  /** Cards taken from the market this game (public: picked in front of everyone). */
+  readonly picks: readonly Card[];
 }
 
 export interface ScoreLine {
@@ -123,7 +125,12 @@ export type GameEvent =
   | { readonly type: 'BIDS_REVEALED'; readonly bids: Readonly<Record<PlayerId, number>> }
   | { readonly type: 'BID_CLASH'; readonly value: number; readonly playerIds: readonly PlayerId[] }
   | { readonly type: 'CARD_PICKED'; readonly playerId: PlayerId; readonly card: Card }
-  | { readonly type: 'MARKET_CLEARED'; readonly cards: readonly Card[] }
+  | {
+      readonly type: 'MARKET_CLEARED';
+      readonly cards: readonly Card[];
+      readonly to: 'discard' | 'trash';
+    }
+  | { readonly type: 'CLASH_DRAW'; readonly playerId: PlayerId; readonly card: Card }
   | {
       readonly type: 'PHASE_STARTED';
       readonly phase: Phase;

@@ -26,8 +26,9 @@
 │     │  ├─ cards.ts         # สร้างสำรับ ตรวจมื้อ (checkMeal) หามื้อที่กินได้ (findMealOptions)
 │     │  ├─ view.ts          # getPlayerView(state, playerId | null)  (null = ผู้ชม)
 │     │  ├─ scoring.ts
-│     │  └─ bots/            # random.ts (ใช้ทดสอบ) · greedy.ts, sly.ts, careful.ts (เฟส 2)
+│     │  └─ bots/            # index.ts (chooseBotAction), common.ts, greedy.ts, sly.ts, careful.ts, random.ts (ใช้ทดสอบ)
 │     ├─ scripts/simulate.ts # npm run simulate — log เกมภาษาไทยในเทอร์มินัล
+│     ├─ scripts/balance.ts  # npm run balance — รายงานสถิติสมดุล (docs/BALANCE.md)
 │     └─ test/
 ├─ apps/
 │  ├─ web/

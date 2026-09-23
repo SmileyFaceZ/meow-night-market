@@ -44,6 +44,7 @@ export function createGame(options: CreateGameOptions): GameState {
       meowLeft: [...config.meowValues],
       hand: [],
       meals: [],
+      picks: [],
     })),
     firstStartSeat,
     round: 0,
