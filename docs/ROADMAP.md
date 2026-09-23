@@ -8,11 +8,11 @@
 - [x] อัปเดตคำสั่งใน CLAUDE.md ให้ตรงของจริง
 
 ## เฟส 1 — Game engine (ยังไม่มี UI)
-- [ ] types, config, seeded RNG, createGame
-- [ ] 3 ช่วงของรอบ + ทิ้งการ์ดเกิน + จบเกม + นับแต้ม
-- [ ] getPlayerView ซ่อนข้อมูลถูกต้อง
-- [ ] unit test ครบทุกกติกา + property test 1,000 เกม + determinism test
-- [ ] script จำลองเกมใน terminal ให้ผู้ใช้ลองดู log
+- [x] types, config, seeded RNG, createGame
+- [x] 3 ช่วงของรอบ + ทิ้งการ์ดเกิน + จบเกม + นับแต้ม
+- [x] getPlayerView ซ่อนข้อมูลถูกต้อง
+- [x] unit test ครบทุกกติกา + property test 1,000 เกม + determinism test
+- [x] script จำลองเกมใน terminal ให้ผู้ใช้ลองดู log
 
 ## เฟส 2 — บอท
 - [ ] บอท 3 นิสัย + ระดับง่าย/ปกติ

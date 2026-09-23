@@ -16,14 +16,18 @@
 ├─ packages/
 │  └─ engine/
 │     ├─ src/
-│     │  ├─ config.ts        # ค่าคงที่ทั้งหมดของเกม
-│     │  ├─ types.ts         # GameState, Action, PlayerView, Card
-│     │  ├─ rng.ts           # seeded RNG (เช่น mulberry32) — ห้ามใช้ Math.random
-│     │  ├─ setup.ts         # createGame(options, seed)
-│     │  ├─ actions.ts       # applyAction(state, action) → state | error
-│     │  ├─ view.ts          # getPlayerView(state, playerId)
+│     │  ├─ config.ts        # ค่าคงที่ทั้งหมดของเกม (DEFAULT_CONFIG)
+│     │  ├─ types.ts         # GameState, Action, GameEvent, Card, ERROR_KEYS
+│     │  ├─ rng.ts           # seeded RNG (mulberry32) — ห้ามใช้ Math.random
+│     │  ├─ setup.ts         # createGame({ playerIds, seed, config? })
+│     │  ├─ actions.ts       # applyAction(state, action) → { ok, state, events } | { ok: false, error }
+│     │  ├─ flow.ts          # การเปลี่ยนช่วง/รอบ (ภายใน)
+│     │  ├─ rules.ts         # ลำดับตา ผู้เริ่มรอบ ใครต้องเล่นตอนนี้ (pendingActors)
+│     │  ├─ cards.ts         # สร้างสำรับ ตรวจมื้อ (checkMeal) หามื้อที่กินได้ (findMealOptions)
+│     │  ├─ view.ts          # getPlayerView(state, playerId | null)  (null = ผู้ชม)
 │     │  ├─ scoring.ts
-│     │  └─ bots/            # greedy.ts, sly.ts, careful.ts
+│     │  └─ bots/            # random.ts (ใช้ทดสอบ) · greedy.ts, sly.ts, careful.ts (เฟส 2)
+│     ├─ scripts/simulate.ts # npm run simulate — log เกมภาษาไทยในเทอร์มินัล
 │     └─ test/
 ├─ apps/
 │  ├─ web/
@@ -50,8 +54,11 @@
   - `OnlineController` ส่ง action ไป server และรับ view กลับ
   → หน้าจอเกมไม่ต้องรู้ว่าเล่นโหมดไหน
 - **Action** ทุกตัวมี `type`, `playerId` — engine ตรวจสิทธิ์และความถูกต้องทุกครั้ง คืน error ที่อ่านได้ (เป็น i18n key)
-- **Phase machine:** `lobby → bidding → bidReveal → trash → eat → (discardExcess) → nextRound | gameOver`
+- **Phase machine (engine):** `bidding → pick → trash → eat → (discard) → รอบถัดไป | gameOver`
+  - `pick` = เปิดเลขแล้วผู้ชนะหยิบของ (ข้ามถ้าทุกคนชนกัน) · `discard` = ทิ้งการ์ดเกิน (ข้ามถ้าไม่มีใครเกิน และข้ามในรอบสุดท้าย)
+  - `lobby` อยู่นอก engine (server/หน้าจอ) · `pendingActors(state)` บอกว่ากำลังรอใครอยู่
 - **Event log:** engine คืน events (เช่น `BID_CLASH`, `DOG_CAUGHT`, `MEAL_EATEN`) เพื่อให้ UI เล่นแอนิเมชันตามลำดับ
+  - **ทุก event เป็นข้อมูลเปิด** ส่งให้ทุกคนได้ (เช่น `BID_PLACED` ไม่มีเลข, `DISCARD_CHOSEN` ไม่มีการ์ด)
 - **บันทึกเกม:** โหมดเดี่ยวบันทึก state ลง localStorage (try/catch) เล่นต่อได้หลังปิดเว็บ
 - **PWA:** เพิ่ม manifest + service worker ในเฟสหลัง ให้ติดตั้งบนมือถือและเล่นโหมดเดี่ยวแบบออฟไลน์ได้
 

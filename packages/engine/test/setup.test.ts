@@ -1,0 +1,128 @@
+import { describe, expect, it } from 'vitest';
+import { DEFAULT_CONFIG, FOOD_TYPES } from '../src/config.ts';
+import { createRng, hashSeed } from '../src/rng.ts';
+import { startPlayer } from '../src/rules.ts';
+import { createGame } from '../src/setup.ts';
+import { allCardIds, newGame, P } from './helpers.ts';
+
+const count = (cards: readonly { kind: string }[], kind: string) =>
+  cards.filter((c) => c.kind === kind).length;
+
+describe('§1 overview', () => {
+  it('allows 2–4 seats only', () => {
+    expect(() => createGame({ playerIds: ['a'], seed: 1 })).toThrow();
+    expect(() => createGame({ playerIds: [...P, 'e'], seed: 1 })).toThrow();
+    for (const n of [2, 3, 4]) expect(newGame(n).players).toHaveLength(n);
+  });
+
+  it('rejects duplicate player ids', () => {
+    expect(() => createGame({ playerIds: ['a', 'a'], seed: 1 })).toThrow();
+  });
+
+  it('plays 5 rounds and starts in round 1 bidding', () => {
+    const s = newGame();
+    expect(s.config.rounds).toBe(5);
+    expect(s.round).toBe(1);
+    expect(s.phase).toBe('bidding');
+  });
+});
+
+describe('§2 cards', () => {
+  it('has 8 of each food, 2 goldfish, 3 bones, 4 dogs — 49 unique cards', () => {
+    const s = newGame(4);
+    const every = [...s.marketDeck, ...s.market, ...s.trashDeck];
+    for (const food of FOOD_TYPES) expect(count(every, food)).toBe(8);
+    expect(count(every, 'goldfish')).toBe(2);
+    expect(count(every, 'bone')).toBe(3);
+    expect(count(every, 'dog')).toBe(4);
+    expect(new Set(allCardIds(s)).size).toBe(49);
+  });
+
+  it('gives every player meow cards 1–5', () => {
+    for (const p of newGame(4).players) expect(p.meowLeft).toEqual([1, 2, 3, 4, 5]);
+  });
+});
+
+describe('§3 setup', () => {
+  it.each([2, 3, 4])('market deck = rounds × (players + 1) for %i players', (n) => {
+    const s = newGame(n);
+    const marketSize = n + 1;
+    expect(s.market).toHaveLength(marketSize);
+    expect(s.marketDeck.length + s.market.length).toBe(5 * marketSize);
+    expect(s.trashDeck).toHaveLength(42 - 5 * marketSize + 7);
+  });
+
+  it('market holds only food and goldfish; bones and dogs are only in the bin', () => {
+    const s = newGame(4);
+    const market = [...s.marketDeck, ...s.market];
+    expect(count(market, 'bone') + count(market, 'dog')).toBe(0);
+    expect(count(s.trashDeck, 'bone')).toBe(3);
+    expect(count(s.trashDeck, 'dog')).toBe(4);
+  });
+
+  it('starts every food at price 5 (min 1)', () => {
+    const s = newGame();
+    for (const food of FOOD_TYPES) expect(s.prices[food]).toBe(5);
+    expect(DEFAULT_CONFIG.startPrice).toBe(5);
+    expect(DEFAULT_CONFIG.minPrice).toBe(1);
+  });
+
+  it('starts everyone with an empty hand', () => {
+    for (const p of newGame().players) expect(p.hand).toEqual([]);
+  });
+
+  it('picks the round-1 start player with the seeded RNG', () => {
+    const seats = new Set<number>();
+    for (let seed = 0; seed < 50; seed++) {
+      const s = createGame({ playerIds: P, seed });
+      expect(createGame({ playerIds: P, seed }).firstStartSeat).toBe(s.firstStartSeat);
+      seats.add(s.firstStartSeat);
+    }
+    expect(seats.size).toBe(4);
+  });
+
+  it('same seed gives the same deal; a different seed a different one', () => {
+    expect(newGame(3, 'x')).toEqual(newGame(3, 'x'));
+    expect(newGame(3, 'x').trashDeck).not.toEqual(newGame(3, 'y').trashDeck);
+  });
+
+  it('exposes the start player of the current round', () => {
+    const s = newGame(4);
+    expect(startPlayer(s)).toBe(P[s.firstStartSeat]);
+  });
+});
+
+describe('seeded RNG', () => {
+  it('is deterministic and resumable from its state', () => {
+    const a = createRng(42);
+    const b = createRng(42);
+    const first = [a.next(), a.next(), a.next()];
+    expect([b.next(), b.next(), b.next()]).toEqual(first);
+    const resumed = createRng(a.state);
+    expect(resumed.next()).toBe(a.next());
+  });
+
+  it('produces values in [0,1) and unbiased-looking ints', () => {
+    const rng = createRng('dist');
+    const buckets = [0, 0, 0, 0];
+    for (let i = 0; i < 4000; i++) {
+      const v = rng.next();
+      expect(v).toBeGreaterThanOrEqual(0);
+      expect(v).toBeLessThan(1);
+      buckets[rng.int(4)]!++;
+    }
+    for (const b of buckets) expect(b).toBeGreaterThan(850);
+  });
+
+  it('hashes string seeds (e.g. a Bangkok date) to a stable number', () => {
+    expect(hashSeed('2026-09-23')).toBe(hashSeed('2026-09-23'));
+    expect(hashSeed('2026-09-23')).not.toBe(hashSeed('2026-09-24'));
+  });
+
+  it('shuffle is a permutation and does not mutate its input', () => {
+    const input = [1, 2, 3, 4, 5, 6];
+    const out = createRng(7).shuffle(input);
+    expect(input).toEqual([1, 2, 3, 4, 5, 6]);
+    expect([...out].sort()).toEqual(input);
+  });
+});
