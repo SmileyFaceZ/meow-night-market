@@ -1,11 +1,11 @@
 # Roadmap — ทำทีละเฟส หยุดให้ผู้ใช้ตรวจทุกครั้งที่จบเฟส
 
 ## เฟส 0 — ตั้งโปรเจกต์
-- [ ] monorepo + TypeScript strict + ESLint + Prettier + Vitest
-- [ ] Vite + React + Tailwind + ฟอนต์ Mitr / Noto Sans Thai
-- [ ] ตั้ง CSS variables ตาม ART_DIRECTION.md
-- [ ] สร้าง `docs/DECISIONS.md` และบันทึกการตัดสินใจแรก
-- [ ] อัปเดตคำสั่งใน CLAUDE.md ให้ตรงของจริง
+- [x] monorepo + TypeScript strict + ESLint + Prettier + Vitest
+- [x] Vite + React + Tailwind + ฟอนต์ Mitr / Noto Sans Thai
+- [x] ตั้ง CSS variables ตาม ART_DIRECTION.md
+- [x] สร้าง `docs/DECISIONS.md` และบันทึกการตัดสินใจแรก
+- [x] อัปเดตคำสั่งใน CLAUDE.md ให้ตรงของจริง
 
 ## เฟส 1 — Game engine (ยังไม่มี UI)
 - [ ] types, config, seeded RNG, createGame

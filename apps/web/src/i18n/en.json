@@ -1,0 +1,56 @@
+{
+  "game": {
+    "title": "Meow Night Market",
+    "tagline": "Grab a stall, dig the bins, feast before closing time~"
+  },
+  "phase": {
+    "bidding": "Stall Scramble",
+    "trash": "Trash Dig",
+    "eat": "Feast Time"
+  },
+  "card": {
+    "fish": "Fish",
+    "chicken": "Chicken",
+    "shrimp": "Shrimp",
+    "milk": "Milk",
+    "snack": "Snack",
+    "goldfish": "Golden Fish",
+    "bone": "Bone",
+    "dog": "Guard Dog",
+    "meow": "Meow"
+  },
+  "term": {
+    "clash": "Clash!",
+    "meal": "Meal",
+    "bigMeal": "Big Feast",
+    "price": "Market Price",
+    "stop": "Stop",
+    "dig": "Dig",
+    "bag": "Bag"
+  },
+  "bonus": {
+    "variety": "Foodie Bonus"
+  },
+  "bot": {
+    "greedy": "Greedy Ginger",
+    "sly": "Sly Shadow",
+    "careful": "Careful Snowy"
+  },
+  "mode": {
+    "solo": "Solo",
+    "local": "Pass & Play",
+    "online": "Play Online"
+  },
+  "lang": {
+    "switchTo": "ภาษาไทย",
+    "switchLabel": "Switch language to Thai"
+  },
+  "dev": {
+    "setupDone": "Phase 0 · Project set up",
+    "comingSoon": "The stalls are still setting up. Opening soon, meow~",
+    "palette": "Market colours",
+    "fonts": "Fonts",
+    "fontDisplay": "Mitr — headings and numbers 0123456789",
+    "fontBody": "Noto Sans Thai — easy-to-read body text for both Thai and English"
+  }
+}

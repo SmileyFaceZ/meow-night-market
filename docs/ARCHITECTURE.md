@@ -37,6 +37,13 @@
 │  └─ server/               # Worker + Durable Object "GameRoom"
 ```
 
+## Tooling
+- TypeScript 6.0 (strict + `noUncheckedIndexedAccess` + `exactOptionalPropertyTypes`) — `tsconfig.base.json` ที่ราก
+- แพ็กเกจภายใน (`@meow/engine`) ใช้เป็นซอร์ส `.ts` ตรงๆ (`exports` ชี้ `src/index.ts`) ไม่มีขั้น build แยก
+- ความบริสุทธิ์ของ engine ตรวจอัตโนมัติ: `packages/engine/tsconfig.src.json` (ไม่มี lib DOM/Node)
+  + ESLint ห้าม `Math.random`, `Date`, DOM globals, timers และ import `react`/`node:*`
+- Vitest รันทุก workspace จากรากด้วย `test.projects` (`vitest.config.ts`) แต่ละ workspace มี `vitest.config.ts` ของตัวเอง
+
 ## หลักการสำคัญ
 - **GameController interface** เดียวกันสำหรับทุกโหมด: `getView()`, `dispatch(action)`, `subscribe(cb)`
   - `LocalController` รัน engine ในเบราว์เซอร์ (โหมดเดี่ยว / เครื่องเดียว) และขับบอท

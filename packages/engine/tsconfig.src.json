@@ -1,0 +1,10 @@
+{
+  // Purity check: engine source compiles with no DOM and no Node types,
+  // so it can run unchanged in the browser, in a Cloudflare Worker and in tests.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": []
+  },
+  "include": ["src"]
+}

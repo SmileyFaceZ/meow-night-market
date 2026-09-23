@@ -1,0 +1,97 @@
+@import 'tailwindcss';
+
+/* Fonts are self-hosted from @fontsource (same Google Fonts files) so the game works offline as a PWA. */
+@import '@fontsource/mitr/400.css';
+@import '@fontsource/mitr/500.css';
+@import '@fontsource/mitr/600.css';
+@import '@fontsource-variable/noto-sans-thai';
+
+/* Design tokens — docs/ART_DIRECTION.md › พาเลตสี.
+   SVG art in src/art/ uses these directly (fill="var(--fish)") so themes can swap them. */
+:root {
+  --night: #2b2350;
+  --night-2: #3d3270;
+  --lantern: #ffc857;
+  --card: #fff6e9;
+  --ink: #3b2a4a;
+  --fish: #5bc0eb;
+  --chicken: #f4a259;
+  --shrimp: #f25f5c;
+  --milk: #e8e4f7;
+  --milk-edge: #8e7cc3;
+  --snack: #9bc53d;
+  --gold: #ffd23f;
+  --danger: #e4572e;
+
+  --stroke: 2.5px; /* outline width for art: 2.5–3px */
+  --card-radius: 14px;
+  --card-ratio: 5 / 7;
+  --tap: 44px; /* minimum touch target */
+
+  --font-display: 'Mitr', system-ui, sans-serif;
+  --font-body: 'Noto Sans Thai Variable', system-ui, sans-serif;
+}
+
+/* Expose the tokens as Tailwind utilities: bg-night, text-ink, border-milk-edge, font-display … */
+@theme inline {
+  --color-night: var(--night);
+  --color-night-2: var(--night-2);
+  --color-lantern: var(--lantern);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-fish: var(--fish);
+  --color-chicken: var(--chicken);
+  --color-shrimp: var(--shrimp);
+  --color-milk: var(--milk);
+  --color-milk-edge: var(--milk-edge);
+  --color-snack: var(--snack);
+  --color-gold: var(--gold);
+  --color-danger: var(--danger);
+
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+
+  --radius-card: var(--card-radius);
+  --spacing-tap: var(--tap);
+}
+
+@layer base {
+  html {
+    background: var(--night);
+    color: var(--card);
+    font-family: var(--font-body);
+    /* Thai needs room for stacked vowels and tone marks. */
+    line-height: 1.6;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    min-height: 100dvh;
+    margin: 0;
+    background: var(--night);
+  }
+
+  h1,
+  h2,
+  h3,
+  button {
+    font-family: var(--font-display);
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--lantern);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

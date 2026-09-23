@@ -1,0 +1,104 @@
+import js from '@eslint/js';
+import prettier from 'eslint-config-prettier';
+import reactHooks from 'eslint-plugin-react-hooks';
+import reactRefresh from 'eslint-plugin-react-refresh';
+import globals from 'globals';
+import tseslint from 'typescript-eslint';
+
+export default tseslint.config(
+  { ignores: ['**/dist/**', '**/coverage/**', '**/node_modules/**', '**/.wrangler/**'] },
+
+  js.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
+  {
+    languageOptions: {
+      parserOptions: {
+        projectService: {
+          // Vite/Vitest configs of the web app live in tsconfig.node.json (Node types, no DOM).
+          allowDefaultProject: ['apps/web/*.config.ts'],
+          defaultProject: 'apps/web/tsconfig.node.json',
+        },
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      '@typescript-eslint/consistent-type-imports': 'error',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+    },
+  },
+  {
+    files: ['**/*.js'],
+    ...tseslint.configs.disableTypeChecked,
+    languageOptions: {
+      ...tseslint.configs.disableTypeChecked.languageOptions,
+      globals: globals.node,
+    },
+  },
+
+  // Hard rule 1 (CLAUDE.md): the engine is pure, deterministic TypeScript.
+  {
+    files: ['packages/engine/src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            { group: ['react', 'react-*', 'react/*'], message: 'Engine must not depend on React.' },
+            { group: ['node:*'], message: 'Engine must run in browsers and Workers too.' },
+            { group: ['**/apps/**'], message: 'Engine must not import from apps.' },
+          ],
+        },
+      ],
+      'no-restricted-properties': [
+        'error',
+        { object: 'Math', property: 'random', message: 'Use the seeded RNG from state.' },
+      ],
+      'no-restricted-globals': [
+        'error',
+        ...[
+          'window',
+          'document',
+          'navigator',
+          'localStorage',
+          'sessionStorage',
+          'fetch',
+          'WebSocket',
+          'setTimeout',
+          'setInterval',
+          'crypto',
+          'performance',
+        ].map((name) => ({ name, message: 'Engine is pure: no DOM, network, timers or I/O.' })),
+        { name: 'Date', message: 'Engine must be deterministic: no wall-clock time.' },
+      ],
+    },
+  },
+
+  // Web client
+  {
+    files: ['apps/web/**/*.{ts,tsx}'],
+    languageOptions: { globals: globals.browser },
+    plugins: { 'react-hooks': reactHooks, 'react-refresh': reactRefresh },
+    rules: {
+      ...reactHooks.configs.recommended.rules,
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+    },
+  },
+  // Hard rule 4 (CLAUDE.md): no hard-coded user-facing text in components.
+  {
+    files: ['apps/web/src/**/*.tsx'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'JSXText[value=/[A-Za-z\\u0E00-\\u0E7F]/]',
+          message: 'User-facing text goes in src/i18n/th.json + en.json; use t().',
+        },
+      ],
+    },
+  },
+
+  prettier,
+);
