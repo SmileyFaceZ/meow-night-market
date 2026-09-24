@@ -22,6 +22,7 @@
   --snack: #9bc53d;
   --gold: #ffd23f;
   --danger: #e4572e;
+  --alert: #ff9e9b; /* warning text on --night (contrast ≥ 4.5:1) */
 
   --stroke: 2.5px; /* outline width for art: 2.5–3px */
   --card-radius: 14px;
@@ -47,6 +48,7 @@
   --color-snack: var(--snack);
   --color-gold: var(--gold);
   --color-danger: var(--danger);
+  --color-alert: var(--alert);
 
   --font-sans: var(--font-body);
   --font-display: var(--font-display);

@@ -6,7 +6,10 @@
   "phase": {
     "bidding": "Stall Scramble",
     "trash": "Trash Dig",
-    "eat": "Feast Time"
+    "eat": "Feast Time",
+    "pick": "Stall Picks",
+    "discard": "Too Many Cards",
+    "gameOver": "Market Closed"
   },
   "card": {
     "fish": "Fish",
@@ -26,7 +29,15 @@
     "price": "Market Price",
     "stop": "Stop",
     "dig": "Dig",
-    "bag": "Bag"
+    "bag": "Bag",
+    "round": "Round {{round}}/{{rounds}}",
+    "tieOrder": "Tie-break order",
+    "market": "Market stall",
+    "trash": "Trash bin",
+    "discardPile": "Discard pile",
+    "hand": "Your hand",
+    "you": "You",
+    "empty": "Empty"
   },
   "bonus": {
     "variety": "Foodie Bonus"
@@ -36,21 +47,148 @@
     "sly": "Sly Shadow",
     "careful": "Careful Snowy"
   },
+  "botDesc": {
+    "greedy": "Bids high, digs boldly, eats the moment it can",
+    "sly": "Loves clashing with the leader and eating first",
+    "careful": "Saves high numbers, digs a little, waits for big feasts"
+  },
   "mode": {
     "solo": "Solo",
     "local": "Pass & Play",
     "online": "Play Online"
   },
+  "cat": {
+    "orange": "Ginger",
+    "black": "Black",
+    "white": "White",
+    "calico": "Calico"
+  },
+  "difficulty": {
+    "easy": "Easy",
+    "normal": "Normal"
+  },
   "lang": {
     "switchTo": "ภาษาไทย",
     "switchLabel": "Switch language to Thai"
   },
-  "dev": {
-    "setupDone": "Phase 0 · Project set up",
-    "comingSoon": "The stalls are still setting up. Opening soon, meow~",
-    "palette": "Market colours",
-    "fonts": "Fonts",
-    "fontDisplay": "Mitr — headings and numbers 0123456789",
-    "fontBody": "Noto Sans Thai — easy-to-read body text for both Thai and English"
+  "home": {
+    "continue": "Continue",
+    "continueHint": "Round {{round}} · {{players}} cats",
+    "howTo": "How to play",
+    "comingSoon": "Coming soon",
+    "newGameConfirm": "Starting a new game replaces your saved one"
+  },
+  "setup": {
+    "title": "Game setup",
+    "yourName": "Your nickname",
+    "namePlaceholder": "Meow",
+    "nameHint": "Up to {{max}} characters",
+    "yourCat": "Pick your cat",
+    "opponents": "Opponents ({{count}}/3)",
+    "addBot": "+ Add opponent",
+    "removeBot": "Remove",
+    "personality": "Personality",
+    "difficulty": "Difficulty",
+    "start": "Let's go!",
+    "back": "Back"
+  },
+  "hint": {
+    "biddingChoose": "Secretly pick one meow card, then tap Bid",
+    "biddingWaiting": "Bid placed, waiting for the others… ({{done}}/{{total}})",
+    "pickYours": "Your turn! Tap one food on the stall",
+    "pickWaiting": "{{name}} is picking…",
+    "trashYours": "Keep digging, or stop?",
+    "trashDog": "A guard dog! Throw a bone?",
+    "trashWaiting": "{{name}} is digging…",
+    "eatYours": "Pick a meal to eat, or tap Done",
+    "eatWaiting": "{{name}} is eating…",
+    "discardYours": "Too many cards! Discard {{count}}",
+    "discardWaiting": "Waiting for the others to discard…",
+    "gameOver": "The market has closed! Let's see the scores"
+  },
+  "action": {
+    "bid": "Bid",
+    "throwBone": "Throw bone",
+    "acceptDog": "Run away",
+    "eatMeal": "Eat {{food}} +{{points}}",
+    "eatBigMeal": "Big {{food}} feast +{{points}}",
+    "withGoldfish": "uses golden fish",
+    "finishEating": "Done eating",
+    "discardConfirm_one": "Discard {{count}} card",
+    "discardConfirm_other": "Discard {{count}} cards",
+    "seeResult": "See scores",
+    "viewDiscard": "Discards ({{count}})",
+    "close": "Close",
+    "menu": "Menu",
+    "quit": "Back to home",
+    "keepPlaying": "Keep playing"
+  },
+  "reason": {
+    "digDisabled": "Only guard dogs left and the discard pile is empty — nothing to dig",
+    "discardCount": "Choose exactly {{count}}"
+  },
+  "trash": {
+    "status": "{{count}} left · {{dogs}} dogs",
+    "risk": "Dog chance {{percent}}%"
+  },
+  "player": {
+    "cards_one": "{{count}} card",
+    "cards_other": "{{count}} cards",
+    "points": "{{count}} pts",
+    "bidReady": "Ready",
+    "thinking": "Thinking…",
+    "meowLeft": "Numbers left",
+    "yourTurn": "Your turn",
+    "bones_one": "{{count}} bone",
+    "bones_other": "{{count}} bones"
+  },
+  "feed": {
+    "round": "Round {{round}} begins!",
+    "clash": "Clash! {{names}} both bid {{value}}",
+    "picked": "{{name}} took {{card}}",
+    "dug": "{{name}} dug up {{card}}",
+    "dog": "Woof! A guard dog finds {{name}}",
+    "bone": "{{name}} threw a bone and got away!",
+    "caught_one": "{{name}} got chased off! Lost {{count}} card",
+    "caught_other": "{{name}} got chased off! Lost {{count}} cards",
+    "kept_one": "{{name}} stopped and kept {{count}} card",
+    "kept_other": "{{name}} stopped and kept {{count}} cards",
+    "meal": "{{name}} ate {{food}} +{{points}} nom nom",
+    "bigMeal": "{{name}} had a big {{food}} feast! +{{points}}",
+    "skipped": "{{name}} has nothing to eat",
+    "discarded_one": "{{name}} discarded {{count}} card",
+    "discarded_other": "{{name}} discarded {{count}} cards",
+    "reshuffle": "The discard pile goes back into the bin"
+  },
+  "result": {
+    "title": "Market closed! Final scores",
+    "winner": "{{name}} wins!",
+    "sharedWin": "A shared win!",
+    "mealPoints": "Meals",
+    "bonus": "Foodie",
+    "total": "Total",
+    "handLeft": "In hand",
+    "foodTypes": "{{count}} kinds eaten",
+    "playAgain": "Play again",
+    "home": "Home"
+  },
+  "error": {
+    "gameOver": "The game is over",
+    "wrongPhase": "Not now",
+    "notYourTurn": "It's not your turn yet",
+    "unknownPlayer": "Unknown player",
+    "alreadyBid": "You already bid",
+    "meowUsed": "That number is used up",
+    "cardNotInMarket": "That card is gone from the stall",
+    "dogPending": "Deal with the dog first",
+    "noDogPending": "There's no dog right now",
+    "noBone": "You have no bone",
+    "trashEmpty": "Only dogs left — nothing to dig",
+    "cardNotInHand": "That card isn't in your hand",
+    "duplicateCard": "Same card chosen twice",
+    "invalidMeal": "That's not a meal",
+    "noDiscardNeeded": "No need to discard",
+    "alreadyDiscarded": "You already chose",
+    "wrongDiscardCount": "Wrong number of cards"
   }
 }

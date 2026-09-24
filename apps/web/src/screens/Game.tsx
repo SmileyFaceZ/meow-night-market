@@ -1,0 +1,445 @@
+import { type Card, findMealOptions, type MealOption, type PlayerView } from '@meow/engine';
+import { useMemo, useState } from 'react';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
+import {
+  EventFeed,
+  HandView,
+  MarketStall,
+  PlayerBadge,
+  type PlayerStatus,
+  PriceTags,
+  TrashArea,
+} from '../components/board';
+import { GameCard, MeowCard } from '../components/cards';
+import { CatArt } from '../art/CatArt';
+import { Button, Modal } from '../components/ui';
+import { describeEvent, useSeatName, useSnapshot } from '../game/hooks';
+import type { GameController, SeatInfo } from '../game/types';
+
+export function GameScreen({
+  controller,
+  onShowResult,
+  onQuit,
+}: {
+  controller: GameController;
+  onShowResult: () => void;
+  onQuit: () => void;
+}) {
+  const { t } = useTranslation();
+  const { view, seats, recentEvents } = useSnapshot(controller);
+  const seatName = useSeatName(seats);
+  const [bid, setBid] = useState<number | null>(null);
+  const [toDiscard, setToDiscard] = useState<number[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [modal, setModal] = useState<'discard' | 'menu' | { player: string } | null>(null);
+
+  const me = view.players.find((p) => p.id === view.viewer)!;
+  const myTurn = view.currentPlayer === view.viewer;
+  const feed = useMemo(
+    () =>
+      recentEvents
+        .map((e) => describeEvent(e, seatName, (kind) => t(`card.${kind}`)))
+        .filter((line) => line !== null),
+    [recentEvents, seatName, t],
+  );
+
+  const act = (action: Parameters<GameController['dispatch']>[0]) => {
+    const err = controller.dispatch(action);
+    setError(err ? t(err) : null);
+    return err === null;
+  };
+
+  const statusOf = (id: string): PlayerStatus => {
+    const p = view.players.find((x) => x.id === id)!;
+    if (view.phase === 'bidding')
+      return p.hasBid ? 'ready' : id === view.viewer ? null : 'thinking';
+    if (view.phase === 'discard') {
+      if (p.mustDiscard === 0) return null;
+      return p.hasDiscarded ? 'ready' : 'thinking';
+    }
+    return view.currentPlayer === id ? 'turn' : null;
+  };
+
+  const phaseTitle = t(`phase.${view.phase}`);
+  const needsMe =
+    myTurn ||
+    (view.phase === 'bidding' && !me.hasBid) ||
+    (view.phase === 'discard' && me.mustDiscard > 0 && !me.hasDiscarded);
+  const hint = hintFor(view, myTurn, me.mustDiscard, seatName, t);
+  const opponents = view.players.filter((p) => p.id !== view.viewer);
+  const seatOf = (id: string) => seats.find((s) => s.id === id)!;
+  const opened =
+    modal && typeof modal === 'object' ? view.players.find((p) => p.id === modal.player) : null;
+
+  return (
+    <main className="mx-auto flex min-h-dvh max-w-xl flex-col gap-1.5 px-3 pt-2">
+      {/* top bar */}
+      <header className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs text-card/70">
+            {t('term.round', { round: view.round, rounds: view.config.rounds })}
+          </p>
+          <h1 className="truncate text-lg leading-tight text-lantern">{phaseTitle}</h1>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <Button variant="secondary" onClick={() => setModal('discard')}>
+            {t('action.viewDiscard', { count: view.discard.length })}
+          </Button>
+          <Button variant="secondary" onClick={() => setModal('menu')} ariaLabel={t('action.menu')}>
+            ☰
+          </Button>
+        </div>
+      </header>
+
+      {/* opponents */}
+      <section
+        className="grid gap-1.5"
+        style={{ gridTemplateColumns: `repeat(${opponents.length}, minmax(0, 1fr))` }}
+      >
+        {opponents.map((p) => (
+          <PlayerBadge
+            key={p.id}
+            player={p}
+            seat={seatOf(p.id)}
+            name={seatName(p.id)}
+            status={statusOf(p.id)}
+            stacked={opponents.length >= 3}
+            onOpen={() => setModal({ player: p.id })}
+          />
+        ))}
+      </section>
+
+      {/* one-line instruction */}
+      <p
+        role="status"
+        aria-live="polite"
+        className={`rounded-2xl px-3 py-1.5 text-center font-display text-base leading-snug ${needsMe ? 'bg-lantern text-ink' : 'bg-night-2 text-card'}`}
+      >
+        {hint}
+      </p>
+
+      <TieOrder view={view} seats={seats} name={seatName} />
+      <PriceTags prices={view.prices} />
+
+      <MarketStall
+        cards={view.market}
+        deckCount={view.marketDeckCount}
+        onPick={
+          view.phase === 'pick' && myTurn
+            ? (card: Card) => act({ type: 'pick', playerId: me.id, cardId: card.id })
+            : undefined
+        }
+      />
+      <TrashArea view={view} />
+      <EventFeed lines={feed} />
+
+      {/* me */}
+      <section className="sticky bottom-0 z-10 mt-auto rounded-t-3xl bg-night-2 p-2 pb-3 shadow-[0_-8px_24px_rgb(0_0_0/0.35)]">
+        <PlayerBadge
+          player={me}
+          seat={seatOf(me.id)}
+          name={seatName(me.id)}
+          status={statusOf(me.id)}
+          isYou
+        />
+        <HandView
+          cards={view.hand}
+          selectable={view.phase === 'discard' && me.mustDiscard > 0 && !me.hasDiscarded}
+          selected={toDiscard}
+          onToggle={(card) =>
+            setToDiscard((ids) =>
+              ids.includes(card.id) ? ids.filter((x) => x !== card.id) : [...ids, card.id],
+            )
+          }
+        />
+        <div className="mt-3 space-y-2">
+          <Actions
+            view={view}
+            myTurn={myTurn}
+            bid={bid}
+            setBid={setBid}
+            toDiscard={toDiscard}
+            clearDiscard={() => setToDiscard([])}
+            act={act}
+            onShowResult={onShowResult}
+          />
+          {error && (
+            <p role="alert" className="text-center text-sm text-alert">
+              {error}
+            </p>
+          )}
+        </div>
+      </section>
+
+      {modal === 'discard' && (
+        <Modal
+          title={t('term.discardPile')}
+          onClose={() => setModal(null)}
+          closeLabel={t('action.close')}
+        >
+          <HandView cards={view.discard} />
+        </Modal>
+      )}
+      {modal === 'menu' && (
+        <Modal
+          title={t('action.menu')}
+          onClose={() => setModal(null)}
+          closeLabel={t('action.close')}
+        >
+          <div className="grid gap-2">
+            <Button onClick={() => setModal(null)}>{t('action.keepPlaying')}</Button>
+            <Button variant="secondary" onClick={onQuit}>
+              {t('action.quit')}
+            </Button>
+          </div>
+        </Modal>
+      )}
+      {opened && (
+        <Modal
+          title={seatName(opened.id)}
+          onClose={() => setModal(null)}
+          closeLabel={t('action.close')}
+        >
+          <p className="mb-1 text-sm text-card/80">
+            {t('player.meowLeft')}: {opened.meowLeft.join(' · ') || '—'}
+          </p>
+          <HandView cards={opened.hand} />
+          {opened.meals.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {opened.meals.map((meal, i) => (
+                <span
+                  key={i}
+                  className="flex items-center gap-1 rounded-xl bg-night px-2 py-1 text-sm"
+                >
+                  <GameCard kind={meal.food} size="xs" />+{meal.points}
+                </span>
+              ))}
+            </div>
+          )}
+        </Modal>
+      )}
+    </main>
+  );
+}
+
+function TieOrder({
+  view,
+  seats,
+  name,
+}: {
+  view: PlayerView;
+  seats: readonly SeatInfo[];
+  name: (id: string) => string;
+}) {
+  const { t } = useTranslation();
+  const label = view.tieOrder
+    .map((id, i) => `${i + 1}. ${id === view.viewer ? t('term.you') : name(id)}`)
+    .join(', ');
+  return (
+    <div
+      className="flex items-center gap-1.5 text-xs text-card/80"
+      aria-label={`${t('term.tieOrder')}: ${label}`}
+    >
+      <span aria-hidden>{t('term.tieOrder')}</span>
+      <ol className="flex items-center gap-1" aria-hidden>
+        {view.tieOrder.map((id, i) => {
+          const seat = seats.find((s) => s.id === id)!;
+          return (
+            <li
+              key={id}
+              className={`flex items-center gap-0.5 rounded-full py-0.5 pr-1.5 pl-0.5 ${id === view.viewer ? 'bg-lantern text-ink' : 'bg-night-2'}`}
+            >
+              <span className="size-5">
+                <CatArt color={seat.cat} />
+              </span>
+              <span className="font-display">{i + 1}</span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+function hintFor(
+  view: PlayerView,
+  myTurn: boolean,
+  mustDiscard: number,
+  name: (id: string | null) => string,
+  t: TFunction,
+): string {
+  const me = view.players.find((p) => p.id === view.viewer)!;
+  const current = name(view.currentPlayer);
+  switch (view.phase) {
+    case 'bidding': {
+      const done = view.players.filter((p) => p.hasBid).length;
+      return me.hasBid
+        ? t('hint.biddingWaiting', { done, total: view.players.length })
+        : t('hint.biddingChoose');
+    }
+    case 'pick':
+      return myTurn ? t('hint.pickYours') : t('hint.pickWaiting', { name: current });
+    case 'trash':
+      if (!myTurn) return t('hint.trashWaiting', { name: current });
+      return view.pendingDog ? t('hint.trashDog') : t('hint.trashYours');
+    case 'eat':
+      return myTurn ? t('hint.eatYours') : t('hint.eatWaiting', { name: current });
+    case 'discard':
+      return mustDiscard > 0 && !me.hasDiscarded
+        ? t('hint.discardYours', { count: mustDiscard })
+        : t('hint.discardWaiting');
+    case 'gameOver':
+      return t('hint.gameOver');
+  }
+}
+
+function Actions({
+  view,
+  myTurn,
+  bid,
+  setBid,
+  toDiscard,
+  clearDiscard,
+  act,
+  onShowResult,
+}: {
+  view: PlayerView;
+  myTurn: boolean;
+  bid: number | null;
+  setBid: (v: number | null) => void;
+  toDiscard: number[];
+  clearDiscard: () => void;
+  act: (action: Parameters<GameController['dispatch']>[0]) => boolean;
+  onShowResult: () => void;
+}) {
+  const { t } = useTranslation();
+  const me = view.players.find((p) => p.id === view.viewer)!;
+  const playerId = me.id;
+
+  if (view.phase === 'bidding' && !me.hasBid) {
+    return (
+      <>
+        <div className="flex justify-center gap-1.5" role="group" aria-label={t('card.meow')}>
+          {[...me.meowLeft]
+            .sort((a, b) => a - b)
+            .map((value) => (
+              <MeowCard
+                key={value}
+                value={value}
+                label={`${t('card.meow')} ${value}`}
+                selected={bid === value}
+                onSelect={() => setBid(value)}
+              />
+            ))}
+        </div>
+        <Button
+          className="w-full"
+          disabledReason={bid === null ? t('hint.biddingChoose') : null}
+          onClick={() => {
+            if (bid !== null && act({ type: 'bid', playerId, value: bid })) setBid(null);
+          }}
+        >
+          {t('action.bid')}
+          {bid !== null && ` ${bid}`}
+        </Button>
+      </>
+    );
+  }
+
+  if (view.phase === 'trash' && myTurn) {
+    if (view.pendingDog) {
+      return (
+        <div className="grid grid-cols-2 gap-2">
+          <Button onClick={() => act({ type: 'resolveDog', playerId, useBone: true })}>
+            {t('action.throwBone')}
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => act({ type: 'resolveDog', playerId, useBone: false })}
+          >
+            {t('action.acceptDog')}
+          </Button>
+        </div>
+      );
+    }
+    return (
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          disabledReason={view.trashDiggable ? null : t('reason.digDisabled')}
+          onClick={() => act({ type: 'dig', playerId })}
+        >
+          {t('term.dig')}
+        </Button>
+        <Button variant="secondary" onClick={() => act({ type: 'stop', playerId })}>
+          {t('term.stop')}
+        </Button>
+      </div>
+    );
+  }
+
+  if (view.phase === 'eat' && myTurn) {
+    const options = bestMealOptions(findMealOptions(view.hand, view.config));
+    return (
+      <div className="grid gap-2">
+        {options.map((option) => (
+          <Button
+            key={`${option.food}-${option.big}-${option.usesGoldfish}`}
+            onClick={() => act({ type: 'eat', playerId, cardIds: option.cardIds })}
+          >
+            {t(option.big ? 'action.eatBigMeal' : 'action.eatMeal', {
+              food: t(`card.${option.food}`),
+              points: pointsOf(view, option),
+            })}
+            {option.usesGoldfish && (
+              <span className="block text-xs">{t('action.withGoldfish')}</span>
+            )}
+          </Button>
+        ))}
+        <Button variant="secondary" onClick={() => act({ type: 'finishEating', playerId })}>
+          {t('action.finishEating')}
+        </Button>
+      </div>
+    );
+  }
+
+  if (view.phase === 'discard' && me.mustDiscard > 0 && !me.hasDiscarded) {
+    const ready = toDiscard.length === me.mustDiscard;
+    return (
+      <Button
+        className="w-full"
+        disabledReason={ready ? null : t('reason.discardCount', { count: me.mustDiscard })}
+        onClick={() => {
+          if (act({ type: 'discard', playerId, cardIds: toDiscard })) clearDiscard();
+        }}
+      >
+        {t('action.discardConfirm', { count: me.mustDiscard })}
+      </Button>
+    );
+  }
+
+  if (view.phase === 'gameOver') {
+    return (
+      <Button className="w-full" onClick={onShowResult}>
+        {t('action.seeResult')}
+      </Button>
+    );
+  }
+  return null;
+}
+
+function pointsOf(view: PlayerView, option: MealOption): number {
+  const price = view.prices[option.food];
+  return option.big ? price * view.config.bigMealMultiplier : price;
+}
+
+/** One button per food and size; offer the goldfish version only when it is the only way. */
+function bestMealOptions(options: readonly MealOption[]): MealOption[] {
+  const byShape = new Map<string, MealOption>();
+  for (const option of options) {
+    const key = `${option.food}-${option.big}`;
+    const existing = byShape.get(key);
+    if (!existing || (existing.usesGoldfish && !option.usesGoldfish)) byShape.set(key, option);
+  }
+  return [...byShape.values()];
+}

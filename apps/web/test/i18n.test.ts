@@ -1,3 +1,4 @@
+import { BOT_PERSONALITIES, ERROR_KEYS, FOOD_TYPES } from '@meow/engine';
 import { describe, expect, it } from 'vitest';
 import en from '../src/i18n/en.json';
 import th from '../src/i18n/th.json';
@@ -55,6 +56,20 @@ describe('i18n dictionaries (docs/I18N.md)', () => {
     for (const [key, [thText, enText]] of Object.entries(glossary)) {
       expect(thKeys.get(key), key).toBe(thText);
       expect(enKeys.get(key), key).toBe(enText);
+    }
+  });
+
+  it('translates every error key, phase, card and bot the engine can produce', () => {
+    const phases = ['bidding', 'pick', 'trash', 'eat', 'discard', 'gameOver'];
+    const needed = [
+      ...ERROR_KEYS,
+      ...phases.map((p) => `phase.${p}`),
+      ...[...FOOD_TYPES, 'goldfish', 'bone', 'dog'].map((k) => `card.${k}`),
+      ...BOT_PERSONALITIES.flatMap((b) => [`bot.${b}`, `botDesc.${b}`]),
+    ];
+    for (const key of needed) {
+      expect(thKeys.has(key), key).toBe(true);
+      expect(enKeys.has(key), key).toBe(true);
     }
   });
 });

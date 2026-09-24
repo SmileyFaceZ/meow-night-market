@@ -32,13 +32,15 @@
 │     └─ test/
 ├─ apps/
 │  ├─ web/
-│  │  └─ src/
-│  │     ├─ art/            # SVG components ของการ์ด แมว หมา ฉาก
-│  │     ├─ components/     # Card, Hand, MarketStall, TrashBin, PriceTags, PlayerBadge ...
-│  │     ├─ screens/        # Home, Lobby, Game, Result, Tutorial, Settings
-│  │     ├─ game/           # adapters: LocalController, OnlineController (interface เดียวกัน)
-│  │     ├─ i18n/           # th.json, en.json
-│  │     └─ styles/
+│  │  ├─ src/
+│  │  │  ├─ art/            # SVG: CardArt (ทุกการ์ด), CatArt (4 สี × 4 อารมณ์), BackArt (หลังการ์ด, ถังขยะ), style.ts
+│  │  │  ├─ components/     # cards (GameCard, MeowCard, CardBack), board (PlayerBadge, PriceTags, MarketStall,
+│  │  │  │                  #   TrashArea, HandView, EventFeed), ui (Button, Modal)
+│  │  │  ├─ screens/        # Home, Setup, Game, Result (Lobby, Tutorial เฟสหลัง)
+│  │  │  ├─ game/           # types (GameController), LocalController, save, setup, hooks
+│  │  │  ├─ i18n/           # th.json, en.json, index.ts
+│  │  │  └─ styles/
+│  │  └─ test/              # i18n, controller + save/resume
 │  └─ server/               # Worker + Durable Object "GameRoom"
 ```
 

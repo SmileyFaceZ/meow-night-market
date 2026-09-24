@@ -6,7 +6,10 @@
   "phase": {
     "bidding": "แย่งแผงอาหาร",
     "trash": "คุ้ยถังขยะ",
-    "eat": "เวลากิน"
+    "eat": "เวลากิน",
+    "pick": "เลือกของจากแผง",
+    "discard": "มือเกิน",
+    "gameOver": "ตลาดวาย"
   },
   "card": {
     "fish": "ปลา",
@@ -26,7 +29,15 @@
     "price": "ราคาตลาด",
     "stop": "พอแล้ว",
     "dig": "คุ้ยต่อ",
-    "bag": "ถุง"
+    "bag": "ถุง",
+    "round": "รอบ {{round}}/{{rounds}}",
+    "tieOrder": "ลำดับตัดสินเสมอ",
+    "market": "แผงตลาด",
+    "trash": "ถังขยะ",
+    "discardPile": "กองทิ้ง",
+    "hand": "มือของเธอ",
+    "you": "เธอ",
+    "empty": "ว่างเปล่า"
   },
   "bonus": {
     "variety": "แมวกินเก่ง"
@@ -36,21 +47,148 @@
     "sly": "แมวดำเจ้าเล่ห์",
     "careful": "แมวขาวขี้ระวัง"
   },
+  "botDesc": {
+    "greedy": "ลงเลขสูง คุ้ยกล้า เห็นชุดก็กินทันที",
+    "sly": "ชอบลงเลขชนคนที่นำ แย่งกินตัดหน้า",
+    "careful": "เก็บเลขสูงไว้ท้ายเกม คุ้ยนิดเดียว รอมื้อใหญ่"
+  },
   "mode": {
     "solo": "เล่นคนเดียว",
     "local": "เล่นเครื่องเดียว",
     "online": "เล่นกับเพื่อน"
   },
+  "cat": {
+    "orange": "แมวส้ม",
+    "black": "แมวดำ",
+    "white": "แมวขาว",
+    "calico": "แมวสามสี"
+  },
+  "difficulty": {
+    "easy": "ง่าย",
+    "normal": "ปกติ"
+  },
   "lang": {
     "switchTo": "English",
     "switchLabel": "เปลี่ยนภาษาเป็นอังกฤษ"
   },
-  "dev": {
-    "setupDone": "เฟส 0 · ตั้งโปรเจกต์เรียบร้อย",
-    "comingSoon": "แผงกำลังจัดของ ใกล้เปิดแล้ว เหมียว~",
-    "palette": "สีของตลาด",
-    "fonts": "ฟอนต์",
-    "fontDisplay": "Mitr — หัวข้อ ตัวเลข 0123456789",
-    "fontBody": "Noto Sans Thai — เนื้อหาอ่านง่าย สระและวรรณยุกต์ไม่ชนกัน ผู้ใหญ่หาผ้าใหม่ให้สะใภ้ใช้คล้องคอ"
+  "home": {
+    "continue": "เล่นต่อ",
+    "continueHint": "รอบ {{round}} · {{players}} ตัว",
+    "howTo": "วิธีเล่น",
+    "comingSoon": "เร็วๆ นี้",
+    "newGameConfirm": "เริ่มเกมใหม่แล้วเกมที่ค้างไว้จะหายไปนะ"
+  },
+  "setup": {
+    "title": "ตั้งค่าเกม",
+    "yourName": "ชื่อเล่นของเธอ",
+    "namePlaceholder": "เหมียว",
+    "nameHint": "ไม่เกิน {{max}} ตัวอักษร",
+    "yourCat": "เลือกแมวของเธอ",
+    "opponents": "คู่แข่ง ({{count}}/3)",
+    "addBot": "+ เพิ่มคู่แข่ง",
+    "removeBot": "เอาออก",
+    "personality": "นิสัย",
+    "difficulty": "ความยาก",
+    "start": "เริ่มเลย!",
+    "back": "กลับ"
+  },
+  "hint": {
+    "biddingChoose": "เลือกเสียงเหมียว 1 ใบ แบบลับ แล้วกดลงเลข",
+    "biddingWaiting": "ลงเลขแล้ว รอคนอื่นอยู่… ({{done}}/{{total}})",
+    "pickYours": "ถึงตาเธอ! แตะอาหารบนแผง 1 ใบ",
+    "pickWaiting": "{{name}} กำลังเลือกของ…",
+    "trashYours": "คุ้ยถังต่อ หรือพอแล้ว?",
+    "trashDog": "หมายามโผล่มา! จะโยนกระดูกไหม?",
+    "trashWaiting": "{{name}} กำลังคุ้ยถัง…",
+    "eatYours": "เลือกมื้อที่จะกิน หรือกดกินเสร็จ",
+    "eatWaiting": "{{name}} กำลังกิน…",
+    "discardYours": "มือเกิน! เลือกทิ้ง {{count}} ใบ",
+    "discardWaiting": "รอคนอื่นเลือกทิ้งการ์ด…",
+    "gameOver": "ตลาดวายแล้ว! ไปดูผลกัน"
+  },
+  "action": {
+    "bid": "ลงเลข",
+    "throwBone": "โยนกระดูก",
+    "acceptDog": "ยอมโดนไล่",
+    "eatMeal": "กิน{{food}} +{{points}}",
+    "eatBigMeal": "มื้อใหญ่{{food}} +{{points}}",
+    "withGoldfish": "ใช้ปลาทอง",
+    "finishEating": "กินเสร็จ",
+    "discardConfirm_one": "ทิ้ง {{count}} ใบ",
+    "discardConfirm_other": "ทิ้ง {{count}} ใบ",
+    "seeResult": "ดูผล",
+    "viewDiscard": "กองทิ้ง ({{count}})",
+    "close": "ปิด",
+    "menu": "เมนู",
+    "quit": "ออกไปหน้าแรก",
+    "keepPlaying": "เล่นต่อ"
+  },
+  "reason": {
+    "digDisabled": "ในถังเหลือแต่หมา และกองทิ้งว่าง คุ้ยไม่ได้แล้ว",
+    "discardCount": "ต้องเลือกให้ครบ {{count}} ใบ"
+  },
+  "trash": {
+    "status": "เหลือ {{count}} ใบ · หมา {{dogs}} ตัว",
+    "risk": "โอกาสเจอหมา {{percent}}%"
+  },
+  "player": {
+    "cards_one": "{{count}} ใบ",
+    "cards_other": "{{count}} ใบ",
+    "points": "{{count}} แต้ม",
+    "bidReady": "เลือกแล้ว",
+    "thinking": "กำลังคิด…",
+    "meowLeft": "เลขที่เหลือ",
+    "yourTurn": "ตาเธอ",
+    "bones_one": "กระดูก {{count}}",
+    "bones_other": "กระดูก {{count}}"
+  },
+  "feed": {
+    "round": "รอบที่ {{round}} เริ่มแล้ว!",
+    "clash": "ชนกัน! {{names}} ลงเลข {{value}}",
+    "picked": "{{name}} หยิบ{{card}}",
+    "dug": "{{name}} คุ้ยได้{{card}}",
+    "dog": "โฮ่ง! หมายามโผล่มาหา {{name}}",
+    "bone": "{{name}} โยนกระดูก รอดตัว!",
+    "caught_one": "{{name}} โดนไล่! ของในถุงหาย {{count}} ใบ",
+    "caught_other": "{{name}} โดนไล่! ของในถุงหาย {{count}} ใบ",
+    "kept_one": "{{name}} พอแล้ว เก็บ {{count}} ใบ",
+    "kept_other": "{{name}} พอแล้ว เก็บ {{count}} ใบ",
+    "meal": "{{name}} กิน{{food}} +{{points}} งั่มๆ",
+    "bigMeal": "{{name}} กิน{{food}}มื้อใหญ่! +{{points}}",
+    "skipped": "{{name}} ไม่มีชุดให้กิน",
+    "discarded_one": "{{name}} ทิ้ง {{count}} ใบ",
+    "discarded_other": "{{name}} ทิ้ง {{count}} ใบ",
+    "reshuffle": "สับกองทิ้งกลับเข้าถังขยะ"
+  },
+  "result": {
+    "title": "ตลาดวาย! สรุปแต้ม",
+    "winner": "{{name}} ชนะ!",
+    "sharedWin": "ชนะร่วมกัน!",
+    "mealPoints": "มื้ออาหาร",
+    "bonus": "แมวกินเก่ง",
+    "total": "รวม",
+    "handLeft": "เหลือในมือ",
+    "foodTypes": "กิน {{count}} ชนิด",
+    "playAgain": "เล่นอีกตา",
+    "home": "หน้าแรก"
+  },
+  "error": {
+    "gameOver": "เกมจบแล้ว",
+    "wrongPhase": "ยังไม่ถึงช่วงนี้",
+    "notYourTurn": "ยังไม่ถึงตาเธอ",
+    "unknownPlayer": "ไม่พบผู้เล่นคนนี้",
+    "alreadyBid": "ลงเลขไปแล้ว",
+    "meowUsed": "ใช้เลขนี้ไปแล้ว",
+    "cardNotInMarket": "การ์ดใบนี้ไม่อยู่บนแผงแล้ว",
+    "dogPending": "ต้องตัดสินใจเรื่องหมาก่อน",
+    "noDogPending": "ตอนนี้ไม่มีหมา",
+    "noBone": "ไม่มีกระดูกในมือ",
+    "trashEmpty": "ในถังเหลือแต่หมา คุ้ยไม่ได้แล้ว",
+    "cardNotInHand": "การ์ดใบนี้ไม่อยู่ในมือ",
+    "duplicateCard": "เลือกการ์ดซ้ำ",
+    "invalidMeal": "ชุดนี้กินไม่ได้",
+    "noDiscardNeeded": "ไม่ต้องทิ้งการ์ด",
+    "alreadyDiscarded": "เลือกทิ้งไปแล้ว",
+    "wrongDiscardCount": "จำนวนการ์ดที่ทิ้งไม่ถูก"
   }
 }
