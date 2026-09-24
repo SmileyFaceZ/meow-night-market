@@ -172,3 +172,28 @@ export function moodFromBeat(beat: Beat | null, playerId: PlayerId): CatMood | n
       return null;
   }
 }
+
+export type Moods = Readonly<Record<PlayerId, CatMood>>;
+
+/**
+ * Cat faces follow the events (docs/ART_DIRECTION.md › ตัวละคร): full after a meal and
+ * happy after a good grab last for the rest of the round; shock lasts only while the dog
+ * barks or the clash lands. A new round resets everyone.
+ */
+export function moodsWhenBeatStarts(moods: Moods, beat: Beat): Moods {
+  if (beat.kind === 'round') return {};
+  if (beat.kind === 'reveal') {
+    const next = { ...moods };
+    for (const c of beat.clashes) for (const id of c.playerIds) next[id] = 'shocked';
+    return next;
+  }
+  if (!('playerId' in beat)) return moods;
+  const mood = moodFromBeat(beat, beat.playerId);
+  return mood ? { ...moods, [beat.playerId]: mood } : moods;
+}
+
+export function moodsWhenBeatEnds(moods: Moods): Moods {
+  const next: Record<PlayerId, CatMood> = {};
+  for (const [id, mood] of Object.entries(moods)) if (mood !== 'shocked') next[id] = mood;
+  return next;
+}

@@ -15,7 +15,6 @@ import { GameCard, MeowCard } from '../components/cards';
 import { CatArt } from '../art/CatArt';
 import { Button, Modal } from '../components/ui';
 import { describeEvent, useSeatName, useSnapshot } from '../game/hooks';
-import { moodFromBeat } from '../game/stage';
 import { useStage } from '../game/useStage';
 import { Stage } from '../components/Stage';
 import type { TutorialState, TutorialTarget } from '../game/tutorial';
@@ -48,8 +47,7 @@ export function GameScreen({
   const { view, seats, recentEvents } = useSnapshot(controller);
   const seatName = useSeatName(seats);
   const stage = useStage(controller);
-  const beat = stage.current?.beat ?? null;
-  const moodOf = (id: string) => moodFromBeat(beat, id) ?? 'normal';
+  const moodOf = (id: string) => stage.moods[id] ?? 'normal';
   // The coach speaks only when the game has caught up (stage idle) and its step applies.
   const coachStep = coach && !stage.current && coach.state.ready ? coach.state.step : null;
   const target = coachStep?.target ?? null;

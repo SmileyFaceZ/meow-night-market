@@ -5,6 +5,8 @@ import {
   BEAT_MS,
   CLASH_EXTRA_MS,
   isBlocking,
+  moodsWhenBeatEnds,
+  moodsWhenBeatStarts,
   newEvents,
   OWN_MOVE_MS,
   toBeats,
@@ -69,5 +71,22 @@ describe('stage beats', () => {
     expect(isBlocking({ kind: 'bone', playerId: 'a' }, 'a')).toBe(false);
     expect(beatDuration({ ...dug, playerId: 'a' }, 'a')).toBe(OWN_MOVE_MS);
     expect(beatDuration(dug, 'a')).toBe(BEAT_MS.dug);
+  });
+
+  it('cat faces: full and happy last the round, shock fades, a new round resets', () => {
+    const meal = { round: 1, food: 'fish' as const, cards: [], big: false, price: 5, points: 5 };
+    let moods = moodsWhenBeatStarts({}, { kind: 'meal', playerId: 'a', meal, newPrice: 4 });
+    expect(moods).toEqual({ a: 'full' });
+    moods = moodsWhenBeatStarts(moods, { kind: 'caught', playerId: 'b', lost: [] });
+    expect(moods).toEqual({ a: 'full', b: 'shocked' });
+    moods = moodsWhenBeatEnds(moods);
+    expect(moods).toEqual({ a: 'full' });
+    moods = moodsWhenBeatStarts(moods, {
+      kind: 'reveal',
+      bids: { a: 2, b: 2 },
+      clashes: [{ value: 2, playerIds: ['a', 'b'] }],
+    });
+    expect(moods).toEqual({ a: 'shocked', b: 'shocked' });
+    expect(moodsWhenBeatStarts(moods, { kind: 'round', round: 2, tieOrder: [] })).toEqual({});
   });
 });
