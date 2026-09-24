@@ -37,7 +37,8 @@
     "discardPile": "Discard pile",
     "hand": "Your hand",
     "you": "You",
-    "empty": "Empty"
+    "empty": "Empty",
+    "history": "History"
   },
   "bonus": {
     "variety": "Foodie Bonus"

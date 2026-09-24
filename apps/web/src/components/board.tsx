@@ -1,6 +1,6 @@
 import { type Card, FOOD_TYPES, type PlayerView, type PublicPlayer } from '@meow/engine';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BinArt } from '../art/BinArt';
 import { binMoodFor } from '../art/style';
@@ -312,5 +312,36 @@ export function EventFeed({ lines }: { lines: readonly FeedLine[] }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+/** Full event history for the desktop side panel, newest at the bottom. */
+export function EventLog({ lines }: { lines: readonly FeedLine[] }) {
+  const { t } = useTranslation();
+  const endRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [lines.length]);
+  return (
+    <section className="rounded-3xl bg-night-2/70 p-3">
+      <h2 className="mb-2 font-display text-sm text-card/80">{t('term.history')}</h2>
+      <ol className="max-h-[70dvh] space-y-1 overflow-y-auto pr-1 text-sm leading-snug">
+        {lines.map((line, i) => (
+          <li
+            key={`${line.key}-${i}`}
+            ref={i === lines.length - 1 ? endRef : undefined}
+            className={
+              line.tone === 'bad'
+                ? 'text-alert'
+                : line.tone === 'good'
+                  ? 'text-lantern'
+                  : 'text-card/85'
+            }
+          >
+            {t(line.key, line.params)}
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }

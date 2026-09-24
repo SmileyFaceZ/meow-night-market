@@ -33,14 +33,16 @@
 ├─ apps/
 │  ├─ web/
 │  │  ├─ src/
-│  │  │  ├─ art/            # SVG: CardArt (ทุกการ์ด), CatArt (4 สี × 4 อารมณ์), BackArt (หลังการ์ด, ถังขยะ), style.ts
+│  │  │  ├─ art/            # SVG: CardArt (ทุกการ์ด), CatArt (4 สี × 4 อารมณ์), BinArt (ถัง 4 อารมณ์), BackArt, style.ts
 │  │  │  ├─ components/     # cards (GameCard, MeowCard, CardBack), board (PlayerBadge, PriceTags, MarketStall,
-│  │  │  │                  #   TrashArea, HandView, EventFeed), ui (Button, Modal)
-│  │  │  ├─ screens/        # Home, Setup, Game, Result (Lobby, Tutorial เฟสหลัง)
-│  │  │  ├─ game/           # types (GameController), LocalController, save, setup, hooks
+│  │  │  │                  #   TrashArea, HandView, EventFeed, EventLog), Stage (แอนิเมชันเหตุการณ์), Coach, ui
+│  │  │  ├─ screens/        # Home, Setup, Game, Result, HowTo, Tutorial (Lobby เฟส 6)
+│  │  │  ├─ game/           # types (GameController), LocalController, save, setup, hooks,
+│  │  │  │                  #   stage + useStage (จังหวะเหตุการณ์/สีหน้าแมว), tutorial (บทสอน)
 │  │  │  ├─ i18n/           # th.json, en.json, index.ts
 │  │  │  └─ styles/
-│  │  └─ test/              # i18n, controller + save/resume
+│  │  ├─ scripts/           # find-tutorial-seed.ts (หา seed ของบทสอน)
+│  │  └─ test/              # i18n, controller + save/resume, stage, tutorial
 │  └─ server/               # Worker + Durable Object "GameRoom"
 ```
 

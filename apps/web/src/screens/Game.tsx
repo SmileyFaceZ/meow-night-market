@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import {
   EventFeed,
+  EventLog,
   HandView,
   MarketStall,
   PlayerBadge,
@@ -96,115 +97,163 @@ export function GameScreen({
     modal && typeof modal === 'object' ? view.players.find((p) => p.id === modal.player) : null;
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-xl flex-col gap-1.5 px-3 pt-2">
-      {/* top bar */}
-      <header className="flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-xs text-card/70">
-            {t('term.round', { round: view.round, rounds: view.config.rounds })}
-          </p>
-          <h1 className="truncate text-lg leading-tight text-lantern">{phaseTitle}</h1>
-        </div>
-        <div className="flex shrink-0 gap-2">
-          <Button variant="secondary" onClick={() => setModal('discard')}>
-            {t('action.viewDiscard', { count: view.discard.length })}
-          </Button>
-          <Button variant="secondary" onClick={() => setModal('menu')} ariaLabel={t('action.menu')}>
-            ☰
-          </Button>
-        </div>
-      </header>
-
-      {/* opponents */}
-      <section
-        className="grid gap-1.5"
-        style={{ gridTemplateColumns: `repeat(${opponents.length}, minmax(0, 1fr))` }}
+    <main className="mx-auto min-h-dvh max-w-xl px-3 pt-2 lg:grid lg:max-w-7xl lg:grid-cols-[16rem_minmax(0,1fr)_17rem] lg:items-start lg:gap-5 lg:px-6 lg:pt-4">
+      {/* desktop: opponents sit down the left side of the table, hands open */}
+      <aside
+        className="hidden lg:sticky lg:top-4 lg:flex lg:flex-col lg:gap-3"
+        aria-label={t('setup.opponents', { count: opponents.length })}
       >
         {opponents.map((p) => (
-          <PlayerBadge
-            key={p.id}
-            player={p}
-            seat={seatOf(p.id)}
-            name={seatName(p.id)}
-            status={statusOf(p.id)}
-            mood={moodOf(p.id)}
-            stacked={opponents.length >= 3}
-            onOpen={() => setModal({ player: p.id })}
-          />
+          <div key={p.id} className="rounded-3xl bg-night-2/70 p-2">
+            <PlayerBadge
+              player={p}
+              seat={seatOf(p.id)}
+              name={seatName(p.id)}
+              status={statusOf(p.id)}
+              mood={moodOf(p.id)}
+              onOpen={() => setModal({ player: p.id })}
+            />
+            <HandView cards={p.hand} />
+            {p.meals.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {p.meals.map((meal, i) => (
+                  <span
+                    key={i}
+                    className="flex items-center gap-1 rounded-xl bg-night px-1.5 py-0.5 text-xs"
+                  >
+                    <span className="w-6">
+                      <GameCard kind={meal.food} size="fill" />
+                    </span>
+                    +{meal.points}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         ))}
-      </section>
+      </aside>
 
-      {/* one-line instruction */}
-      <p
-        role="status"
-        aria-live="polite"
-        className={`rounded-2xl px-3 py-1.5 text-center font-display text-base leading-snug ${needsMe ? 'bg-lantern text-ink' : 'bg-night-2 text-card'}`}
-      >
-        {hint}
-      </p>
-
-      <div className={hl('tieOrder')}>
-        <TieOrder view={view} seats={seats} name={seatName} />
-      </div>
-      <div className={hl('prices')}>
-        <PriceTags prices={view.prices} />
-      </div>
-
-      <div className={hl('market')}>
-        <MarketStall
-          cards={view.market}
-          deckCount={view.marketDeckCount}
-          onPick={
-            view.phase === 'pick' && myTurn
-              ? (card: Card) => act({ type: 'pick', playerId: me.id, cardId: card.id })
-              : undefined
-          }
-        />
-      </div>
-      <div className={hl('bin')}>
-        <TrashArea view={view} />
-      </div>
-      <EventFeed lines={feed} />
-
-      {/* me */}
-      <section className="sticky bottom-0 z-10 mt-auto rounded-t-3xl bg-night-2 p-2 pb-3 shadow-[0_-8px_24px_rgb(0_0_0/0.35)]">
-        <PlayerBadge
-          mood={moodOf(me.id)}
-          player={me}
-          seat={seatOf(me.id)}
-          name={seatName(me.id)}
-          status={statusOf(me.id)}
-          isYou
-        />
-        <HandView
-          cards={view.hand}
-          selectable={view.phase === 'discard' && me.mustDiscard > 0 && !me.hasDiscarded}
-          selected={toDiscard}
-          onToggle={(card) =>
-            setToDiscard((ids) =>
-              ids.includes(card.id) ? ids.filter((x) => x !== card.id) : [...ids, card.id],
-            )
-          }
-        />
-        <div className="mt-3 space-y-2">
-          <Actions
-            view={view}
-            myTurn={myTurn}
-            bid={bid}
-            setBid={setBid}
-            toDiscard={toDiscard}
-            clearDiscard={() => setToDiscard([])}
-            act={act}
-            onShowResult={onShowResult}
-            hl={hl}
-          />
-          {error && (
-            <p role="alert" className="text-center text-sm text-alert">
-              {error}
+      <div className="flex min-h-dvh flex-col gap-1.5 lg:min-h-0 lg:rounded-[2rem] lg:border-4 lg:border-night-2 lg:bg-night-2/30 lg:p-4 lg:shadow-[inset_0_0_60px_rgb(0_0_0/0.25)]">
+        {/* top bar */}
+        <header className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-xs text-card/70">
+              {t('term.round', { round: view.round, rounds: view.config.rounds })}
             </p>
-          )}
+            <h1 className="truncate text-lg leading-tight text-lantern">{phaseTitle}</h1>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <Button variant="secondary" onClick={() => setModal('discard')}>
+              {t('action.viewDiscard', { count: view.discard.length })}
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setModal('menu')}
+              ariaLabel={t('action.menu')}
+            >
+              ☰
+            </Button>
+          </div>
+        </header>
+
+        {/* opponents (phone / tablet) */}
+        <section
+          className="grid gap-1.5 lg:hidden"
+          style={{ gridTemplateColumns: `repeat(${opponents.length}, minmax(0, 1fr))` }}
+        >
+          {opponents.map((p) => (
+            <PlayerBadge
+              key={p.id}
+              player={p}
+              seat={seatOf(p.id)}
+              name={seatName(p.id)}
+              status={statusOf(p.id)}
+              mood={moodOf(p.id)}
+              stacked={opponents.length >= 3}
+              onOpen={() => setModal({ player: p.id })}
+            />
+          ))}
+        </section>
+
+        {/* one-line instruction */}
+        <p
+          role="status"
+          aria-live="polite"
+          className={`rounded-2xl px-3 py-1.5 text-center font-display text-base leading-snug ${needsMe ? 'bg-lantern text-ink' : 'bg-night-2 text-card'}`}
+        >
+          {hint}
+        </p>
+
+        <div className={hl('tieOrder')}>
+          <TieOrder view={view} seats={seats} name={seatName} />
         </div>
-      </section>
+        <div className={hl('prices')}>
+          <PriceTags prices={view.prices} />
+        </div>
+
+        <div className={hl('market')}>
+          <MarketStall
+            cards={view.market}
+            deckCount={view.marketDeckCount}
+            onPick={
+              view.phase === 'pick' && myTurn
+                ? (card: Card) => act({ type: 'pick', playerId: me.id, cardId: card.id })
+                : undefined
+            }
+          />
+        </div>
+        <div className={hl('bin')}>
+          <TrashArea view={view} />
+        </div>
+        <div className="lg:hidden">
+          <EventFeed lines={feed} />
+        </div>
+
+        {/* me */}
+        <section className="sticky bottom-0 z-10 mt-auto rounded-t-3xl bg-night-2 p-2 pb-3 shadow-[0_-8px_24px_rgb(0_0_0/0.35)] lg:static lg:mt-2 lg:rounded-3xl lg:shadow-none">
+          <PlayerBadge
+            mood={moodOf(me.id)}
+            player={me}
+            seat={seatOf(me.id)}
+            name={seatName(me.id)}
+            status={statusOf(me.id)}
+            isYou
+          />
+          <HandView
+            cards={view.hand}
+            selectable={view.phase === 'discard' && me.mustDiscard > 0 && !me.hasDiscarded}
+            selected={toDiscard}
+            onToggle={(card) =>
+              setToDiscard((ids) =>
+                ids.includes(card.id) ? ids.filter((x) => x !== card.id) : [...ids, card.id],
+              )
+            }
+          />
+          <div className="mt-3 space-y-2">
+            <Actions
+              view={view}
+              myTurn={myTurn}
+              bid={bid}
+              setBid={setBid}
+              toDiscard={toDiscard}
+              clearDiscard={() => setToDiscard([])}
+              act={act}
+              onShowResult={onShowResult}
+              hl={hl}
+            />
+            {error && (
+              <p role="alert" className="text-center text-sm text-alert">
+                {error}
+              </p>
+            )}
+          </div>
+        </section>
+      </div>
+
+      {/* desktop: history down the right side */}
+      <aside className="hidden lg:sticky lg:top-4 lg:block">
+        <EventLog lines={feed} />
+      </aside>
 
       {coachStep && coach && (
         <CoachBubble
