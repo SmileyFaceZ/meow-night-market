@@ -1,16 +1,16 @@
 import { checkMeal } from './cards.ts';
 import {
-  clearMarket,
+  canEatAnything,
   cloneState,
   type Ctx,
   drawFromTrash,
   endEatTurn,
+  endPicking,
   endTrashTurn,
   playerById,
   revealBids,
   returnDog,
   revealDiscards,
-  startTrash,
   takeFromHand,
 } from './flow.ts';
 import { createRng } from './rng.ts';
@@ -90,15 +90,13 @@ function pick(ctx: Ctx, playerId: string, cardId: number): ErrorKey | null {
   const [card] = s.market.splice(index, 1) as [Card];
   const player = playerById(s, playerId);
   player.hand.push(card);
-  player.picks.push({ ...card });
   s.pickQueue.shift();
   ctx.events.push({ type: 'CARD_PICKED', playerId, card: { ...card } });
 
   if (s.pickQueue.length > 0) {
     ctx.events.push({ type: 'TURN_STARTED', playerId: s.pickQueue[0]! });
   } else {
-    clearMarket(ctx);
-    startTrash(ctx);
+    endPicking(ctx);
   }
   return null;
 }
@@ -204,6 +202,8 @@ function eat(ctx: Ctx, playerId: string, cardIds: readonly number[]): ErrorKey |
     meal: JSON.parse(JSON.stringify(record)) as typeof record,
     newPrice,
   });
+  // §6: nothing left to eat → the turn ends by itself.
+  if (!canEatAnything(s, playerId)) endEatTurn(ctx);
   return null;
 }
 

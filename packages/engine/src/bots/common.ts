@@ -141,14 +141,33 @@ export function rankedMeals(view: PlayerView, only?: (food: FoodType) => boolean
     );
 }
 
-/** "Wait for the big feast" logic shared by careful and sly. */
-export function patientMeal(view: PlayerView): MealOption | null {
+/**
+ * Foods a rival who eats after me this round could eat too (hands are open) —
+ * eating those first scores before the price drops.
+ */
+export function threatenedFoods(view: PlayerView): Set<FoodType> {
+  const foods = new Set<FoodType>();
+  const myTurn = view.turnOrder.indexOf(view.viewer ?? '');
+  for (const p of view.players) {
+    if (p.id === view.viewer || view.turnOrder.indexOf(p.id) < myTurn) continue;
+    for (const option of findMealOptions(p.hand, view.config)) foods.add(option.food);
+  }
+  return foods;
+}
+
+/** "Wait for the big feast" logic shared by careful and sly — but never wait into a price drop. */
+export function patientMeal(view: PlayerView, eatSmallAtPrice: number): MealOption | null {
   const meals = rankedMeals(view);
   if (isLastRound(view)) return meals[0] ?? null;
   const big = meals.find((m) => m.big);
   if (big) return big;
+  const threatened = threatenedFoods(view);
   const nearLimit = view.hand.length >= view.config.handLimit - 1;
-  return meals.find((m) => nearLimit || view.prices[m.food] <= 3) ?? null;
+  return (
+    meals.find(
+      (m) => nearLimit || threatened.has(m.food) || view.prices[m.food] <= eatSmallAtPrice,
+    ) ?? null
+  );
 }
 
 export const opponents = (ctx: BotCtx) => ctx.view.players.filter((p) => p.id !== ctx.me.id);

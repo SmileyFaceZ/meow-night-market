@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applyAction } from '../src/actions.ts';
 import {
   BOT_PERSONALITIES,
+  BOT_TUNING,
   type BotDifficulty,
   type BotPersonality,
   chooseBotAction,
@@ -19,7 +20,7 @@ import {
   newGame,
   patch,
   patchPlayer,
-  skipToEat,
+  stopAll,
   skipToTrash,
 } from './helpers.ts';
 
@@ -43,12 +44,14 @@ function binWith(dogs: number, size: number, hand: Card[] = []) {
   return { s, who };
 }
 
-/** Feast Time with a given hand for the first eater (optionally in the last round). */
-function feastWith(hand: Card[], lastRound = false) {
-  let s = skipToEat(newGame(3));
+/** Feast Time with a given hand for the first eater; `rivals` fills the others (by turn position). */
+function feastWith(hand: Card[], lastRound = false, rivals: Card[][] = []) {
+  let s = skipToTrash(newGame(3)).state;
   if (lastRound) s = patch(s, { round: s.config.rounds });
-  const who = s.turnOrder[0]!;
-  return { s: patchPlayer(s, who, { hand }), who };
+  const [who, ...others] = s.turnOrder as [string, ...string[]];
+  s = patchPlayer(s, who, { hand });
+  others.forEach((id, i) => (s = patchPlayer(s, id, { hand: rivals[i] ?? [] })));
+  return { s: stopAll(s).state, who, others };
 }
 
 describe('§9 bots — legality and fairness', () => {
@@ -83,15 +86,19 @@ describe('§9 bots — legality and fairness', () => {
   });
 
   it('decides only from the player view (same view + same rng = same action)', () => {
-    // Two games that differ only in hidden information: b's hand and the bin order.
-    let s = skipToEat(newGame(3));
-    s = patchPlayer(s, 'a', { hand: n(3, 'fish') });
-    const hidden1 = patchPlayer(s, 'b', { hand: n(3, 'milk') });
-    const hidden2 = patch(patchPlayer(s, 'b', { hand: n(3, 'snack') }), {
-      trashDeck: [...s.trashDeck].reverse(),
-    });
-    for (const bot of BOT_PERSONALITIES) {
-      expect(decide(hidden1, 'a', bot, 5)).toEqual(decide(hidden2, 'a', bot, 5));
+    // Two games that differ only in hidden information: the order of both decks.
+    for (const phase of ['bidding', 'trash', 'eat'] as const) {
+      let s = newGame(3);
+      if (phase === 'trash') s = binWith(1, 12).s;
+      if (phase === 'eat') s = feastWith(n(3, 'fish')).s;
+      const hidden = patch(s, {
+        trashDeck: [...s.trashDeck].reverse(),
+        marketDeck: [...s.marketDeck].reverse(),
+      });
+      const who = s.turnOrder[s.turnIndex] ?? 'a';
+      for (const bot of BOT_PERSONALITIES) {
+        expect(decide(hidden, who, bot, 5)).toEqual(decide(s, who, bot, 5));
+      }
     }
   });
 });
@@ -104,11 +111,20 @@ describe('§9 แมวส้มตะกละ (greedy)', () => {
     expect([...bids].sort()).toEqual([4, 5]);
   });
 
-  it('keeps digging until the dog risk passes 35%', () => {
+  it('keeps digging until the dog risk passes its (high) threshold', () => {
+    const at25 = binWith(1, 4);
+    expect(decide(at25.s, at25.who, 'greedy')?.type).toBe('dig');
     const at30 = binWith(3, 10);
-    expect(decide(at30.s, at30.who, 'greedy')?.type).toBe('dig');
-    const at40 = binWith(4, 10);
-    expect(decide(at40.s, at40.who, 'greedy')?.type).toBe('stop');
+    expect(decide(at30.s, at30.who, 'greedy')?.type).toBe('stop');
+  });
+
+  it('stops once its bag is full enough to hurt (push-your-luck limit)', () => {
+    const { s, who } = binWith(1, 20); // 5% risk — only the bag size stops it
+    const full = patch(s, {
+      bag: cards(...(Array(BOT_TUNING.greedy.maxBag).fill('fish') as CardKind[])),
+    });
+    expect(decide(full, who, 'greedy')?.type).toBe('stop');
+    expect(decide(s, who, 'greedy')?.type).toBe('dig');
   });
 
   it('eats as soon as it has a set, best meal first', () => {
@@ -141,19 +157,18 @@ describe('§9 แมวดำเจ้าเล่ห์ (sly)', () => {
     expect(bidOf(decide(s, 'a', 'sly'))).toBe(5);
   });
 
-  it('digs moderately (stops above 27%)', () => {
-    const at25 = binWith(1, 4); // 25%
-    expect(decide(at25.s, at25.who, 'sly')?.type).toBe('dig');
+  it('digs moderately (between careful and greedy)', () => {
+    expect(BOT_TUNING.sly.maxDogRisk).toBeLessThan(BOT_TUNING.greedy.maxDogRisk);
+    expect(BOT_TUNING.sly.maxDogRisk).toBeGreaterThan(BOT_TUNING.careful.maxDogRisk);
+    const at20 = binWith(1, 5); // 20%
+    expect(decide(at20.s, at20.who, 'sly')?.type).toBe('dig');
     const at30 = binWith(3, 10);
     expect(decide(at30.s, at30.who, 'sly')?.type).toBe('stop');
   });
 
-  it('eats foods other cats are collecting before they can', () => {
-    const feast = feastWith([...n(3, 'fish'), ...n(3, 'milk')]);
-    const who = feast.who;
-    let s = feast.s;
-    const rival = s.players.find((p) => p.id !== who)!.id;
-    s = patchPlayer(s, rival, { picks: n(2, 'milk') });
+  it('eats foods other cats are collecting (open hands) before they can', () => {
+    // A rival later in the eat order could eat milk too → sly eats milk first.
+    const { s, who } = feastWith([...n(4, 'fish'), ...n(3, 'milk')], false, [n(3, 'milk')]);
     const action = decide(s, who, 'sly');
     expect(action?.type).toBe('eat');
     const eaten = action?.type === 'eat' ? action.cardIds : [];
@@ -174,11 +189,19 @@ describe('§9 แมวขาวขี้ระวัง (careful)', () => {
     expect(bidOf(decide(s, 'a', 'careful'))).toBe(5);
   });
 
-  it('stops digging above 20% — unless it holds a bone (then 35%)', () => {
+  it('stops digging early — unless it holds a bone', () => {
+    expect(BOT_TUNING.careful.maxDogRisk).toBeLessThan(BOT_TUNING.sly.maxDogRisk);
+    const early = binWith(1, 5); // 20%
+    expect(decide(early.s, early.who, 'careful')?.type).toBe('stop');
     const plain = binWith(1, 4); // 25%
     expect(decide(plain.s, plain.who, 'careful')?.type).toBe('stop');
     const boned = binWith(1, 4, n(1, 'bone'));
     expect(decide(boned.s, boned.who, 'careful')?.type).toBe('dig');
+  });
+
+  it('does not wait when a rival later this round could eat the same food first', () => {
+    const { s, who } = feastWith(n(3, 'fish'), false, [n(3, 'fish')]);
+    expect(decide(s, who, 'careful')?.type).toBe('eat');
   });
 
   it('waits for a big feast while prices are high, but eats a big feast at once', () => {

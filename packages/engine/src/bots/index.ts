@@ -7,6 +7,8 @@ import { greedy } from './greedy.ts';
 import { chooseRandomAction } from './random.ts';
 import { sly } from './sly.ts';
 
+export { BOT_TUNING } from './tuning.ts';
+
 export const BOT_PERSONALITIES = ['greedy', 'sly', 'careful'] as const;
 export type BotPersonality = (typeof BOT_PERSONALITIES)[number];
 

@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { act, bidAll, eventTypes, expectError, newGame, player } from './helpers.ts';
+import {
+  act,
+  bidAll,
+  eventTypes,
+  expectError,
+  finishFeast,
+  newGame,
+  pickAll,
+  player,
+  stopAll,
+} from './helpers.ts';
 
 describe('§4 Stall Scramble (simultaneous bidding)', () => {
   it('reveals nothing until everyone has bid, then reveals all at once', () => {
@@ -27,20 +37,17 @@ describe('§4 Stall Scramble (simultaneous bidding)', () => {
     expect(player(s, 'a').meowLeft).toEqual([1, 2, 3, 4]);
     expect(player(s, 'b').meowLeft).toEqual([2, 3, 4, 5]);
     // finish round 1 quickly
-    s = act(s, { type: 'pick', playerId: 'a', cardId: s.market[0]!.id }).state;
-    while (s.phase !== 'bidding') {
-      const who = s.turnOrder[s.turnIndex]!;
-      s = act(s, { type: s.phase === 'trash' ? 'stop' : 'finishEating', playerId: who }).state;
-    }
+    s = finishFeast(stopAll(pickAll(s).state).state).state;
     expect(s.round).toBe(2);
     expectError(s, { type: 'bid', playerId: 'a', value: 5 }, 'error.meowUsed');
   });
 
-  it('players who bid the same number clash and get no food', () => {
+  it('players who bid the same number clash and pick after everyone else', () => {
     const r = bidAll(newGame(4), { a: 4, b: 4, c: 2, d: 1 });
     expect(r.events).toContainEqual({ type: 'BID_CLASH', value: 4, playerIds: ['a', 'b'] });
     expect(r.state.clashed).toEqual(['a', 'b']);
-    expect(r.state.pickQueue).toEqual(['c', 'd']);
+    expect(r.state.pickQueue.slice(0, 2)).toEqual(['c', 'd']);
+    expect([...r.state.pickQueue.slice(2)].sort()).toEqual(['a', 'b']);
   });
 
   it('clashed players still use up their meow card', () => {
@@ -67,26 +74,12 @@ describe('§4 Stall Scramble (simultaneous bidding)', () => {
   });
 
   it('leftover stall cards go to the discard pile', () => {
-    let s = bidAll(newGame(3), { a: 2, b: 5, c: 5 }).state; // only a picks; market has 4
-    const before = [...s.market];
-    const r = act(s, { type: 'pick', playerId: 'a', cardId: before[0]!.id });
+    let s = bidAll(newGame(3), { a: 2, b: 3, c: 5 }).state; // 3 picks from a stall of 4
+    const leftover = s.market.at(-1)!;
+    const r = pickAll(s);
     s = r.state;
     expect(s.market).toEqual([]);
-    expect(s.discard).toEqual(before.slice(1));
-    expect(r.events).toContainEqual({
-      type: 'MARKET_CLEARED',
-      cards: before.slice(1),
-      to: 'discard',
-    });
-  });
-
-  it('if everyone clashes, the whole stall is discarded and digging starts', () => {
-    const s = newGame(3);
-    const market = [...s.market];
-    const r = bidAll(s, { a: 3, b: 3, c: 3 });
-    expect(r.state.phase).toBe('trash');
-    expect(r.state.discard).toEqual(market);
-    for (const p of r.state.players) expect(p.hand).toEqual([]);
+    expect(r.events).toContainEqual({ type: 'MARKET_CLEARED', cards: [leftover] });
   });
 
   it('cannot bid outside the bidding phase', () => {

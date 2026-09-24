@@ -83,16 +83,65 @@ export function bidAll(state: GameState, bids: Record<string, number>) {
   );
 }
 
-/** Bid so that everyone clashes (all bid the same) → straight to the trash phase. */
-export function skipToTrash(state: GameState, value = 1) {
-  return bidAll(state, Object.fromEntries(state.players.map((p) => [p.id, value])));
+/** Everyone takes the first stall card in pick order until the stall phase ends. */
+export function pickAll(state: GameState) {
+  const events: GameEvent[] = [];
+  while (state.phase === 'pick') {
+    const r = act(state, {
+      type: 'pick',
+      playerId: state.pickQueue[0]!,
+      cardId: state.market[0]!.id,
+    });
+    state = r.state;
+    events.push(...r.events);
+  }
+  return { state, events };
 }
 
-export function skipToEat(state: GameState) {
+/**
+ * Reach Trash Dig with a clean table: everyone bids the same number (all clash), picks,
+ * then every hand and the discard pile are emptied so tests control what is held.
+ */
+export function skipToTrash(state: GameState, value = 1) {
+  const bid = bidAll(state, Object.fromEntries(state.players.map((p) => [p.id, value])));
+  const picked = pickAll(bid.state);
+  const clean = patch(picked.state, {
+    discard: [],
+    players: picked.state.players.map((p) => ({ ...p, hand: [] })),
+  });
+  return { state: clean, events: [...bid.events, ...picked.events] };
+}
+
+/** Everyone stops digging at once (bags empty). */
+export function stopAll(state: GameState) {
+  const events: GameEvent[] = [];
+  while (state.phase === 'trash') {
+    const r = act(state, { type: 'stop', playerId: state.turnOrder[state.turnIndex]! });
+    state = r.state;
+    events.push(...r.events);
+  }
+  return { state, events };
+}
+
+/**
+ * Feast Time with the given hands (others empty). Players with nothing to eat are
+ * skipped automatically, so the returned state waits on the first player who can eat.
+ */
+export function skipToEat(state: GameState, hands: Record<string, Card[]> = {}) {
   let s = skipToTrash(state).state;
-  while (s.phase === 'trash')
-    s = act(s, { type: 'stop', playerId: s.turnOrder[s.turnIndex]! }).state;
-  return s;
+  s = patch(s, { players: s.players.map((p) => ({ ...p, hand: hands[p.id] ?? [] })) });
+  return stopAll(s).state;
+}
+
+/** Current eater finishes until Feast Time is over. */
+export function finishFeast(state: GameState) {
+  const events: GameEvent[] = [];
+  while (state.phase === 'eat') {
+    const r = act(state, { type: 'finishEating', playerId: state.turnOrder[state.turnIndex]! });
+    state = r.state;
+    events.push(...r.events);
+  }
+  return { state, events };
 }
 
 export function eventTypes(events: readonly GameEvent[]): string[] {

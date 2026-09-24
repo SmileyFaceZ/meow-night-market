@@ -3,29 +3,27 @@ import type { GameState } from '../src/types.ts';
 import { getPlayerView } from '../src/view.ts';
 import { act, newGame, patchPlayer, playRandomGame, reachableCardIds } from './helpers.ts';
 
-/** Card ids a given seat is allowed to see (GAME_RULES §8). */
-function allowedIds(s: GameState, viewer: string | null): Set<number> {
-  const me = s.players.find((p) => p.id === viewer);
+/** Card ids anyone may see (GAME_RULES §8): everything except the two decks. */
+function allowedIds(s: GameState): Set<number> {
   return new Set(
     [
-      ...(me?.hand ?? []),
+      ...s.players.flatMap((p) => p.hand), // hands are open
       ...s.market,
       ...s.bag,
       ...s.discard,
       ...(s.pendingDog ? [s.pendingDog] : []),
       ...s.players.flatMap((p) => p.meals.flatMap((m) => m.cards)),
-      ...s.players.flatMap((p) => p.picks), // public pick history
     ].map((c) => c.id),
   );
 }
 
 describe('§8 open and hidden information — getPlayerView', () => {
-  it('never shows another player’s hand or any deck order, at any point of many games', () => {
+  it('never shows the order or contents of the market deck or the bin, at any point of many games', () => {
     for (let seed = 0; seed < 40; seed++) {
       playRandomGame(seed, 2 + (seed % 3), (state) => {
         for (const viewer of [...state.players.map((p) => p.id), null]) {
           const view = getPlayerView(state, viewer);
-          const allowed = allowedIds(state, viewer);
+          const allowed = allowedIds(state);
           for (const id of reachableCardIds(view)) expect(allowed.has(id)).toBe(true);
         }
       });
@@ -34,14 +32,7 @@ describe('§8 open and hidden information — getPlayerView', () => {
 
   it('does not leak the raw state (rng, decks, secret bids/discards)', () => {
     const view = getPlayerView(newGame(3), 'a') as unknown as Record<string, unknown>;
-    for (const key of [
-      'rng',
-      'trashDeck',
-      'marketDeck',
-      'bids',
-      'pendingDiscards',
-      'firstStartSeat',
-    ]) {
+    for (const key of ['rng', 'trashDeck', 'marketDeck', 'bids', 'pendingDiscards']) {
       expect(view).not.toHaveProperty(key);
     }
   });
@@ -84,27 +75,26 @@ describe('§8 open and hidden information — getPlayerView', () => {
     expect(view.round).toBe(1);
   });
 
-  it('shows everyone’s bone count and market picks', () => {
-    let s = act(newGame(3), { type: 'bid', playerId: 'a', value: 5 }).state;
-    s = act(s, { type: 'bid', playerId: 'b', value: 1 }).state;
-    s = act(s, { type: 'bid', playerId: 'c', value: 1 }).state;
-    const picked = s.market[0]!;
-    s = act(s, { type: 'pick', playerId: 'a', cardId: picked.id }).state;
-    const bone = { id: 9001, kind: 'bone' as const };
-    s = patchPlayer(s, 'b', {
-      hand: [bone, { id: 9002, kind: 'fish' }, { id: 9003, kind: 'bone' }],
-    });
-    const view = getPlayerView(s, 'c');
-    expect(view.players.map((p) => p.boneCount)).toEqual([0, 2, 0]);
-    expect(view.players[0]!.picks).toEqual([picked]);
-    expect(view.players[1]!.picks).toEqual([]);
+  it('shows every player’s hand (hands are open information)', () => {
+    let s = newGame(3);
+    const bHand = [
+      { id: 9001, kind: 'bone' as const },
+      { id: 9002, kind: 'fish' as const },
+    ];
+    s = patchPlayer(s, 'b', { hand: bHand });
+    for (const viewer of ['a', 'c', null]) {
+      const view = getPlayerView(s, viewer);
+      expect(view.players[1]!.hand).toEqual(bHand);
+      expect(view.players[1]!.handCount).toBe(2);
+    }
   });
 
-  it('gives your own hand to you and nothing to a spectator', () => {
+  it('gives your own hand as `hand`; a spectator has none but still sees every player’s', () => {
     const { final } = playRandomGame('hands', 3);
     expect(getPlayerView(final, 'b').hand).toEqual(final.players[1]!.hand);
     const spectator = getPlayerView(final, null);
     expect(spectator.hand).toEqual([]);
+    expect(spectator.players.map((p) => p.hand)).toEqual(final.players.map((p) => p.hand));
     expect(spectator.yourBid).toBeNull();
     expect(() => getPlayerView(final, 'nobody')).toThrow();
   });

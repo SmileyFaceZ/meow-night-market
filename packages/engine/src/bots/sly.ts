@@ -1,35 +1,36 @@
 import { isFood } from '../cards.ts';
 import type { FoodType } from '../config.ts';
-import type { PublicPlayer } from '../view.ts';
 import {
   bestPick,
   type BotCtx,
   type BotPolicy,
   cheapestDiscards,
+  completesMeal,
   countKind,
   dogRisk,
   opponents,
   patientMeal,
   rankedMeals,
   sortedMeow,
+  threatenedFoods,
 } from './common.ts';
+import { BOT_TUNING } from './tuning.ts';
 
-/** Foods an opponent has been taking from the stall (public pick history). */
-function collectedBy(p: PublicPlayer): Set<FoodType> {
-  const foods = new Set<FoodType>();
-  for (const card of p.picks) if (isFood(card.kind)) foods.add(card.kind);
-  return foods;
-}
+const T = BOT_TUNING.sly;
 
+/** Foods rivals are visibly collecting: two or more in an open hand. */
 function contestedFoods(ctx: BotCtx): Set<FoodType> {
-  const foods = new Set<FoodType>();
-  for (const p of opponents(ctx)) for (const f of collectedBy(p)) foods.add(f);
+  const foods = threatenedFoods(ctx.view);
+  for (const p of opponents(ctx)) {
+    for (const card of p.hand)
+      if (isFood(card.kind) && countKind(p.hand, card.kind) >= 2) foods.add(card.kind);
+  }
   return foods;
 }
 
 /**
  * แมวดำเจ้าเล่ห์ — tries to clash with the leader's likely bid, otherwise takes a
- * number nobody else has left; eats foods others are collecting before they can;
+ * number nobody else has left; eats foods others are collecting (open hands) before they can;
  * digs moderately.
  */
 export const sly: BotPolicy = {
@@ -42,7 +43,7 @@ export const sly: BotPolicy = {
     const leader = [...rivals].sort((a, b) => b.mealPoints - a.mealPoints)[0];
     if (leader && leader.mealPoints > me.mealPoints) {
       const guess = Math.max(...leader.meowLeft);
-      if (mine.includes(guess) && rng.next() < 0.7) return guess;
+      if (mine.includes(guess) && rng.next() < T.spoilChance) return guess;
     }
     // A number no opponent still holds can never clash.
     const safe = mine.filter((v) => rivals.every((p) => !p.meowLeft.includes(v)));
@@ -52,23 +53,25 @@ export const sly: BotPolicy = {
 
   pick: (ctx) => {
     const { view } = ctx;
-    // Hate-draft: a food an opponent is visibly collecting is worth a bit more.
+    // Hate-draft: a card that would finish a rival's meal is worth taking away.
     const rivals = opponents(ctx);
     return bestPick(ctx, (card) => {
       if (!isFood(card.kind)) return 0;
-      const kind = card.kind;
-      const collectors = rivals.filter((p) => countKind(p.picks, kind) >= 2).length;
-      return collectors * 0.3 * view.prices[kind];
+      const blocks = rivals.filter((p) => completesMeal(p.hand, card)).length;
+      return blocks * 0.5 * view.prices[card.kind];
     });
   },
 
-  keepDigging: ({ view }) => dogRisk(view) <= 0.27,
-  throwBone: ({ view }) => view.bag.length >= 2,
+  keepDigging: ({ view }) => view.bag.length < T.maxBag && dogRisk(view) <= T.maxDogRisk,
+  throwBone: ({ view }) => view.bag.length >= T.boneMinBag,
 
   meal: (ctx) => {
     const contested = contestedFoods(ctx);
     // Eat what others are collecting first, so the price drops before their turn.
-    return rankedMeals(ctx.view, (f) => contested.has(f))[0] ?? patientMeal(ctx.view);
+    return (
+      rankedMeals(ctx.view, (f) => contested.has(f))[0] ??
+      patientMeal(ctx.view, BOT_TUNING.careful.eatSmallAtPrice)
+    );
   },
 
   discard: (ctx) => cheapestDiscards(ctx, 0.5),

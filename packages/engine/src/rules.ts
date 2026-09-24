@@ -4,41 +4,18 @@ export function marketSize(state: Pick<GameState, 'config' | 'players'>): number
   return state.players.length + state.config.marketExtra;
 }
 
-/** GAME_RULES §3.7: the start player moves one seat clockwise every round. */
-export function startSeatForRound(
-  firstStartSeat: number,
-  round: number,
-  playerCount: number,
-): number {
-  return (firstStartSeat + round - 1) % playerCount;
-}
-
-export function startPlayer(state: GameState): PlayerId {
-  const seat = startSeatForRound(state.firstStartSeat, state.round, state.players.length);
-  return (state.players[seat] as PlayerState).id;
-}
-
 /**
  * GAME_RULES §5: everyone (clashed players included) ordered by this round's bid, lowest first.
- * Equal bids: seat order counting the round's start player first, then clockwise.
+ * Equal bids follow the round's public tie-break order.
  */
 export function computeTurnOrder(
   players: readonly PlayerState[],
   bids: Readonly<Record<PlayerId, number>>,
-  startSeat: number,
-  tieBreak: 'seat' | 'lowestScore' | 'random' = 'seat',
-  randomRank: readonly number[] = [],
+  tieOrder: readonly PlayerId[],
 ): PlayerId[] {
-  const n = players.length;
-  const seatRank = (p: PlayerState) =>
-    tieBreak === 'random' ? (randomRank[p.seat] ?? 0) : (p.seat - startSeat + n) % n;
-  const score = (p: PlayerState) =>
-    tieBreak === 'lowestScore' ? p.meals.reduce((sum, m) => sum + m.points, 0) : 0;
+  const tieRank = (p: PlayerState) => tieOrder.indexOf(p.id);
   return [...players]
-    .sort(
-      (a, b) =>
-        (bids[a.id] ?? 0) - (bids[b.id] ?? 0) || score(a) - score(b) || seatRank(a) - seatRank(b),
-    )
+    .sort((a, b) => (bids[a.id] ?? 0) - (bids[b.id] ?? 0) || tieRank(a) - tieRank(b))
     .map((p) => p.id);
 }
 

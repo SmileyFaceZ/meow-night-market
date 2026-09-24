@@ -1,16 +1,14 @@
 import type { FoodType, GameConfig } from './config.ts';
-import { canDigTrash, currentPlayer, startPlayer } from './rules.ts';
+import { canDigTrash, currentPlayer } from './rules.ts';
 import type { Card, CardId, GameResult, GameState, Meal, Phase, PlayerId } from './types.ts';
 
 export interface PublicPlayer {
   readonly id: PlayerId;
   readonly seat: number;
   readonly meowLeft: readonly number[];
+  /** Hands are open information (GAME_RULES §8): every card enters and leaves a hand face-up. */
+  readonly hand: readonly Card[];
   readonly handCount: number;
-  /** Bones in hand — public, since bones always enter and leave a hand face-up. */
-  readonly boneCount: number;
-  /** Cards taken from the market this game. */
-  readonly picks: readonly Card[];
   readonly meals: readonly Meal[];
   readonly mealPoints: number;
   /** Bidding: has chosen a meow card (the value stays secret until everyone has). */
@@ -33,7 +31,8 @@ export interface PlayerView {
   readonly config: GameConfig;
   readonly round: number;
   readonly phase: Phase;
-  readonly startPlayer: PlayerId;
+  /** This round's tie-break order for equal bids — public before bidding. */
+  readonly tieOrder: readonly PlayerId[];
   readonly players: readonly PublicPlayer[];
   readonly prices: Readonly<Record<FoodType, number>>;
 
@@ -73,9 +72,8 @@ export function getPlayerView(state: GameState, viewer: PlayerId | null): Player
       id: p.id,
       seat: p.seat,
       meowLeft: [...p.meowLeft],
+      hand: copyCards(p.hand),
       handCount: p.hand.length,
-      boneCount: p.hand.filter((c) => c.kind === 'bone').length,
-      picks: copyCards(p.picks),
       meals: p.meals.map((m) => ({ ...m, cards: copyCards(m.cards) })),
       mealPoints: p.meals.reduce((sum, m) => sum + m.points, 0),
       hasBid: state.phase === 'bidding' && state.bids[p.id] !== null,
@@ -94,7 +92,7 @@ export function getPlayerView(state: GameState, viewer: PlayerId | null): Player
     config: state.config,
     round: state.round,
     phase: state.phase,
-    startPlayer: startPlayer(state),
+    tieOrder: [...state.tieOrder],
     players,
     prices: { ...state.prices },
     market: copyCards(state.market),

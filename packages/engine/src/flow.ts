@@ -1,9 +1,10 @@
 // Internal phase transitions shared by createGame and applyAction.
 // They mutate a private draft copy; callers never see a half-updated state.
 
+import { findMealOptions } from './cards.ts';
 import { FOOD_TYPES } from './config.ts';
 import type { Rng } from './rng.ts';
-import { canDigTrash, computeTurnOrder, marketSize, startSeatForRound } from './rules.ts';
+import { canDigTrash, computeTurnOrder, marketSize } from './rules.ts';
 import { scoreGame } from './scoring.ts';
 import type { Card, GameEvent, GameState, PlayerId } from './types.ts';
 
@@ -40,11 +41,12 @@ export function takeFromHand(hand: Card[], ids: readonly number[]): Card[] {
   return taken;
 }
 
+/** GAME_RULES §4.1: draw this round's public tie-break order, then lay out the stall. */
 export function startRound(ctx: Ctx, round: number): void {
   const { s } = ctx;
-  const startSeat = startSeatForRound(s.firstStartSeat, round, s.players.length);
   s.round = round;
   s.phase = 'bidding';
+  s.tieOrder = ctx.rng.shuffle(s.players.map((p) => p.id));
   s.market = s.marketDeck.splice(0, marketSize(s));
   s.bids = Object.fromEntries(s.players.map((p) => [p.id, null]));
   s.revealedBids = null;
@@ -58,7 +60,7 @@ export function startRound(ctx: Ctx, round: number): void {
   ctx.events.push({
     type: 'ROUND_STARTED',
     round,
-    startPlayer: s.players[startSeat]!.id,
+    tieOrder: [...s.tieOrder],
     market: s.market.map((c) => ({ ...c })),
   });
 }
@@ -88,35 +90,32 @@ export function revealBids(ctx: Ctx): void {
     ctx.events.push({ type: 'BID_CLASH', value, playerIds });
   }
   s.clashed = clashValues.flatMap(([, ids]) => ids);
+  s.turnOrder = computeTurnOrder(s.players, bids, s.tieOrder);
 
-  s.pickQueue = s.players
-    .filter((p) => !s.clashed.includes(p.id))
-    .sort((a, b) => bids[b.id]! - bids[a.id]!)
-    .map((p) => p.id);
-  s.turnOrder = computeTurnOrder(
-    s.players,
-    bids,
-    startSeatForRound(s.firstStartSeat, s.round, s.players.length),
-    s.config.clashTieBreak,
-    s.config.clashTieBreak === 'random' ? ctx.rng.shuffle(s.players.map((_, i) => i)) : [],
-  );
-  const clashedInOrder = s.turnOrder.filter((id) => s.clashed.includes(id));
-  if (s.config.clashedPickLast) s.pickQueue.push(...clashedInOrder);
-  for (const id of clashedInOrder) {
-    for (let i = 0; i < s.config.clashConsolationDraws; i++) clashDraw(ctx, id);
-  }
-
-  if (s.pickQueue.length === 0) {
-    clearMarket(ctx);
-    startTrash(ctx);
-  } else {
-    s.phase = 'pick';
-    ctx.events.push({ type: 'PHASE_STARTED', phase: 'pick', turnOrder: [...s.pickQueue] });
-    ctx.events.push({ type: 'TURN_STARTED', playerId: s.pickQueue[0]! });
-  }
+  // §4.5: unique bidders first (highest bid first), then clashed players in turn order.
+  s.pickQueue = [
+    ...s.players
+      .filter((p) => !s.clashed.includes(p.id))
+      .sort((a, b) => bids[b.id]! - bids[a.id]!)
+      .map((p) => p.id),
+    ...s.turnOrder.filter((id) => s.clashed.includes(id)),
+  ];
+  s.phase = 'pick';
+  ctx.events.push({ type: 'PHASE_STARTED', phase: 'pick', turnOrder: [...s.pickQueue] });
+  ctx.events.push({ type: 'TURN_STARTED', playerId: s.pickQueue[0]! });
 }
 
-/** Experimental: a clashed player draws a free card; a dog just goes back. */
+/** Everyone has picked: clash consolation draws, clear the stall, start digging (§4.6–4.7). */
+export function endPicking(ctx: Ctx): void {
+  const { s } = ctx;
+  for (const id of s.turnOrder.filter((p) => s.clashed.includes(p))) {
+    for (let i = 0; i < s.config.clashFreeDraws; i++) clashDraw(ctx, id);
+  }
+  clearMarket(ctx);
+  startTrash(ctx);
+}
+
+/** §4.6: a clashed player draws a free card from the bin; a dog costs nothing and goes back. */
 function clashDraw(ctx: Ctx, playerId: PlayerId): void {
   const card = drawFromTrash(ctx);
   if (!card) return;
@@ -125,15 +124,13 @@ function clashDraw(ctx: Ctx, playerId: PlayerId): void {
   else playerById(ctx.s, playerId).hand.push(card);
 }
 
-/** GAME_RULES §4.6: leftover stall cards go to the discard pile. */
-export function clearMarket(ctx: Ctx): void {
+/** §4.7: leftover stall cards go to the discard pile. */
+function clearMarket(ctx: Ctx): void {
   const { s } = ctx;
   if (s.market.length === 0) return;
   const cards = s.market.splice(0);
-  const to = s.config.leftoverMarketToTrash ? 'trash' : 'discard';
-  if (to === 'trash') s.trashDeck = ctx.rng.shuffle([...s.trashDeck, ...cards]);
-  else s.discard.push(...cards);
-  ctx.events.push({ type: 'MARKET_CLEARED', cards: cards.map((c) => ({ ...c })), to });
+  s.discard.push(...cards);
+  ctx.events.push({ type: 'MARKET_CLEARED', cards: cards.map((c) => ({ ...c })) });
 }
 
 /**
@@ -160,13 +157,14 @@ export function returnDog(ctx: Ctx, dog: Card): void {
   ctx.events.push({ type: 'DOG_RETURNED' });
 }
 
-export function startTrash(ctx: Ctx): void {
+/** §5: the whole discard pile goes back into the bin at the start of every Trash Dig. */
+function startTrash(ctx: Ctx): void {
   const { s } = ctx;
   s.phase = 'trash';
   s.turnIndex = 0;
   s.bag = [];
   s.pendingDog = null;
-  if (s.config.recycleDiscardEachRound && s.discard.length > 0) reshuffleDiscardIntoTrash(ctx);
+  if (s.discard.length > 0) reshuffleDiscardIntoTrash(ctx);
   ctx.events.push({ type: 'PHASE_STARTED', phase: 'trash', turnOrder: [...s.turnOrder] });
   ctx.events.push({ type: 'TURN_STARTED', playerId: s.turnOrder[0]! });
 }
@@ -183,17 +181,35 @@ export function endTrashTurn(ctx: Ctx): void {
   s.phase = 'eat';
   s.turnIndex = 0;
   ctx.events.push({ type: 'PHASE_STARTED', phase: 'eat', turnOrder: [...s.turnOrder] });
-  ctx.events.push({ type: 'TURN_STARTED', playerId: s.turnOrder[0]! });
+  beginEatTurn(ctx);
+}
+
+export function canEatAnything(s: Draft<GameState>, playerId: PlayerId): boolean {
+  return findMealOptions(playerById(s, playerId).hand, s.config).length > 0;
+}
+
+/** §6: start the current eater's turn, skipping everyone who has nothing to eat. */
+function beginEatTurn(ctx: Ctx): void {
+  const { s } = ctx;
+  while (s.turnIndex < s.turnOrder.length) {
+    const playerId = s.turnOrder[s.turnIndex]!;
+    if (canEatAnything(s, playerId)) {
+      ctx.events.push({ type: 'TURN_STARTED', playerId });
+      return;
+    }
+    ctx.events.push({ type: 'TURN_SKIPPED', playerId });
+    s.turnIndex++;
+  }
+  endFeast(ctx);
 }
 
 export function endEatTurn(ctx: Ctx): void {
-  const { s } = ctx;
-  s.turnIndex++;
-  if (s.turnIndex < s.turnOrder.length) {
-    ctx.events.push({ type: 'TURN_STARTED', playerId: s.turnOrder[s.turnIndex]! });
-    return;
-  }
+  ctx.s.turnIndex++;
+  beginEatTurn(ctx);
+}
 
+function endFeast(ctx: Ctx): void {
+  const { s } = ctx;
   // GAME_RULES §6–7: no hand-limit discard after the final round — the game just ends.
   if (s.round >= s.config.rounds) {
     endGame(ctx);
@@ -228,7 +244,7 @@ export function revealDiscards(ctx: Ctx): void {
   startRound(ctx, s.round + 1);
 }
 
-export function endGame(ctx: Ctx): void {
+function endGame(ctx: Ctx): void {
   const { s } = ctx;
   s.phase = 'gameOver';
   s.turnOrder = [];

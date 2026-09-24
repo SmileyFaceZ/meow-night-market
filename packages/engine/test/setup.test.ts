@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG, FOOD_TYPES } from '../src/config.ts';
 import { createRng, hashSeed } from '../src/rng.ts';
-import { startPlayer } from '../src/rules.ts';
 import { createGame } from '../src/setup.ts';
 import { allCardIds, newGame, P } from './helpers.ts';
 
@@ -71,24 +70,9 @@ describe('§3 setup', () => {
     for (const p of newGame().players) expect(p.hand).toEqual([]);
   });
 
-  it('picks the round-1 start player with the seeded RNG', () => {
-    const seats = new Set<number>();
-    for (let seed = 0; seed < 50; seed++) {
-      const s = createGame({ playerIds: P, seed });
-      expect(createGame({ playerIds: P, seed }).firstStartSeat).toBe(s.firstStartSeat);
-      seats.add(s.firstStartSeat);
-    }
-    expect(seats.size).toBe(4);
-  });
-
   it('same seed gives the same deal; a different seed a different one', () => {
     expect(newGame(3, 'x')).toEqual(newGame(3, 'x'));
     expect(newGame(3, 'x').trashDeck).not.toEqual(newGame(3, 'y').trashDeck);
-  });
-
-  it('exposes the start player of the current round', () => {
-    const s = newGame(4);
-    expect(startPlayer(s)).toBe(P[s.firstStartSeat]);
   });
 });
 

@@ -159,7 +159,9 @@ describe('§5 Trash Dig', () => {
     const r = act(s, { type: 'dig', playerId: who });
     expect(r.events[0]).toEqual({ type: 'TRASH_RESHUFFLED', count: 3 });
     expect(r.state.discard).toEqual([]);
-    expect(r.state.trashDeck.length + 1).toBe(5);
+    // 2 dogs + 3 recycled cards; a drawn dog would go straight back into the bin
+    const kept = r.state.bag.length + player(r.state, who).hand.length;
+    expect(r.state.trashDeck.length + kept).toBe(5);
   });
 
   it('when the bin is empty, the discard pile becomes the new bin', () => {
@@ -182,6 +184,13 @@ describe('§5 Trash Dig', () => {
       s,
       s.turnOrder.map((id) => ({ type: 'stop', playerId: id }) as const),
     );
-    expect(r.state.phase).toBe('eat');
+    expect(r.events).toContainEqual({
+      type: 'PHASE_STARTED',
+      phase: 'eat',
+      turnOrder: s.turnOrder,
+    });
+    // nobody holds a meal, so every eat turn is skipped and round 2 begins
+    expect(eventTypes(r.events).filter((t) => t === 'TURN_SKIPPED')).toHaveLength(3);
+    expect(r.state.round).toBe(2);
   });
 });

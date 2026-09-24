@@ -1,32 +1,37 @@
 import { describe, expect, it } from 'vitest';
 import { checkMeal, findMealOptions } from '../src/cards.ts';
 import { DEFAULT_CONFIG } from '../src/config.ts';
-import type { Card, GameState } from '../src/types.ts';
+import type { Card, CardKind, GameState } from '../src/types.ts';
 import { getPlayerView } from '../src/view.ts';
 import {
   act,
   actAll,
   cards,
+  eventTypes,
   expectError,
+  finishFeast,
   newGame,
   patch,
-  patchPlayer,
   player,
-  skipToEat,
+  skipToTrash,
+  stopAll,
 } from './helpers.ts';
 
-/** Feast Time with a given hand for the first eater. */
-function eatWith(hand: Card[], extra: Partial<GameState> = {}) {
-  let s = patch(skipToEat(newGame(3)), extra);
-  const who = s.turnOrder[0]!;
-  s = patchPlayer(s, who, { hand });
-  return { s, who, next: s.turnOrder[1]! };
+/** Feast Time where the first eater (`who`) holds `hand`; `hands` sets anyone else's. */
+function eatWith(hand: Card[], extra: Partial<GameState> = {}, hands: Record<string, Card[]> = {}) {
+  const trash = skipToTrash(patch(newGame(3), extra)).state;
+  const [who, next] = trash.turnOrder as [string, string];
+  const withHands = patch(trash, {
+    players: trash.players.map((p) => ({ ...p, hand: p.id === who ? hand : (hands[p.id] ?? []) })),
+  });
+  return { s: stopAll(withHands).state, who, next };
 }
 const ids = (cs: Card[]) => cs.map((c) => c.id);
+const n = (count: number, kind: CardKind) => cards(...(Array(count).fill(kind) as CardKind[]));
 
 describe('§6 Feast Time', () => {
   it('a meal of 3 same food scores the current market price', () => {
-    const hand = cards('fish', 'fish', 'fish');
+    const hand = n(3, 'fish');
     const { s, who } = eatWith(hand);
     const r = act(s, { type: 'eat', playerId: who, cardIds: ids(hand) });
     const meal = player(r.state, who).meals[0]!;
@@ -37,14 +42,14 @@ describe('§6 Feast Time', () => {
   });
 
   it('a big meal of 4 same food scores price × 2', () => {
-    const hand = cards('milk', 'milk', 'milk', 'milk');
+    const hand = n(4, 'milk');
     const { s, who } = eatWith(hand);
     const r = act(s, { type: 'eat', playerId: who, cardIds: ids(hand) });
     expect(player(r.state, who).meals[0]).toMatchObject({ big: true, points: 10 });
   });
 
   it('scores the price at the moment of eating', () => {
-    const hand = cards('snack', 'snack', 'snack');
+    const hand = n(3, 'snack');
     const { s, who } = eatWith(hand, { prices: { ...newGame().prices, snack: 3 } });
     const r = act(s, { type: 'eat', playerId: who, cardIds: ids(hand) });
     expect(player(r.state, who).meals[0]!.points).toBe(3);
@@ -66,7 +71,7 @@ describe('§6 Feast Time', () => {
     const oneReal = cards('fish', 'goldfish', 'goldfish');
     expect(checkMeal(twoGold, DEFAULT_CONFIG)).toBeNull();
     expect(checkMeal(oneReal, DEFAULT_CONFIG)).toBeNull();
-    const { s, who } = eatWith(twoGold);
+    const { s, who } = eatWith(twoGold); // can still eat fish+fish+goldfish, so the turn starts
     expectError(s, { type: 'eat', playerId: who, cardIds: ids(twoGold) }, 'error.invalidMeal');
   });
 
@@ -81,13 +86,13 @@ describe('§6 Feast Time', () => {
     ]) {
       expect(checkMeal(hand, DEFAULT_CONFIG)).toBeNull();
     }
-    const hand = cards('fish', 'fish', 'milk');
-    const { s, who } = eatWith(hand);
-    expectError(s, { type: 'eat', playerId: who, cardIds: ids(hand) }, 'error.invalidMeal');
+    const mixed = cards('fish', 'fish', 'milk');
+    const { s, who } = eatWith([...mixed, ...n(3, 'snack')]);
+    expectError(s, { type: 'eat', playerId: who, cardIds: ids(mixed) }, 'error.invalidMeal');
   });
 
   it('can only eat cards from your own hand, each card once, on your own turn', () => {
-    const hand = cards('fish', 'fish', 'fish');
+    const hand = n(3, 'fish');
     const { s, who, next } = eatWith(hand);
     expectError(s, { type: 'eat', playerId: next, cardIds: ids(hand) }, 'error.notYourTurn');
     const [a, b] = ids(hand);
@@ -96,11 +101,7 @@ describe('§6 Feast Time', () => {
   });
 
   it('the price of that food drops by 1 after each meal (big meals too), never below 1', () => {
-    const hand = cards(
-      ...(Array(4).fill('fish') as ['fish']),
-      ...(Array(3).fill('fish') as ['fish']),
-      ...(Array(3).fill('fish') as ['fish']),
-    );
+    const hand = n(10, 'fish');
     const setup = eatWith(hand, { prices: { ...newGame().prices, fish: 2 } });
     const who = setup.who;
     let s = setup.s;
@@ -115,23 +116,50 @@ describe('§6 Feast Time', () => {
     expect(r.state.prices.milk).toBe(5); // other foods untouched
   });
 
-  it('may eat any number of meals in one turn, or none', () => {
-    const hand = cards('fish', 'fish', 'fish', 'milk', 'milk', 'milk');
-    const { s, who, next } = eatWith(hand);
-    const r = actAll(s, [
+  it('may eat any number of meals in one turn, or stop early', () => {
+    const hand = [...n(3, 'fish'), ...n(3, 'milk')];
+    const { s, who } = eatWith(hand);
+    const both = actAll(s, [
       { type: 'eat', playerId: who, cardIds: ids(hand.slice(0, 3)) },
       { type: 'eat', playerId: who, cardIds: ids(hand.slice(3)) },
-      { type: 'finishEating', playerId: who },
     ]);
-    expect(player(r.state, who).meals).toHaveLength(2);
-    expect(r.state.turnOrder[r.state.turnIndex]).toBe(next);
+    expect(player(both.state, who).meals).toHaveLength(2);
 
     const none = act(s, { type: 'finishEating', playerId: who });
     expect(player(none.state, who).meals).toHaveLength(0);
+    expect(player(none.state, who).hand).toHaveLength(6);
+  });
+
+  it('skips a player with nothing to eat automatically (TURN_SKIPPED)', () => {
+    const trash = skipToTrash(newGame(3)).state;
+    const [first, second] = trash.turnOrder as [string, string];
+    const hands: Record<string, Card[]> = {
+      [first]: cards('fish', 'milk'),
+      [second]: n(3, 'shrimp'),
+    };
+    const r = stopAll(
+      patch(trash, { players: trash.players.map((p) => ({ ...p, hand: hands[p.id] ?? [] })) }),
+    );
+    expect(r.events).toContainEqual({ type: 'TURN_SKIPPED', playerId: first });
+    expect(r.state.turnOrder[r.state.turnIndex]).toBe(second);
+    expectError(r.state, { type: 'finishEating', playerId: first }, 'error.notYourTurn');
+  });
+
+  it('ends the turn automatically once nothing more can be eaten', () => {
+    const trash = skipToTrash(newGame(3)).state;
+    const [first, second] = trash.turnOrder as [string, string];
+    const mine = [...n(3, 'fish'), ...cards('milk')];
+    const hands: Record<string, Card[]> = { [first]: mine, [second]: n(3, 'snack') };
+    const s = stopAll(
+      patch(trash, { players: trash.players.map((p) => ({ ...p, hand: hands[p.id] ?? [] })) }),
+    ).state;
+    const r = act(s, { type: 'eat', playerId: first, cardIds: ids(mine.slice(0, 3)) });
+    expect(eventTypes(r.events)).toEqual(['MEAL_EATEN', 'TURN_STARTED']);
+    expect(r.state.turnOrder[r.state.turnIndex]).toBe(second);
   });
 
   it('eaten cards leave the hand and are kept in a public meal history', () => {
-    const hand = cards('fish', 'fish', 'fish', 'bone');
+    const hand = [...n(3, 'fish'), ...cards('bone')];
     const { s, who, next } = eatWith(hand);
     const r = act(s, { type: 'eat', playerId: who, cardIds: ids(hand.slice(0, 3)) });
     expect(player(r.state, who).hand).toEqual([hand[3]]);
@@ -144,14 +172,13 @@ describe('§6 Feast Time', () => {
   });
 
   it('market prices carry over into the next round', () => {
-    const hand = cards('fish', 'fish', 'fish');
-    const setup = eatWith(hand);
-    const who = setup.who;
-    let s = setup.s;
-    s = act(s, { type: 'eat', playerId: who, cardIds: ids(hand) }).state;
-    for (const id of s.turnOrder) s = act(s, { type: 'finishEating', playerId: id }).state;
-    expect(s.round).toBe(2);
-    expect(s.prices.fish).toBe(4);
+    const hand = [...n(3, 'fish'), ...n(3, 'milk')];
+    const { s, who } = eatWith(hand);
+    const r = finishFeast(
+      act(s, { type: 'eat', playerId: who, cardIds: ids(hand.slice(0, 3)) }).state,
+    );
+    expect(r.state.round).toBe(2);
+    expect(r.state.prices.fish).toBe(4);
   });
 
   it('findMealOptions lists every legal meal shape', () => {

@@ -36,8 +36,6 @@ export interface PlayerState {
   readonly meowLeft: readonly number[];
   readonly hand: readonly Card[];
   readonly meals: readonly Meal[];
-  /** Cards taken from the market this game (public: picked in front of everyone). */
-  readonly picks: readonly Card[];
 }
 
 export interface ScoreLine {
@@ -62,10 +60,10 @@ export interface GameState {
   /** Serialised RNG state — the only source of randomness. */
   readonly rng: number;
   readonly players: readonly PlayerState[];
-  /** Seat of the round-1 start player; later rounds rotate clockwise from it. */
-  readonly firstStartSeat: number;
   readonly round: number;
   readonly phase: Phase;
+  /** This round's tie-break order, drawn at the start of the round and public (GAME_RULES §4.1). */
+  readonly tieOrder: readonly PlayerId[];
   readonly prices: Readonly<Record<FoodType, number>>;
 
   readonly marketDeck: readonly Card[];
@@ -80,7 +78,7 @@ export interface GameState {
   readonly revealedBids: Readonly<Record<PlayerId, number>> | null;
   /** Players who clashed this round. */
   readonly clashed: readonly PlayerId[];
-  /** Unique bidders, highest bid first; the front player picks next. */
+  /** Pick order: unique bidders (highest bid first), then clashed players in turn order. */
   readonly pickQueue: readonly PlayerId[];
 
   /** Trash + eat turn order for this round. */
@@ -118,18 +116,14 @@ export type GameEvent =
   | {
       readonly type: 'ROUND_STARTED';
       readonly round: number;
-      readonly startPlayer: PlayerId;
+      readonly tieOrder: readonly PlayerId[];
       readonly market: readonly Card[];
     }
   | { readonly type: 'BID_PLACED'; readonly playerId: PlayerId }
   | { readonly type: 'BIDS_REVEALED'; readonly bids: Readonly<Record<PlayerId, number>> }
   | { readonly type: 'BID_CLASH'; readonly value: number; readonly playerIds: readonly PlayerId[] }
   | { readonly type: 'CARD_PICKED'; readonly playerId: PlayerId; readonly card: Card }
-  | {
-      readonly type: 'MARKET_CLEARED';
-      readonly cards: readonly Card[];
-      readonly to: 'discard' | 'trash';
-    }
+  | { readonly type: 'MARKET_CLEARED'; readonly cards: readonly Card[] }
   | { readonly type: 'CLASH_DRAW'; readonly playerId: PlayerId; readonly card: Card }
   | {
       readonly type: 'PHASE_STARTED';
@@ -137,6 +131,8 @@ export type GameEvent =
       readonly turnOrder: readonly PlayerId[];
     }
   | { readonly type: 'TURN_STARTED'; readonly playerId: PlayerId }
+  /** Feast Time: the player had no meal to eat, so their turn passed automatically. */
+  | { readonly type: 'TURN_SKIPPED'; readonly playerId: PlayerId }
   | { readonly type: 'TRASH_RESHUFFLED'; readonly count: number }
   | {
       readonly type: 'CARD_DUG';

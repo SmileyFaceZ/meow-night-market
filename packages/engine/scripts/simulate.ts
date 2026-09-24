@@ -43,10 +43,11 @@ let state = createGame({ playerIds: ids, seed });
 const botRng = createRng(`bots:${seed}`);
 
 console.log(`🐾 แมวตลาดโต้รุ่ง — จำลองเกม seed="${seed}" ผู้เล่น ${playerCount} ตัว (บอทสุ่ม)`);
-printRoundStart(state.round, ids[state.firstStartSeat]!, state.market);
+printRoundStart(state.round, state.tieOrder, state.market);
 
-function printRoundStart(round: number, start: string, market: readonly Card[]) {
-  console.log(`\n══════ รอบที่ ${round} ══════  ผู้เริ่มรอบ: ${start} 🚩`);
+function printRoundStart(round: number, tieOrder: readonly string[], market: readonly Card[]) {
+  console.log(`\n══════ รอบที่ ${round} ══════`);
+  console.log(`ลำดับตัดสินเสมอ: ${tieOrder.join(' → ')}`);
   console.log(`แผงตลาด: ${list(market)}`);
   console.log(
     `ราคา: ${Object.entries(state.prices)
@@ -58,7 +59,7 @@ function printRoundStart(round: number, start: string, market: readonly Card[]) 
 function log(event: GameEvent) {
   switch (event.type) {
     case 'ROUND_STARTED':
-      return printRoundStart(event.round, event.startPlayer, event.market);
+      return printRoundStart(event.round, event.tieOrder, event.market);
     case 'BIDS_REVEALED':
       return console.log(
         `เปิดเสียงเหมียว! ${Object.entries(event.bids)
@@ -66,9 +67,19 @@ function log(event: GameEvent) {
           .join('  ')}`,
       );
     case 'BID_CLASH':
-      return console.log(`  💥 ชนกัน! เลข ${event.value}: ${event.playerIds.join(', ')} อดเลือก`);
+      return console.log(
+        `  💥 ชนกัน! เลข ${event.value}: ${event.playerIds.join(', ')} ได้เลือกทีหลัง`,
+      );
     case 'CARD_PICKED':
       return console.log(`  ${event.playerId} หยิบ ${cardName(event.card)}`);
+    case 'CLASH_DRAW':
+      return console.log(
+        event.card.kind === 'dog'
+          ? `  🎁 ${event.playerId} จั่วฟรีได้หมายาม — ไม่เป็นไร หมากลับเข้าถัง`
+          : `  🎁 ${event.playerId} ชนแล้วจั่วฟรีได้ ${cardName(event.card)}`,
+      );
+    case 'TURN_SKIPPED':
+      return console.log(`  ${event.playerId} ไม่มีชุดให้กิน ข้ามตา`);
     case 'MARKET_CLEARED':
       return console.log(`  ของเหลือบนแผงไปกองทิ้ง: ${list(event.cards)}`);
     case 'PHASE_STARTED':
@@ -80,7 +91,7 @@ function log(event: GameEvent) {
         return console.log(`\n✋ มือเกิน ต้องทิ้ง: ${event.turnOrder.join(', ')}`);
       return;
     case 'TRASH_RESHUFFLED':
-      return console.log(`  ♻️  ถังเหลือแต่หมา! สับกองทิ้ง ${event.count} ใบกลับเข้าถัง`);
+      return console.log(`  ♻️  สับกองทิ้ง ${event.count} ใบกลับเข้าถังขยะ`);
     case 'CARD_DUG':
       if (event.to === 'hand')
         return console.log(`  ${event.playerId} คุ้ยได้ กระดูก 🦴 (เก็บเข้ามือ)`);

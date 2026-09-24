@@ -1,7 +1,7 @@
 // Balance statistics: plays many bot-vs-bot games for every player count and bot
 // line-up, then prints a Markdown report (Thai headings).
-// Usage: npm run balance -- [--games 300] [--players 2,3,4] [--variants base,A,B]
-//                            [--difficulty normal] [--out docs/BALANCE.md] [--brief]
+// Usage: npm run balance -- [--games 300] [--players 2,3,4] [--variants base,noB]
+//                            [--difficulty normal] [--out file.md] [--brief]
 
 import { writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
@@ -37,107 +37,20 @@ const GAMES = Number(values.games);
 const PLAYER_COUNTS = values.players.split(',').map(Number);
 const DIFFICULTY = values.difficulty as BotDifficulty;
 
-/** Config variants to compare. Only `base` is the real rule set (docs/GAME_RULES.md). */
-const D = DEFAULT_CONFIG;
-const FOUR_FOODS = ['fish', 'chicken', 'shrimp', 'milk'] as const;
+/** Rule sets to compare. `base` is the official rule set (docs/GAME_RULES.md). */
 const VARIANTS: Record<string, { label: string; config: GameConfig }> = {
-  base: { label: 'กติกาปัจจุบัน', config: DEFAULT_CONFIG },
-  // Options proposed by the user
-  A: { label: 'A: ของเหลือจากแผงสับเข้าถังขยะ', config: { ...D, leftoverMarketToTrash: true } },
-  B: { label: 'B: คนที่ชนกันจั่วถังฟรี 1 ใบ', config: { ...D, clashConsolationDraws: 1 } },
-  C: { label: 'C: หมา 3 ตัว', config: { ...D, dogCopies: 3 } },
-  // Extra options found while analysing (see report)
-  D: { label: 'D: สับกองทิ้งกลับเข้าถังทุกรอบ', config: { ...D, recycleDiscardEachRound: true } },
-  E: {
-    label: 'E: คนที่ชนกันยังได้เลือกของ (หลังคนไม่ชน)',
-    config: { ...D, clashedPickLast: true },
-  },
-  F: { label: 'F: แผงตลาด = ผู้เล่น + 2', config: { ...D, marketExtra: 2 } },
-  G: {
-    label: 'G: อาหาร 4 ชนิด ชนิดละ 10 (ตัดขนม)',
-    config: { ...D, foodTypes: FOUR_FOODS, foodCopies: 10 },
-  },
-  // Combinations
-  AB: { label: 'A+B', config: { ...D, leftoverMarketToTrash: true, clashConsolationDraws: 1 } },
-  AE: { label: 'A+E', config: { ...D, leftoverMarketToTrash: true, clashedPickLast: true } },
-  DE: { label: 'D+E', config: { ...D, recycleDiscardEachRound: true, clashedPickLast: true } },
-  BD: { label: 'B+D', config: { ...D, recycleDiscardEachRound: true, clashConsolationDraws: 1 } },
-  ABC: {
-    label: 'A+B+C',
-    config: { ...D, leftoverMarketToTrash: true, clashConsolationDraws: 1, dogCopies: 3 },
-  },
-  ADE: {
-    label: 'A+D+E',
-    config: {
-      ...D,
-      leftoverMarketToTrash: true,
-      recycleDiscardEachRound: true,
-      clashedPickLast: true,
-    },
-  },
-  BDE: {
-    label: 'B+D+E',
-    config: {
-      ...D,
-      recycleDiscardEachRound: true,
-      clashedPickLast: true,
-      clashConsolationDraws: 1,
-    },
-  },
-  CDE: {
-    label: 'C+D+E',
-    config: { ...D, recycleDiscardEachRound: true, clashedPickLast: true, dogCopies: 3 },
-  },
-  T: { label: 'T: เลขเท่ากัน คนแต้มน้อยได้ก่อน', config: { ...D, clashTieBreak: 'lowestScore' } },
-  R: { label: 'R: เลขเท่ากัน สุ่มลำดับใหม่ทุกรอบ', config: { ...D, clashTieBreak: 'random' } },
-  DER: {
-    label: 'D+E+R',
-    config: { ...D, recycleDiscardEachRound: true, clashedPickLast: true, clashTieBreak: 'random' },
-  },
-  BDER: {
-    label: 'B+D+E+R',
-    config: {
-      ...D,
-      recycleDiscardEachRound: true,
-      clashedPickLast: true,
-      clashConsolationDraws: 1,
-      clashTieBreak: 'random',
-    },
-  },
-  DET: {
-    label: 'D+E+T',
-    config: {
-      ...D,
-      recycleDiscardEachRound: true,
-      clashedPickLast: true,
-      clashTieBreak: 'lowestScore',
-    },
-  },
-  BDET: {
-    label: 'B+D+E+T',
-    config: {
-      ...D,
-      recycleDiscardEachRound: true,
-      clashedPickLast: true,
-      clashConsolationDraws: 1,
-      clashTieBreak: 'lowestScore',
-    },
-  },
-  DEG: {
-    label: 'D+E+G',
-    config: {
-      ...D,
-      recycleDiscardEachRound: true,
-      clashedPickLast: true,
-      foodTypes: FOUR_FOODS,
-      foodCopies: 10,
-    },
+  base: { label: 'กติกาปัจจุบัน (B+D+E+R)', config: DEFAULT_CONFIG },
+  noB: { label: 'ไม่มีจั่วฟรีเมื่อชน (D+E+R)', config: { ...DEFAULT_CONFIG, clashFreeDraws: 0 } },
+  noB_C: {
+    label: 'ไม่มีจั่วฟรีเมื่อชน + หมา 3 ตัว (C+D+E+R)',
+    config: { ...DEFAULT_CONFIG, clashFreeDraws: 0, dogCopies: 3 },
   },
 };
 const variantNames = values.variants.split(',');
 for (const name of variantNames) {
-  if (!VARIANTS[name])
+  if (!VARIANTS[name]) {
     throw new Error(`unknown variant "${name}" (${Object.keys(VARIANTS).join(', ')})`);
+  }
 }
 
 // ── line-ups: every multiset of personalities of size n ─────────────────────
@@ -157,12 +70,11 @@ const lineupName = (l: readonly BotPersonality[]) => l.map((p) => SHORT[p]).join
 
 interface GameRecord {
   players: number;
-  lineup: string;
   personalities: BotPersonality[]; // by seat
   scores: number[]; // by seat
   meals: number[]; // by seat
   winShare: number[]; // by seat: 1/k for each of k winners
-  startSeat: number;
+  firstTieSeat: number; // seat first in round 1's tie-break order
   rounds: number;
   roundsWithClash: number;
   clashedPlayers: number;
@@ -171,7 +83,16 @@ interface GameRecord {
   caught: number;
   trashTurns: number;
   gained: number;
-  actions: number;
+  /** Cards gained per player-round, split by whether the player clashed that round. */
+  clashRounds: number;
+  clashGain: number;
+  clashGainStall: number; // market pick + free draw
+  cleanRounds: number;
+  cleanGain: number;
+  cleanGainStall: number;
+  /** Of those cards, how many the same player eventually ate in a meal. */
+  clashEaten: number;
+  cleanEaten: number;
 }
 
 function playGame(config: GameConfig, lineup: BotPersonality[], seed: string): GameRecord {
@@ -183,12 +104,11 @@ function playGame(config: GameConfig, lineup: BotPersonality[], seed: string): G
 
   const rec: GameRecord = {
     players: ids.length,
-    lineup: lineupName(lineup),
     personalities,
     scores: [],
     meals: [],
     winShare: [],
-    startSeat: state.firstStartSeat,
+    firstTieSeat: ids.indexOf(state.tieOrder[0]!),
     rounds: 0,
     roundsWithClash: 0,
     clashedPlayers: 0,
@@ -197,21 +117,70 @@ function playGame(config: GameConfig, lineup: BotPersonality[], seed: string): G
     caught: 0,
     trashTurns: 0,
     gained: 0,
-    actions: 0,
+    clashRounds: 0,
+    clashGain: 0,
+    clashGainStall: 0,
+    cleanRounds: 0,
+    cleanGain: 0,
+    cleanGainStall: 0,
+    clashEaten: 0,
+    cleanEaten: 0,
+  };
+
+  // Per-round tally of cards gained, keyed by player id.
+  let clashed = new Set<string>();
+  let gain: Record<string, { total: number; stall: number }> = {};
+  // Every card gained, tagged with who gained it and whether they had clashed that round.
+  const gained: { playerId: string; cardId: number; clashed: boolean }[] = [];
+  let pending: { playerId: string; cardId: number }[] = [];
+  const add = (id: string, cardIds: number[], stall = false) => {
+    const g = (gain[id] ??= { total: 0, stall: 0 });
+    g.total += cardIds.length;
+    if (stall) g.stall += cardIds.length;
+    for (const cardId of cardIds) pending.push({ playerId: id, cardId });
+  };
+  const closeRound = () => {
+    if (rec.rounds === 0) return;
+    for (const g of pending) gained.push({ ...g, clashed: clashed.has(g.playerId) });
+    pending = [];
+    for (const id of ids) {
+      const g = gain[id] ?? { total: 0, stall: 0 };
+      if (clashed.has(id)) {
+        rec.clashRounds++;
+        rec.clashGain += g.total;
+        rec.clashGainStall += g.stall;
+      } else {
+        rec.cleanRounds++;
+        rec.cleanGain += g.total;
+        rec.cleanGainStall += g.stall;
+      }
+    }
   };
 
   const onEvent = (e: GameEvent) => {
     switch (e.type) {
       case 'BIDS_REVEALED':
         rec.rounds++;
+        clashed = new Set();
+        gain = {};
         return;
       case 'BID_CLASH':
         rec.clashedPlayers += e.playerIds.length;
+        for (const id of e.playerIds) clashed.add(id);
+        return;
+      case 'CARD_PICKED':
+        add(e.playerId, [e.card.id], true);
+        return;
+      case 'CLASH_DRAW':
+        if (e.card.kind !== 'dog') add(e.playerId, [e.card.id], true);
         return;
       case 'CARD_DUG':
         rec.digs++;
         if (e.to === 'dog') rec.dogs++;
-        if (e.to === 'hand') rec.gained++;
+        if (e.to === 'hand') {
+          rec.gained++;
+          add(e.playerId, [e.card.id]);
+        }
         return;
       case 'DOG_CAUGHT':
         rec.caught++;
@@ -220,6 +189,14 @@ function playGame(config: GameConfig, lineup: BotPersonality[], seed: string): G
       case 'BAG_KEPT':
         rec.trashTurns++;
         rec.gained += e.cards.length;
+        add(
+          e.playerId,
+          e.cards.map((c) => c.id),
+        );
+        return;
+      case 'ROUND_STARTED':
+      case 'GAME_OVER':
+        closeRound();
         return;
       default:
         return;
@@ -230,24 +207,23 @@ function playGame(config: GameConfig, lineup: BotPersonality[], seed: string): G
     const actors = pendingActors(state);
     const actor = actors[botRng.int(actors.length)]!;
     const seat = ids.indexOf(actor);
-    const action = chooseBotAction(
-      personalities[seat]!,
-      DIFFICULTY,
-      getPlayerView(state, actor),
-      botRng,
-    );
+    const bot = personalities[seat]!;
+    const action = chooseBotAction(bot, DIFFICULTY, getPlayerView(state, actor), botRng);
     if (!action) throw new Error(`bot ${actor} had no action in ${state.phase}`);
     const result = applyAction(state, action);
-    if (!result.ok)
-      throw new Error(`bot ${actor} (${personalities[seat]}) ${action.type}: ${result.error}`);
+    if (!result.ok) throw new Error(`bot ${actor} (${bot}) ${action.type}: ${result.error}`);
     state = result.state;
-    rec.actions++;
-    let clashThisRound = false;
-    for (const e of result.events) {
-      onEvent(e);
-      if (e.type === 'BID_CLASH') clashThisRound = true;
-    }
-    if (clashThisRound) rec.roundsWithClash++;
+    if (result.events.some((e) => e.type === 'BID_CLASH')) rec.roundsWithClash++;
+    result.events.forEach(onEvent);
+  }
+
+  const eatenBy = new Map<number, string>();
+  for (const p of state.players)
+    for (const m of p.meals) for (const c of m.cards) eatenBy.set(c.id, p.id);
+  for (const g of gained) {
+    if (eatenBy.get(g.cardId) !== g.playerId) continue;
+    if (g.clashed) rec.clashEaten++;
+    else rec.cleanEaten++;
   }
 
   const result = state.result!;
@@ -273,9 +249,15 @@ interface Summary {
   dogPerDig: number;
   gainedPerTurn: number;
   digsPerTurn: number;
-  startWinRate: number;
   fairShare: number;
-  seatOffsetWin: number[]; // by seats clockwise from the round-1 start player
+  seatWin: number[]; // by seat index
+  firstTieWin: number; // player first in round 1's tie-break order
+  clashGain: number;
+  clashGainStall: number;
+  cleanGain: number;
+  cleanGainStall: number;
+  clashEaten: number;
+  cleanEaten: number;
   byBot: Record<string, { seats: number; wins: number; score: number; meals: number }>;
 }
 
@@ -286,20 +268,20 @@ function summarize(records: GameRecord[]): Summary {
   let mealSum = 0;
   let zero = 0;
   let winnerSum = 0;
-  let startWins = 0;
-  const seatOffsetWin = Array<number>(n).fill(0);
+  let firstTieWins = 0;
+  const seatWin = Array<number>(n).fill(0);
   const byBot: Summary['byBot'] = {};
   const sum = (key: keyof GameRecord) => records.reduce((acc, r) => acc + (r[key] as number), 0);
 
   for (const r of records) {
     winnerSum += Math.max(...r.scores);
-    startWins += r.winShare[r.startSeat]!;
+    firstTieWins += r.winShare[r.firstTieSeat]!;
     for (let seat = 0; seat < n; seat++) {
       seats++;
       scoreSum += r.scores[seat]!;
       mealSum += r.meals[seat]!;
       if (r.scores[seat] === 0) zero++;
-      seatOffsetWin[(seat - r.startSeat + n) % n]! += r.winShare[seat]!;
+      seatWin[seat]! += r.winShare[seat]!;
       const bot = (byBot[r.personalities[seat]!] ??= { seats: 0, wins: 0, score: 0, meals: 0 });
       bot.seats++;
       bot.wins += r.winShare[seat]!;
@@ -309,6 +291,8 @@ function summarize(records: GameRecord[]): Summary {
   }
   const digs = sum('digs');
   const turns = sum('trashTurns');
+  const clashRounds = sum('clashRounds');
+  const cleanRounds = sum('cleanRounds');
   return {
     games: records.length,
     winnerAvg: winnerSum / records.length,
@@ -321,9 +305,15 @@ function summarize(records: GameRecord[]): Summary {
     dogPerDig: sum('dogs') / digs,
     gainedPerTurn: sum('gained') / turns,
     digsPerTurn: digs / turns,
-    startWinRate: startWins / records.length,
     fairShare: 1 / n,
-    seatOffsetWin: seatOffsetWin.map((w) => w / records.length),
+    seatWin: seatWin.map((w) => w / records.length),
+    firstTieWin: firstTieWins / records.length,
+    clashGain: sum('clashGain') / clashRounds,
+    clashGainStall: sum('clashGainStall') / clashRounds,
+    cleanGain: sum('cleanGain') / cleanRounds,
+    cleanGainStall: sum('cleanGainStall') / cleanRounds,
+    clashEaten: sum('clashEaten') / clashRounds,
+    cleanEaten: sum('cleanEaten') / cleanRounds,
     byBot,
   };
 }
@@ -339,18 +329,17 @@ const lines: string[] = [];
 const out = (s = '') => lines.push(s);
 
 const SUMMARY_HEAD =
-  '| ผู้เล่น | เกม | แต้มผู้ชนะ | แต้มเฉลี่ย | มื้อ/คน/เกม | จบ 0 แต้ม | รอบที่มีชน | ชน ต่อคนต่อรอบ | เจอหมา/คุ้ย | โดนไล่/คุ้ย | คุ้ย/ตา | ได้การ์ด/ตา | ผู้เริ่มเกมชนะ (ค่ายุติธรรม) |';
-const SUMMARY_SEP = '|---|---|---|---|---|---|---|---|---|---|---|---|---|';
+  '| ผู้เล่น | เกม | แต้มผู้ชนะ | แต้มเฉลี่ย | มื้อ/คน/เกม | จบ 0 แต้ม | รอบที่มีชน | ชน ต่อคนต่อรอบ | เจอหมา/คุ้ย | โดนไล่/คุ้ย | คุ้ย/ตา | ได้การ์ด/ตาคุ้ย | ได้การ์ด/รอบ: ไม่ชน vs ชน (จากแผง+จั่วฟรี) | ได้การ์ดที่ได้กินจริง/รอบ: ไม่ชน vs ชน | ชนะตามที่นั่ง (ยุติธรรม) | ลำดับเสมอที่ 1 ในรอบแรกชนะ |';
+const SUMMARY_SEP = '|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|';
 const summaryRow = (label: string, s: Summary) =>
-  `| ${label} | ${s.games} | ${f1(s.winnerAvg)} | ${f1(s.scoreAvg)} | ${f2(s.mealsPerPlayer)} ${mark(s.mealsPerPlayer >= 2 && s.mealsPerPlayer <= 4)} | ${pct(s.zeroRate)} ${mark(s.zeroRate <= 0.1)} | ${pct(s.clashRoundRate)} | ${pct(s.clashPlayerRate)} | ${pct(s.dogPerDig)} | ${pct(s.caughtPerDig)} | ${f2(s.digsPerTurn)} | ${f2(s.gainedPerTurn)} | ${pct(s.startWinRate)} (${pct(s.fairShare)}) |`;
+  `| ${label} | ${s.games} | ${f1(s.winnerAvg)} | ${f1(s.scoreAvg)} | ${f2(s.mealsPerPlayer)} ${mark(s.mealsPerPlayer >= 2 && s.mealsPerPlayer <= 4)} | ${pct(s.zeroRate)} ${mark(s.zeroRate <= 0.1)} | ${pct(s.clashRoundRate)} | ${pct(s.clashPlayerRate)} | ${pct(s.dogPerDig)} | ${pct(s.caughtPerDig)} | ${f2(s.digsPerTurn)} | ${f2(s.gainedPerTurn)} | ${f2(s.cleanGain)} vs ${f2(s.clashGain)} (${f2(s.cleanGainStall)} vs ${f2(s.clashGainStall)}) ${mark(s.cleanGain > s.clashGain)} | ${f2(s.cleanEaten)} vs ${f2(s.clashEaten)} ${mark(s.cleanEaten > s.clashEaten * 1.1)} | ${s.seatWin.map(pct).join(' / ')} (${pct(s.fairShare)}) | ${pct(s.firstTieWin)} |`;
 
 const started = performance.now();
 out(`# รายงานสมดุลเกม (บอทระดับ ${DIFFICULTY}, ${GAMES} เกมต่อไลน์อัป)`);
 out();
 out('ย่อชื่อบอท: ส้ม = greedy · ดำ = sly · ขาว = careful · สลับที่นั่งแบบสุ่มทุกเกม');
-out('เป้าหมาย: มื้อ/คน/เกม 2–4 · จบด้วย 0 แต้มไม่เกิน 10%');
+out('เป้าหมาย: มื้อ/คน/เกม 2–4 · จบด้วย 0 แต้มไม่เกิน 10% · คนไม่ชนได้การ์ดต่อรอบมากกว่าคนชน');
 
-const overall: Record<string, Summary[]> = {};
 for (const variant of variantNames) {
   const { label, config } = VARIANTS[variant]!;
   out();
@@ -389,10 +378,6 @@ for (const variant of variantNames) {
         `| ${SHORT[p]} (${p}) | ${b.seats} | ${pct(b.wins / b.seats)} (${pct(1 / n)}) | ${f1(b.score / b.seats)} | ${f2(b.meals / b.seats)} |`,
       );
     }
-    detail.push(
-      '',
-      `อัตราชนะตามตำแหน่งที่นั่งนับจากผู้เริ่มเกม (0 = ผู้เริ่มเกม): ${s.seatOffsetWin.map((w, i) => `${i}: ${pct(w)}`).join(' · ')}`,
-    );
   }
 
   out();
@@ -401,7 +386,18 @@ for (const variant of variantNames) {
   out(SUMMARY_HEAD);
   out(SUMMARY_SEP);
   for (const [n, s] of perCount) out(summaryRow(`${n} คน`, s));
-  overall[variant] = perCount.map(([, s]) => s);
+  out();
+  out('### อัตราชนะตามนิสัยบอท (ทุกไลน์อัปรวมกัน)');
+  out();
+  out('| ผู้เล่น | ส้ม (greedy) | ดำ (sly) | ขาว (careful) | ห่างสุด | ค่ายุติธรรม |');
+  out('|---|---|---|---|---|---|');
+  for (const [n, s] of perCount) {
+    const rates = BOT_PERSONALITIES.map((p) => s.byBot[p]!.wins / s.byBot[p]!.seats);
+    const spread = Math.max(...rates) - Math.min(...rates);
+    out(
+      `| ${n} คน | ${rates.map(pct).join(' | ')} | ${(spread * 100).toFixed(1)} จุด ${mark(spread <= 0.1)} | ${pct(1 / n)} |`,
+    );
+  }
   if (!values.brief) for (const l of detail) out(l);
 }
 

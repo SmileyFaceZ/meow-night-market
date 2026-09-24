@@ -18,13 +18,12 @@ export {
   currentPlayer,
   marketSize,
   pendingActors,
-  startPlayer,
-  startSeatForRound,
 } from './rules.ts';
 export { chooseRandomAction } from './bots/random.ts';
 export {
   BOT_DIFFICULTIES,
   BOT_PERSONALITIES,
+  BOT_TUNING,
   chooseBotAction,
   EASY_MISTAKE_RATE,
 } from './bots/index.ts';

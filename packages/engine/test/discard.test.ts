@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CardKind, GameState } from '../src/types.ts';
+import type { Card, CardKind } from '../src/types.ts';
 import { getPlayerView } from '../src/view.ts';
 import {
   act,
@@ -7,33 +7,28 @@ import {
   eventTypes,
   expectError,
   newGame,
+  finishFeast,
   patch,
-  patchPlayer,
   player,
-  reachableCardIds,
   skipToEat,
+  skipToTrash,
+  stopAll,
 } from './helpers.ts';
 
 const handOf = (n: number, kind: CardKind = 'fish') =>
   cards(...(Array(n).fill(kind) as CardKind[]));
 
-/** Eat phase of round `round` where a has 12 cards and b has 11; everyone about to finish. */
+/** Feast Time of round `round` where a has 12 cards and b has 11 (c has 10). */
 function overLimit(round = 1) {
-  let s = patch(skipToEat(newGame(3)), { round });
-  s = patchPlayer(s, 'a', { hand: [...handOf(10, 'milk'), ...cards('bone', 'goldfish')] });
-  s = patchPlayer(s, 'b', { hand: handOf(11, 'snack') });
-  s = patchPlayer(s, 'c', { hand: handOf(10, 'shrimp') });
-  return s;
+  const s = patch(skipToTrash(newGame(3)).state, { round });
+  const hands: Record<string, Card[]> = {
+    a: [...handOf(10, 'milk'), ...cards('bone', 'goldfish')],
+    b: handOf(11, 'snack'),
+    c: handOf(10, 'shrimp'),
+  };
+  return stopAll(patch(s, { players: s.players.map((p) => ({ ...p, hand: hands[p.id]! })) })).state;
 }
-function finishEating(s: GameState) {
-  const events = [];
-  for (const id of [...s.turnOrder]) {
-    const r = act(s, { type: 'finishEating', playerId: id });
-    s = r.state;
-    events.push(...r.events);
-  }
-  return { state: s, events };
-}
+const finishEating = finishFeast;
 
 describe('§6 hand limit (end of Feast Time)', () => {
   it('players above 10 cards must discard down to 10 — bones and goldfish count', () => {
@@ -76,7 +71,10 @@ describe('§6 hand limit (end of Feast Time)', () => {
     expect(player(s, 'a').hand).toHaveLength(12); // nothing moves yet
     expect(getPlayerView(s, 'b').yourDiscard).toBeNull();
     expect(getPlayerView(s, 'a').yourDiscard).toEqual(aThrow.map((c) => c.id));
-    for (const c of aThrow) expect(reachableCardIds(getPlayerView(s, 'b')).has(c.id)).toBe(false);
+    // hands are open, but WHICH cards a chose stays secret until everyone has chosen
+    const seenByB = getPlayerView(s, 'b');
+    expect(seenByB.players[0]!.hand).toHaveLength(12);
+    expect(seenByB).not.toHaveProperty('pendingDiscards');
     expect(getPlayerView(s, 'b').players[0]!.hasDiscarded).toBe(true);
     expectError(
       s,
@@ -96,8 +94,7 @@ describe('§6 hand limit (end of Feast Time)', () => {
   });
 
   it('is skipped when nobody is over the limit', () => {
-    let s = skipToEat(newGame(3));
-    s = patchPlayer(s, 'a', { hand: handOf(10) });
+    const s = skipToEat(newGame(3), { a: handOf(10) });
     const { state, events } = finishEating(s);
     expect(eventTypes(events)).not.toContain('DISCARD_CHOSEN');
     expect(state.phase).toBe('bidding');

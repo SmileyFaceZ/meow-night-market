@@ -32,9 +32,6 @@ export function createGame(options: CreateGameOptions): GameState {
   const marketDeck = shuffledFood.slice(0, marketCount);
   const trashDeck = rng.shuffle([...shuffledFood.slice(marketCount), ...hazards]);
 
-  // 7. Random round-1 start player.
-  const firstStartSeat = rng.int(playerIds.length);
-
   const base: GameState = {
     config,
     rng: 0,
@@ -44,11 +41,10 @@ export function createGame(options: CreateGameOptions): GameState {
       meowLeft: [...config.meowValues],
       hand: [],
       meals: [],
-      picks: [],
     })),
-    firstStartSeat,
     round: 0,
     phase: 'bidding',
+    tieOrder: [],
     prices: initialPrices(config.startPrice),
     marketDeck,
     market: [],

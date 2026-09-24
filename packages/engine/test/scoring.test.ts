@@ -8,7 +8,7 @@ function meal(food: FoodType, points: number): Meal {
   return { round: 1, food, cards: [], big: false, price: points, points };
 }
 function p(id: string, meals: Meal[], hand: Card[] = []): PlayerState {
-  return { id, seat: 0, meowLeft: [], hand, meals, picks: [] };
+  return { id, seat: 0, meowLeft: [], hand, meals };
 }
 const score = (players: PlayerState[]) => scoreGame({ players, config: DEFAULT_CONFIG });
 const line = (r: ReturnType<typeof score>, id: string) => r.scores.find((s) => s.playerId === id)!;

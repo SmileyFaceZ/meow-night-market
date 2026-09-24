@@ -22,11 +22,11 @@
 │     │  ├─ setup.ts         # createGame({ playerIds, seed, config? })
 │     │  ├─ actions.ts       # applyAction(state, action) → { ok, state, events } | { ok: false, error }
 │     │  ├─ flow.ts          # การเปลี่ยนช่วง/รอบ (ภายใน)
-│     │  ├─ rules.ts         # ลำดับตา ผู้เริ่มรอบ ใครต้องเล่นตอนนี้ (pendingActors)
+│     │  ├─ rules.ts         # ลำดับตา (ตามเลข + ลำดับตัดสินเสมอ) ใครต้องเล่นตอนนี้ (pendingActors)
 │     │  ├─ cards.ts         # สร้างสำรับ ตรวจมื้อ (checkMeal) หามื้อที่กินได้ (findMealOptions)
 │     │  ├─ view.ts          # getPlayerView(state, playerId | null)  (null = ผู้ชม)
 │     │  ├─ scoring.ts
-│     │  └─ bots/            # index.ts (chooseBotAction), common.ts, greedy.ts, sly.ts, careful.ts, random.ts (ใช้ทดสอบ)
+│     │  └─ bots/            # index.ts (chooseBotAction), tuning.ts (เกณฑ์ทุกตัว), common.ts, greedy/sly/careful.ts, random.ts (ใช้ทดสอบ)
 │     ├─ scripts/simulate.ts # npm run simulate — log เกมภาษาไทยในเทอร์มินัล
 │     ├─ scripts/balance.ts  # npm run balance — รายงานสถิติสมดุล (docs/BALANCE.md)
 │     └─ test/
@@ -56,7 +56,8 @@
   → หน้าจอเกมไม่ต้องรู้ว่าเล่นโหมดไหน
 - **Action** ทุกตัวมี `type`, `playerId` — engine ตรวจสิทธิ์และความถูกต้องทุกครั้ง คืน error ที่อ่านได้ (เป็น i18n key)
 - **Phase machine (engine):** `bidding → pick → trash → eat → (discard) → รอบถัดไป | gameOver`
-  - `pick` = เปิดเลขแล้วผู้ชนะหยิบของ (ข้ามถ้าทุกคนชนกัน) · `discard` = ทิ้งการ์ดเกิน (ข้ามถ้าไม่มีใครเกิน และข้ามในรอบสุดท้าย)
+  - `pick` = เปิดเลขแล้วทุกคนหยิบของ (คนไม่ชนก่อน) ตามด้วยจั่วฟรีของคนที่ชน · `discard` = ทิ้งการ์ดเกิน (ข้ามถ้าไม่มีใครเกิน และข้ามในรอบสุดท้าย)
+  - ช่วงกิน: engine ข้ามตาคนที่ไม่มีชุดกินได้เอง (`TURN_SKIPPED`)
   - `lobby` อยู่นอก engine (server/หน้าจอ) · `pendingActors(state)` บอกว่ากำลังรอใครอยู่
 - **Event log:** engine คืน events (เช่น `BID_CLASH`, `DOG_CAUGHT`, `MEAL_EATEN`) เพื่อให้ UI เล่นแอนิเมชันตามลำดับ
   - **ทุก event เป็นข้อมูลเปิด** ส่งให้ทุกคนได้ (เช่น `BID_PLACED` ไม่มีเลข, `DISCARD_CHOSEN` ไม่มีการ์ด)
