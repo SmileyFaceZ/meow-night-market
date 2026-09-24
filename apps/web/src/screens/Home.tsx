@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CatArt } from '../art/CatArt';
 import { Button } from '../components/ui';
 import type { SoloSave } from '../game/save';
+import { hasSeenTutorial } from '../game/tutorial';
 import { setLanguage } from '../i18n';
 
 const LANTERNS = 9;
@@ -11,14 +13,17 @@ export function HomeScreen({
   onContinue,
   onSolo,
   onHowTo,
+  onTutorial,
 }: {
   save: SoloSave | null;
   onContinue: () => void;
   onSolo: () => void;
   onHowTo: () => void;
+  onTutorial: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const nextLang = i18n.language === 'th' ? 'en' : 'th';
+  const [firstTime] = useState(() => !hasSeenTutorial());
   return (
     <main className="mx-auto flex min-h-dvh max-w-xl flex-col gap-6 px-4 pt-2 pb-10">
       <div aria-hidden className="relative h-10">
@@ -58,6 +63,12 @@ export function HomeScreen({
       </header>
 
       <nav className="mx-auto grid w-full max-w-sm gap-3">
+        {firstTime && (
+          <Button onClick={onTutorial}>
+            {t('tutorial.start')}
+            <span className="block text-sm opacity-80">{t('tutorial.firstTime')}</span>
+          </Button>
+        )}
         {save && (
           <Button onClick={onContinue}>
             {t('home.continue')}
@@ -66,7 +77,7 @@ export function HomeScreen({
             </span>
           </Button>
         )}
-        <Button variant={save ? 'secondary' : 'primary'} onClick={onSolo}>
+        <Button variant={save || firstTime ? 'secondary' : 'primary'} onClick={onSolo}>
           {t('mode.solo')}
         </Button>
         <Button variant="secondary" disabledReason={t('home.comingSoon')} onClick={() => {}}>

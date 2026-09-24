@@ -2,6 +2,7 @@ import type { Card, PlayerId } from '@meow/engine';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { BinArt } from '../art/BinArt';
 import { CatArt, type CatMood } from '../art/CatArt';
 import type { Beat } from '../game/stage';
 import type { SeatInfo } from '../game/types';
@@ -345,8 +346,31 @@ function BeatContent({
         </>
       );
 
-    case 'pick':
     case 'dug':
+      return (
+        <div className="flex items-center justify-center gap-3">
+          <motion.span
+            className="inline-block size-10"
+            initial={false}
+            animate={reduced ? {} : { rotate: [0, -8, 8, -6, 6, 0] }}
+            transition={{ duration: 0.3 }}
+          >
+            <BinArt mood="calm" />
+          </motion.span>
+          <motion.span
+            initial={reduced ? false : { y: 18, scale: 0.4, opacity: 0 }}
+            animate={{ y: 0, scale: 1, opacity: 1 }}
+            transition={{ delay: reduced ? 0 : 0.28, type: 'spring', stiffness: 420, damping: 15 }}
+          >
+            <MiniCard card={beat.card} className="w-10" />
+          </motion.span>
+          <p className="text-left font-display text-base">
+            {t('feed.dug', { name: who(beat.playerId), card: t(`card.${beat.card.kind}`) })}
+          </p>
+        </div>
+      );
+
+    case 'pick':
       return (
         <div className="flex items-center justify-center gap-3">
           <Cat seat={seatOf(beat.playerId)} mood="happy" size="size-10" />
@@ -358,7 +382,7 @@ function BeatContent({
             <MiniCard card={beat.card} className="w-10" />
           </motion.span>
           <p className="text-left font-display text-base">
-            {t(beat.kind === 'pick' ? 'feed.picked' : 'feed.dug', {
+            {t('feed.picked', {
               name: who(beat.playerId),
               card: t(`card.${beat.card.kind}`),
             })}

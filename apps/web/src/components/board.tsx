@@ -1,5 +1,5 @@
 import { type Card, FOOD_TYPES, type PlayerView, type PublicPlayer } from '@meow/engine';
-import { motion, useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BinArt } from '../art/BinArt';
@@ -105,6 +105,7 @@ export function PlayerBadge({
 /** Paper price tags hanging over the stall. */
 export function PriceTags({ prices }: { prices: PlayerView['prices'] }) {
   const { t } = useTranslation();
+  const reduced = useReducedMotion() ?? false;
   return (
     <ul className="grid grid-cols-5 gap-1.5" aria-label={t('term.price')}>
       {FOOD_TYPES.map((food) => (
@@ -116,9 +117,19 @@ export function PriceTags({ prices }: { prices: PlayerView['prices'] }) {
           <span className="size-6 shrink-0" aria-hidden>
             <CardArt kind={food} />
           </span>
-          <span className="font-display text-lg leading-none" aria-hidden>
-            {prices[food]}
-          </span>
+          <AnimatePresence mode="popLayout" initial={false}>
+            <motion.span
+              key={prices[food]}
+              className="font-display text-lg leading-none"
+              aria-hidden
+              initial={reduced ? false : { rotateX: -90, opacity: 0 }}
+              animate={{ rotateX: 0, opacity: 1 }}
+              exit={reduced ? { opacity: 0 } : { rotateX: 90, opacity: 0 }}
+              transition={{ duration: 0.35 }}
+            >
+              {prices[food]}
+            </motion.span>
+          </AnimatePresence>
         </li>
       ))}
     </ul>
@@ -135,6 +146,7 @@ export function MarketStall({
   onPick?: ((card: Card) => void) | undefined;
 }) {
   const { t } = useTranslation();
+  const reduced = useReducedMotion() ?? false;
   return (
     <section aria-label={t('term.market')} className="rounded-2xl bg-night-2/60 px-2 pt-1 pb-2">
       <div className="flex items-center justify-between px-1 text-xs text-card/80">
@@ -153,13 +165,24 @@ export function MarketStall({
             {t('term.empty')}
           </span>
         ) : (
-          cards.map((card) => (
-            <GameCard
+          cards.map((card, i) => (
+            <motion.div
               key={card.id}
-              card={card}
-              size="fill"
-              onSelect={onPick ? () => onPick(card) : undefined}
-            />
+              initial={reduced ? false : { y: -24, opacity: 0, rotate: -8 }}
+              animate={{ y: 0, opacity: 1, rotate: 0 }}
+              transition={{
+                delay: reduced ? 0 : i * 0.08,
+                type: 'spring',
+                stiffness: 380,
+                damping: 22,
+              }}
+            >
+              <GameCard
+                card={card}
+                size="fill"
+                onSelect={onPick ? () => onPick(card) : undefined}
+              />
+            </motion.div>
           ))
         )}
       </div>

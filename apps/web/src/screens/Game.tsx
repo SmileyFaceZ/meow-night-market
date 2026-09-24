@@ -18,16 +18,31 @@ import { describeEvent, useSeatName, useSnapshot } from '../game/hooks';
 import { moodFromBeat } from '../game/stage';
 import { useStage } from '../game/useStage';
 import { Stage } from '../components/Stage';
+import type { TutorialState, TutorialTarget } from '../game/tutorial';
 import type { GameController, SeatInfo } from '../game/types';
+import { CoachBubble } from '../components/Coach';
+
+/** Tutorial coaching, when the game runs inside the tutorial. */
+export interface CoachProps {
+  readonly state: TutorialState;
+  readonly onNext: () => void;
+  readonly onKeepPlaying: () => void;
+  readonly onHome: () => void;
+}
+
+const HIGHLIGHT =
+  'rounded-2xl ring-4 ring-lantern ring-offset-2 ring-offset-night animate-pulse relative z-20';
 
 export function GameScreen({
   controller,
   onShowResult,
   onQuit,
+  coach,
 }: {
   controller: GameController;
   onShowResult: () => void;
   onQuit: () => void;
+  coach?: CoachProps | undefined;
 }) {
   const { t } = useTranslation();
   const { view, seats, recentEvents } = useSnapshot(controller);
@@ -35,6 +50,10 @@ export function GameScreen({
   const stage = useStage(controller);
   const beat = stage.current?.beat ?? null;
   const moodOf = (id: string) => moodFromBeat(beat, id) ?? 'normal';
+  // The coach speaks only when the game has caught up (stage idle) and its step applies.
+  const coachStep = coach && !stage.current && coach.state.ready ? coach.state.step : null;
+  const target = coachStep?.target ?? null;
+  const hl = (t: TutorialTarget) => (target === t ? HIGHLIGHT : '');
   const [bid, setBid] = useState<number | null>(null);
   const [toDiscard, setToDiscard] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -126,19 +145,27 @@ export function GameScreen({
         {hint}
       </p>
 
-      <TieOrder view={view} seats={seats} name={seatName} />
-      <PriceTags prices={view.prices} />
+      <div className={hl('tieOrder')}>
+        <TieOrder view={view} seats={seats} name={seatName} />
+      </div>
+      <div className={hl('prices')}>
+        <PriceTags prices={view.prices} />
+      </div>
 
-      <MarketStall
-        cards={view.market}
-        deckCount={view.marketDeckCount}
-        onPick={
-          view.phase === 'pick' && myTurn
-            ? (card: Card) => act({ type: 'pick', playerId: me.id, cardId: card.id })
-            : undefined
-        }
-      />
-      <TrashArea view={view} />
+      <div className={hl('market')}>
+        <MarketStall
+          cards={view.market}
+          deckCount={view.marketDeckCount}
+          onPick={
+            view.phase === 'pick' && myTurn
+              ? (card: Card) => act({ type: 'pick', playerId: me.id, cardId: card.id })
+              : undefined
+          }
+        />
+      </div>
+      <div className={hl('bin')}>
+        <TrashArea view={view} />
+      </div>
       <EventFeed lines={feed} />
 
       {/* me */}
@@ -171,6 +198,7 @@ export function GameScreen({
             clearDiscard={() => setToDiscard([])}
             act={act}
             onShowResult={onShowResult}
+            hl={hl}
           />
           {error && (
             <p role="alert" className="text-center text-sm text-alert">
@@ -179,6 +207,20 @@ export function GameScreen({
           )}
         </div>
       </section>
+
+      {coachStep && coach && (
+        <CoachBubble
+          stepId={coachStep.id}
+          final={coachStep.final ?? false}
+          waitsForMove={Boolean(coachStep.expect)}
+          low={
+            target === 'prices' || target === 'tieOrder' || target === 'market' || target === 'bin'
+          }
+          onNext={coach.onNext}
+          onKeepPlaying={coach.onKeepPlaying}
+          onHome={coach.onHome}
+        />
+      )}
 
       <Stage
         staged={stage.current}
@@ -319,6 +361,7 @@ function Actions({
   clearDiscard,
   act,
   onShowResult,
+  hl,
 }: {
   view: PlayerView;
   myTurn: boolean;
@@ -328,6 +371,7 @@ function Actions({
   clearDiscard: () => void;
   act: (action: Parameters<GameController['dispatch']>[0]) => boolean;
   onShowResult: () => void;
+  hl: (target: TutorialTarget) => string;
 }) {
   const { t } = useTranslation();
   const me = view.players.find((p) => p.id === view.viewer)!;
@@ -335,7 +379,7 @@ function Actions({
 
   if (view.phase === 'bidding' && !me.hasBid) {
     return (
-      <>
+      <div className={`space-y-2 ${hl('meow')}`}>
         <div className="flex justify-center gap-1.5" role="group" aria-label={t('card.meow')}>
           {[...me.meowLeft]
             .sort((a, b) => a - b)
@@ -359,7 +403,7 @@ function Actions({
           {t('action.bid')}
           {bid !== null && ` ${bid}`}
         </Button>
-      </>
+      </div>
     );
   }
 
@@ -367,7 +411,10 @@ function Actions({
     if (view.pendingDog) {
       return (
         <div className="grid grid-cols-2 gap-2">
-          <Button onClick={() => act({ type: 'resolveDog', playerId, useBone: true })}>
+          <Button
+            className={hl('bone')}
+            onClick={() => act({ type: 'resolveDog', playerId, useBone: true })}
+          >
             {t('action.throwBone')}
           </Button>
           <Button
@@ -382,12 +429,17 @@ function Actions({
     return (
       <div className="grid grid-cols-2 gap-2">
         <Button
+          className={hl('dig')}
           disabledReason={view.trashDiggable ? null : t('reason.digDisabled')}
           onClick={() => act({ type: 'dig', playerId })}
         >
           {t('term.dig')}
         </Button>
-        <Button variant="secondary" onClick={() => act({ type: 'stop', playerId })}>
+        <Button
+          className={hl('stop')}
+          variant="secondary"
+          onClick={() => act({ type: 'stop', playerId })}
+        >
           {t('term.stop')}
         </Button>
       </div>
@@ -400,6 +452,7 @@ function Actions({
       <div className="grid gap-2">
         {options.map((option) => (
           <Button
+            className={hl('eat')}
             key={`${option.food}-${option.big}-${option.usesGoldfish}`}
             onClick={() => act({ type: 'eat', playerId, cardIds: option.cardIds })}
           >

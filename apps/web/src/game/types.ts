@@ -2,7 +2,6 @@ import type {
   Action,
   BotDifficulty,
   BotPersonality,
-  ErrorKey,
   GameEvent,
   PlayerId,
   PlayerView,
@@ -45,8 +44,8 @@ export interface ControllerSnapshot {
 export interface GameController {
   readonly getSnapshot: () => ControllerSnapshot;
   readonly subscribe: (listener: () => void) => () => void;
-  /** Returns an i18n error key if the engine refused the action. */
-  readonly dispatch: (action: Action) => ErrorKey | null;
+  /** Returns an i18n key explaining why the action was refused, or null if it was played. */
+  readonly dispatch: (action: Action) => string | null;
   /**
    * While the UI is still showing events (animations, messages), the game holds:
    * bots and automatic moves wait until it is unpaused.

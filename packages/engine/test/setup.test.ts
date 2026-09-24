@@ -86,6 +86,18 @@ describe('§3 setup', () => {
     for (const p of newGame().players) expect(p.hand).toEqual([]);
   });
 
+  it('can fix the top of the market deck for scripted games (tutorial)', () => {
+    const s = createGame({
+      playerIds: ['a', 'b'],
+      seed: 1,
+      marketTop: ['fish', 'milk', 'chicken', 'shrimp'],
+    });
+    expect(s.market.map((c) => c.kind)).toEqual(['fish', 'milk', 'chicken']);
+    expect(s.marketDeck[0]!.kind).toBe('shrimp');
+    expect(new Set(allCardIds(s)).size).toBe(49);
+    expect(() => createGame({ playerIds: ['a', 'b'], seed: 1, marketTop: ['bone'] })).toThrow();
+  });
+
   it('same seed gives the same deal; a different seed a different one', () => {
     expect(newGame(3, 'x')).toEqual(newGame(3, 'x'));
     expect(newGame(3, 'x').trashDeck).not.toEqual(newGame(3, 'y').trashDeck);

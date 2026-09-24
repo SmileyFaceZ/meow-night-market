@@ -232,5 +232,30 @@
     "dogText": "Bones you dig go straight to your hand (safe). When a dog appears, throw a bone to get away. The emptier the bin, the closer the dogs — watch the bin's mood!",
     "startTutorial": "Try the tutorial",
     "back": "Back"
+  },
+  "tutorial": {
+    "coach": "Auntie Meow",
+    "next": "Next",
+    "followCoach": "Try what Auntie suggests first",
+    "welcome": "Welcome to the night market! Auntie Meow will play the first round with you.",
+    "prices": "Price tags show what each food is worth. Right now every food is 5.",
+    "bid": "Stall Scramble: everyone picks a meow card in secret, then all flip. Tap 5 and press Bid — higher numbers pick first.",
+    "pick": "Your number is unique and the highest, so you pick first! Tap the fish.",
+    "dig1": "Time to dig the trash bin! Tap Dig to draw one card at a time.",
+    "dig2": "A fish in your bag! Bag cards aren't safe yet — dig once more.",
+    "dig3": "Bones go straight to your hand — safe! They distract guard dogs. Dig a bit more.",
+    "dig4": "Another fish! See how the bin looks worried? Tap it for the odds. Dare to dig again?",
+    "bone": "A guard dog! Throw your bone to get away — your bag stays safe.",
+    "stop": "Phew! Better stop now. Tap Stop to move your bag into your hand.",
+    "eat": "3 fish = a meal! Eat it for points equal to the fish price.",
+    "priceDrop": "The fish price dropped to 4 — whoever eats a food first scores more.",
+    "tieOrder": "Round 2: check the tie-break order at the top. It settles equal bids — from now on the lowest score goes first.",
+    "bid2": "Try bidding 3 this time.",
+    "clash": "Clash! Ginger bid 3 too. Clashed cats still pick, after everyone who didn't clash.",
+    "done": "Well done! Carry on by yourself. Remember: eating first scores more, and don't get greedy in the bin~",
+    "keepPlaying": "Keep playing",
+    "home": "Back to home",
+    "start": "Play the tutorial",
+    "firstTime": "First time? Try the tutorial"
   }
 }

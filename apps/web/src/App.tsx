@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react';
 import { browserScheduler, LocalController } from './game/LocalController';
+import { markTutorialSeen, TutorialController } from './game/tutorial';
+import { loadSetup } from './game/setup';
+import type { GameController } from './game/types';
+import { TutorialScreen } from './screens/Tutorial';
 import { browserStorage, clearSave, readSave, type SoloSave } from './game/save';
 import { GameScreen } from './screens/Game';
 import { HomeScreen } from './screens/Home';
@@ -8,7 +12,7 @@ import { ResultScreen } from './screens/Result';
 import { seatsFromSetup, type SoloSetup } from './game/setup';
 import { SetupScreen } from './screens/Setup';
 
-type Screen = 'home' | 'setup' | 'game' | 'result' | 'howto';
+type Screen = 'home' | 'setup' | 'game' | 'result' | 'howto' | 'tutorial';
 
 function newSeed(): string {
   // Seed for a fresh game (UI side — the engine itself never touches Math.random).
@@ -19,7 +23,7 @@ export function App() {
   const storage = browserStorage();
   const [screen, setScreen] = useState<Screen>('home');
   const [save, setSave] = useState<SoloSave | null>(() => readSave(storage));
-  const [controller, setController] = useState<LocalController | null>(null);
+  const [controller, setController] = useState<GameController | null>(null);
   const [lastSetup, setLastSetup] = useState<SoloSetup | null>(null);
 
   useEffect(() => () => controller?.dispose(), [controller]);
@@ -34,12 +38,43 @@ export function App() {
     setScreen('game');
   };
 
+  const startTutorial = () => {
+    controller?.dispose();
+    markTutorialSeen();
+    const { name, cat } = loadSetup();
+    setController(
+      new TutorialController(
+        [
+          { id: 'p0', name: name.trim() || null, cat, bot: null },
+          {
+            id: 'p1',
+            name: null,
+            cat: 'orange',
+            bot: { personality: 'greedy', difficulty: 'normal' },
+          },
+        ],
+        browserScheduler,
+      ),
+    );
+    setScreen('tutorial');
+  };
+
   const goHome = () => {
     controller?.dispose();
     setController(null);
     setSave(readSave(storage));
     setScreen('home');
   };
+
+  if (screen === 'tutorial' && controller instanceof TutorialController) {
+    return (
+      <TutorialScreen
+        controller={controller}
+        onShowResult={() => setScreen('result')}
+        onExit={goHome}
+      />
+    );
+  }
 
   if (screen === 'game' && controller) {
     return (
@@ -67,7 +102,7 @@ export function App() {
   }
 
   if (screen === 'howto') {
-    return <HowToScreen onBack={() => setScreen('home')} />;
+    return <HowToScreen onBack={() => setScreen('home')} onTutorial={startTutorial} />;
   }
 
   if (screen === 'setup') {
@@ -79,6 +114,7 @@ export function App() {
       save={save}
       onSolo={() => setScreen('setup')}
       onHowTo={() => setScreen('howto')}
+      onTutorial={startTutorial}
       onContinue={() => {
         if (!save) return;
         setController(LocalController.fromSave(save, storage, browserScheduler));

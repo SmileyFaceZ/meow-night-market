@@ -10,6 +10,7 @@ import {
   getPlayerView,
   pendingActors,
   type PlayerId,
+  type PlayerView,
   type Rng,
 } from '@meow/engine';
 import { clearSave, type SaveStorage, type SoloSave, writeSave } from './save';
@@ -42,6 +43,8 @@ export interface LocalControllerOptions {
   readonly botRng: number;
   readonly storage: SaveStorage | null;
   readonly scheduler: Scheduler;
+  /** Scripted bot moves (tutorial). Return null to let the bot decide as usual. */
+  readonly botOverride?: ((view: PlayerView) => Action | null) | undefined;
 }
 
 /**
@@ -55,6 +58,7 @@ export class LocalController implements GameController {
   private readonly botRng: Rng;
   private readonly storage: SaveStorage | null;
   private readonly scheduler: Scheduler;
+  private readonly botOverride: ((view: PlayerView) => Action | null) | undefined;
   private readonly timers = new Map<PlayerId, unknown>();
   private readonly listeners = new Set<() => void>();
   private recentEvents: GameEvent[] = [];
@@ -71,6 +75,7 @@ export class LocalController implements GameController {
     this.botRng = createRng(options.botRng);
     this.storage = options.storage;
     this.scheduler = options.scheduler;
+    this.botOverride = options.botOverride;
     this.snapshot = this.buildSnapshot();
     this.save();
     this.scheduleMoves();
@@ -211,7 +216,9 @@ export class LocalController implements GameController {
     const seat = this.seats.find((s) => s.id === id);
     if (!seat?.bot) return;
     const view = getPlayerView(this.state, id);
-    const action = chooseBotAction(seat.bot.personality, seat.bot.difficulty, view, this.botRng);
+    const action =
+      this.botOverride?.(view) ??
+      chooseBotAction(seat.bot.personality, seat.bot.difficulty, view, this.botRng);
     if (action) this.dispatch(action);
     else this.scheduleMoves();
   }

@@ -15,7 +15,7 @@ export default tseslint.config(
       parserOptions: {
         projectService: {
           // Vite/Vitest configs of the web app live in tsconfig.node.json (Node types, no DOM).
-          allowDefaultProject: ['apps/web/*.config.ts'],
+          allowDefaultProject: ['apps/web/*.config.ts', 'apps/web/scripts/*.ts'],
           defaultProject: 'apps/web/tsconfig.node.json',
         },
         tsconfigRootDir: import.meta.dirname,
