@@ -124,7 +124,6 @@ export type GameEvent =
   | { readonly type: 'BID_CLASH'; readonly value: number; readonly playerIds: readonly PlayerId[] }
   | { readonly type: 'CARD_PICKED'; readonly playerId: PlayerId; readonly card: Card }
   | { readonly type: 'MARKET_CLEARED'; readonly cards: readonly Card[] }
-  | { readonly type: 'CLASH_DRAW'; readonly playerId: PlayerId; readonly card: Card }
   | {
       readonly type: 'PHASE_STARTED';
       readonly phase: Phase;

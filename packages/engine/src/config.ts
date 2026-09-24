@@ -4,7 +4,7 @@ export const FOOD_TYPES = ['fish', 'chicken', 'shrimp', 'milk', 'snack'] as cons
 export type FoodType = (typeof FOOD_TYPES)[number];
 
 export interface GameConfig {
-  /** Rounds per game. Must equal meowValues.length (each meow card is used exactly once). */
+  /** Rounds per game. meowValues must have at least this many cards (one is used per round). */
   readonly rounds: number;
   /** Meow bid cards every player owns. */
   readonly meowValues: readonly number[];
@@ -30,8 +30,11 @@ export interface GameConfig {
   readonly minPlayers: number;
   readonly maxPlayers: number;
 
-  /** Free cards each clashed player draws from the bin after picking (CLASH_FREE_DRAWS). */
-  readonly clashFreeDraws: number;
+  // ── Experimental balance lever (Phase 2 study, NOT in GAME_RULES.md) ──────
+  /** S: from round 2 the tie-break order puts the lowest score first (the random draw breaks ties). */
+  readonly tieOrderByScore: boolean;
+  /** X: equal bids pick in tie-break order but use the reverse order to dig and/or eat. */
+  readonly tieReverse: 'none' | 'trashAndEat' | 'trash' | 'eat';
 }
 
 export const DEFAULT_CONFIG: GameConfig = {
@@ -56,12 +59,13 @@ export const DEFAULT_CONFIG: GameConfig = {
   minPlayers: 2,
   maxPlayers: 4,
 
-  clashFreeDraws: 1, // CLASH_FREE_DRAWS
+  tieOrderByScore: false,
+  tieReverse: 'none',
 };
 
 export function validateConfig(config: GameConfig): void {
-  if (config.meowValues.length !== config.rounds) {
-    throw new Error('config.meowValues must have exactly one card per round');
+  if (config.meowValues.length < config.rounds) {
+    throw new Error('config.meowValues needs at least one card per round');
   }
   if (new Set(config.meowValues).size !== config.meowValues.length) {
     throw new Error('config.meowValues must be distinct');

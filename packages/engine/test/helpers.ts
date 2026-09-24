@@ -3,6 +3,7 @@ import { applyAction } from '../src/actions.ts';
 import { chooseRandomAction } from '../src/bots/random.ts';
 import { createRng } from '../src/rng.ts';
 import { pendingActors } from '../src/rules.ts';
+import type { GameConfig } from '../src/config.ts';
 import { createGame } from '../src/setup.ts';
 import { getPlayerView } from '../src/view.ts';
 import type {
@@ -181,8 +182,11 @@ export function playRandomGame(
   seed: number | string,
   players = 3,
   onStep?: (state: GameState, action: Action, events: readonly GameEvent[]) => void,
+  config?: GameConfig,
 ): { final: GameState; actions: Action[] } {
-  let state = newGame(players, seed);
+  let state = config
+    ? createGame({ playerIds: P.slice(0, players), seed, config })
+    : newGame(players, seed);
   const botRng = createRng(`bots:${String(seed)}`);
   const actions: Action[] = [];
   for (let step = 0; state.phase !== 'gameOver'; step++) {

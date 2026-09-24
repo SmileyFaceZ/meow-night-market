@@ -37,13 +37,45 @@ const GAMES = Number(values.games);
 const PLAYER_COUNTS = values.players.split(',').map(Number);
 const DIFFICULTY = values.difficulty as BotDifficulty;
 
-/** Rule sets to compare. `base` is the official rule set (docs/GAME_RULES.md). */
-const VARIANTS: Record<string, { label: string; config: GameConfig }> = {
-  base: { label: 'กติกาปัจจุบัน (B+D+E+R)', config: DEFAULT_CONFIG },
-  noB: { label: 'ไม่มีจั่วฟรีเมื่อชน (D+E+R)', config: { ...DEFAULT_CONFIG, clashFreeDraws: 0 } },
-  noB_C: {
-    label: 'ไม่มีจั่วฟรีเมื่อชน + หมา 3 ตัว (C+D+E+R)',
-    config: { ...DEFAULT_CONFIG, clashFreeDraws: 0, dogCopies: 3 },
+/** Rule sets to compare (config may depend on the player count). `base` = GAME_RULES.md. */
+const D = DEFAULT_CONFIG;
+/** M: meow numbers 1..(players + 3) → 2 players 1–5, 3 players 1–6, 4 players 1–7. */
+const wideMeow = (n: number) => Array.from({ length: n + 3 }, (_, i) => i + 1);
+const VARIANTS: Record<string, { label: string; config: (players: number) => GameConfig }> = {
+  base: { label: 'กติกาปัจจุบัน (D+E+R)', config: () => D },
+  M: {
+    label: 'M: เลขเหมียวตามจำนวนผู้เล่น (1–5/1–6/1–7)',
+    config: (n) => ({ ...D, meowValues: wideMeow(n) }),
+  },
+  S: {
+    label: 'S: ลำดับตัดสินเสมอรอบ 2+ แต้มน้อยก่อน',
+    config: () => ({ ...D, tieOrderByScore: true }),
+  },
+  MS: {
+    label: 'M+S',
+    config: (n) => ({ ...D, meowValues: wideMeow(n), tieOrderByScore: true }),
+  },
+  Xt: {
+    label: 'Xt: เลขเท่ากัน คนที่ได้เลือกของก่อน ต้องคุ้ยทีหลัง',
+    config: () => ({ ...D, tieReverse: 'trash' }),
+  },
+  SXt: { label: 'S+Xt', config: () => ({ ...D, tieOrderByScore: true, tieReverse: 'trash' }) },
+  SXtC4: {
+    label: 'S+Xt + หมา 3 ตัวเฉพาะ 4 คน',
+    config: (n) => ({
+      ...D,
+      tieOrderByScore: true,
+      tieReverse: 'trash',
+      dogCopies: n === 4 ? 3 : 4,
+    }),
+  },
+  MC: {
+    label: 'M+C (หมา 3 ตัว)',
+    config: (n) => ({ ...D, meowValues: wideMeow(n), dogCopies: 3 }),
+  },
+  MSC: {
+    label: 'M+S+C',
+    config: (n) => ({ ...D, meowValues: wideMeow(n), tieOrderByScore: true, dogCopies: 3 }),
   },
 };
 const variantNames = values.variants.split(',');
@@ -170,9 +202,6 @@ function playGame(config: GameConfig, lineup: BotPersonality[], seed: string): G
         return;
       case 'CARD_PICKED':
         add(e.playerId, [e.card.id], true);
-        return;
-      case 'CLASH_DRAW':
-        if (e.card.kind !== 'dog') add(e.playerId, [e.card.id], true);
         return;
       case 'CARD_DUG':
         rec.digs++;
@@ -340,6 +369,7 @@ out();
 out('ย่อชื่อบอท: ส้ม = greedy · ดำ = sly · ขาว = careful · สลับที่นั่งแบบสุ่มทุกเกม');
 out('เป้าหมาย: มื้อ/คน/เกม 2–4 · จบด้วย 0 แต้มไม่เกิน 10% · คนไม่ชนได้การ์ดต่อรอบมากกว่าคนชน');
 
+const comparison: [string, [number, Summary][]][] = [];
 for (const variant of variantNames) {
   const { label, config } = VARIANTS[variant]!;
   out();
@@ -359,7 +389,7 @@ for (const variant of variantNames) {
     for (const lineup of lineups(n)) {
       const recs: GameRecord[] = [];
       for (let i = 0; i < GAMES; i++) {
-        recs.push(playGame(config, lineup, `${values.seed}:${n}:${lineup.join('-')}:${i}`));
+        recs.push(playGame(config(n), lineup, `${values.seed}:${n}:${lineup.join('-')}:${i}`));
       }
       all.push(...recs);
       detail.push(summaryRow(lineupName(lineup), summarize(recs)));
@@ -386,6 +416,7 @@ for (const variant of variantNames) {
   out(SUMMARY_HEAD);
   out(SUMMARY_SEP);
   for (const [n, s] of perCount) out(summaryRow(`${n} คน`, s));
+  comparison.push([variant, perCount]);
   out();
   out('### อัตราชนะตามนิสัยบอท (ทุกไลน์อัปรวมกัน)');
   out();
@@ -399,6 +430,27 @@ for (const variant of variantNames) {
     );
   }
   if (!values.brief) for (const l of detail) out(l);
+}
+
+if (variantNames.length > 1) {
+  out();
+  out('## เทียบทุกตัวเลือก');
+  out();
+  out(
+    '| ตัวเลือก | ผู้เล่น | มื้อ/คน/เกม | จบ 0 แต้ม | รอบที่มีชน | ชนต่อคนต่อรอบ | ได้กินจริง ไม่ชน vs ชน | ลำดับที่ 1 รอบแรกชนะ | บอทห่างสุด |',
+  );
+  out('|---|---|---|---|---|---|---|---|---|');
+  for (const [variant, rows] of comparison) {
+    for (const [n, s] of rows) {
+      const mealsOk =
+        n === 4 ? s.mealsPerPlayer >= 1.8 : s.mealsPerPlayer >= 2 && s.mealsPerPlayer <= 4;
+      const rates = BOT_PERSONALITIES.map((p) => s.byBot[p]!.wins / s.byBot[p]!.seats);
+      const spread = Math.max(...rates) - Math.min(...rates);
+      out(
+        `| ${variant} | ${n} | ${f2(s.mealsPerPlayer)} ${mark(mealsOk)} | ${pct(s.zeroRate)} ${mark(s.zeroRate <= 0.1)} | ${pct(s.clashRoundRate)} | ${pct(s.clashPlayerRate)} | ${f2(s.cleanEaten)} vs ${f2(s.clashEaten)} ${mark(n === 2 || s.cleanEaten > s.clashEaten)} | ${pct(s.firstTieWin)} ${mark(s.firstTieWin <= s.fairShare + 0.03)} | ${(spread * 100).toFixed(1)} ${mark(spread <= 0.1)} |`,
+      );
+    }
+  }
 }
 
 out();

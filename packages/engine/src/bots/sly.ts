@@ -58,7 +58,7 @@ export const sly: BotPolicy = {
     return bestPick(ctx, (card) => {
       if (!isFood(card.kind)) return 0;
       const blocks = rivals.filter((p) => completesMeal(p.hand, card)).length;
-      return blocks * 0.5 * view.prices[card.kind];
+      return blocks * T.blockWeight * view.prices[card.kind];
     });
   },
 
@@ -74,5 +74,5 @@ export const sly: BotPolicy = {
     );
   },
 
-  discard: (ctx) => cheapestDiscards(ctx, 0.5),
+  discard: (ctx) => cheapestDiscards(ctx, T.boneKeepBias),
 };

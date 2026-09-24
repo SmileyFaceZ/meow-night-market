@@ -22,7 +22,10 @@ export const careful: BotPolicy = {
     const meow = sortedMeow(me);
     // Spend its highest number only when the stall has a card that finishes a meal.
     const worthIt = view.round >= 2 && view.market.some((card) => completesMeal(view.hand, card));
-    return worthIt ? meow.at(-1)! : leaning(meow, rng, T.lowBidChance);
+    // Spare numbers (more cards than rounds left) would be wasted: cash in the high ones late.
+    const roundsLeft = view.config.rounds - view.round + 1;
+    const late = meow.length > roundsLeft && roundsLeft <= T.highBidLastRounds;
+    return worthIt || late ? meow.at(-1)! : leaning(meow, rng, T.lowBidChance);
   },
   pick: (ctx) => bestPick(ctx),
   keepDigging: ({ view }) =>
@@ -30,5 +33,5 @@ export const careful: BotPolicy = {
     dogRisk(view) <= (countKind(view.hand, 'bone') > 0 ? T.maxDogRiskWithBone : T.maxDogRisk),
   throwBone: ({ view }) => view.bag.length > 0,
   meal: ({ view }) => patientMeal(view, T.eatSmallAtPrice),
-  discard: (ctx) => cheapestDiscards(ctx, 1.5),
+  discard: (ctx) => cheapestDiscards(ctx, T.boneKeepBias),
 };

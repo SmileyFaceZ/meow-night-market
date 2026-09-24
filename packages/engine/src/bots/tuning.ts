@@ -18,6 +18,10 @@ export const BOT_TUNING = {
     spoilChance: 0.7,
     /** Throw a bone at a dog only when the bag holds at least this many cards. */
     boneMinBag: 2,
+    /** Extra value (× price) of a stall card that would finish a rival's meal (hate-draft). */
+    blockWeight: 0.5,
+    /** How much it values keeping a bone when discarding (added to the bone's worth). */
+    boneKeepBias: 0.5,
   },
   careful: {
     maxDogRisk: 0.19,
@@ -27,5 +31,11 @@ export const BOT_TUNING = {
     lowBidChance: 0.7,
     /** Eat a normal (3-card) meal without waiting once its price is this low. */
     eatSmallAtPrice: 3,
+    /**
+     * With more meow numbers than rounds, bid its highest in the last this-many rounds
+     * so the saved high numbers actually get used.
+     */
+    highBidLastRounds: 2,
+    boneKeepBias: 1.5,
   },
 };

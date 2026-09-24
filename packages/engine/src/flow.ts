@@ -47,6 +47,12 @@ export function startRound(ctx: Ctx, round: number): void {
   s.round = round;
   s.phase = 'bidding';
   s.tieOrder = ctx.rng.shuffle(s.players.map((p) => p.id));
+  if (s.config.tieOrderByScore && round > 1) {
+    // Experimental S: lowest score first; the random draw above breaks equal scores.
+    const points = (id: PlayerId) =>
+      playerById(s, id).meals.reduce((sum, meal) => sum + meal.points, 0);
+    s.tieOrder = [...s.tieOrder].sort((a, b) => points(a) - points(b));
+  }
   s.market = s.marketDeck.splice(0, marketSize(s));
   s.bids = Object.fromEntries(s.players.map((p) => [p.id, null]));
   s.revealedBids = null;
@@ -90,41 +96,37 @@ export function revealBids(ctx: Ctx): void {
     ctx.events.push({ type: 'BID_CLASH', value, playerIds });
   }
   s.clashed = clashValues.flatMap(([, ids]) => ids);
-  s.turnOrder = computeTurnOrder(s.players, bids, s.tieOrder);
-
   // §4.5: unique bidders first (highest bid first), then clashed players in turn order.
+  const pickOrder = computeTurnOrder(s.players, bids, s.tieOrder);
   s.pickQueue = [
     ...s.players
       .filter((p) => !s.clashed.includes(p.id))
       .sort((a, b) => bids[b.id]! - bids[a.id]!)
       .map((p) => p.id),
-    ...s.turnOrder.filter((id) => s.clashed.includes(id)),
+    ...pickOrder.filter((id) => s.clashed.includes(id)),
   ];
+  // Experimental X: whoever picks first among equal bids digs and/or eats last.
+  s.turnOrder = phaseOrder(s, 'trash');
   s.phase = 'pick';
   ctx.events.push({ type: 'PHASE_STARTED', phase: 'pick', turnOrder: [...s.pickQueue] });
   ctx.events.push({ type: 'TURN_STARTED', playerId: s.pickQueue[0]! });
 }
 
-/** Everyone has picked: clash consolation draws, clear the stall, start digging (§4.6–4.7). */
+/** Turn order for Trash Dig / Feast Time (GAME_RULES §5–6; experimental X may reverse ties). */
+function phaseOrder(s: Draft<GameState>, phase: 'trash' | 'eat'): PlayerId[] {
+  const mode = s.config.tieReverse;
+  const reverse = mode === 'trashAndEat' || mode === phase;
+  const tie = reverse ? [...s.tieOrder].reverse() : s.tieOrder;
+  return computeTurnOrder(s.players, s.revealedBids ?? {}, tie);
+}
+
+/** Everyone has picked: clear the stall and start digging (§4.6). */
 export function endPicking(ctx: Ctx): void {
-  const { s } = ctx;
-  for (const id of s.turnOrder.filter((p) => s.clashed.includes(p))) {
-    for (let i = 0; i < s.config.clashFreeDraws; i++) clashDraw(ctx, id);
-  }
   clearMarket(ctx);
   startTrash(ctx);
 }
 
-/** §4.6: a clashed player draws a free card from the bin; a dog costs nothing and goes back. */
-function clashDraw(ctx: Ctx, playerId: PlayerId): void {
-  const card = drawFromTrash(ctx);
-  if (!card) return;
-  ctx.events.push({ type: 'CLASH_DRAW', playerId, card: { ...card } });
-  if (card.kind === 'dog') returnDog(ctx, card);
-  else playerById(ctx.s, playerId).hand.push(card);
-}
-
-/** §4.7: leftover stall cards go to the discard pile. */
+/** §4.6: leftover stall cards go to the discard pile. */
 function clearMarket(ctx: Ctx): void {
   const { s } = ctx;
   if (s.market.length === 0) return;
@@ -180,6 +182,7 @@ export function endTrashTurn(ctx: Ctx): void {
   }
   s.phase = 'eat';
   s.turnIndex = 0;
+  s.turnOrder = phaseOrder(s, 'eat');
   ctx.events.push({ type: 'PHASE_STARTED', phase: 'eat', turnOrder: [...s.turnOrder] });
   beginEatTurn(ctx);
 }

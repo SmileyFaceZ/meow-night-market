@@ -72,12 +72,6 @@ function log(event: GameEvent) {
       );
     case 'CARD_PICKED':
       return console.log(`  ${event.playerId} หยิบ ${cardName(event.card)}`);
-    case 'CLASH_DRAW':
-      return console.log(
-        event.card.kind === 'dog'
-          ? `  🎁 ${event.playerId} จั่วฟรีได้หมายาม — ไม่เป็นไร หมากลับเข้าถัง`
-          : `  🎁 ${event.playerId} ชนแล้วจั่วฟรีได้ ${cardName(event.card)}`,
-      );
     case 'TURN_SKIPPED':
       return console.log(`  ${event.playerId} ไม่มีชุดให้กิน ข้ามตา`);
     case 'MARKET_CLEARED':
