@@ -48,7 +48,7 @@ function binWith(dogs: number, size: number, hand: Card[] = []) {
 function feastWith(hand: Card[], lastRound = false, rivals: Card[][] = []) {
   let s = skipToTrash(newGame(3)).state;
   if (lastRound) s = patch(s, { round: s.config.rounds });
-  const [who, ...others] = s.turnOrder as [string, ...string[]];
+  const [who, ...others] = s.tieOrder as [string, ...string[]]; // all tied → eat in tie order
   s = patchPlayer(s, who, { hand });
   others.forEach((id, i) => (s = patchPlayer(s, id, { hand: rivals[i] ?? [] })));
   return { s: stopAll(s).state, who, others };

@@ -27,15 +27,22 @@ describe('§1 overview', () => {
 });
 
 describe('§2 cards', () => {
-  it('has 8 of each food, 2 goldfish, 3 bones, 4 dogs — 49 unique cards', () => {
-    const s = newGame(4);
-    const every = [...s.marketDeck, ...s.market, ...s.trashDeck];
-    for (const food of FOOD_TYPES) expect(count(every, food)).toBe(8);
-    expect(count(every, 'goldfish')).toBe(2);
-    expect(count(every, 'bone')).toBe(3);
-    expect(count(every, 'dog')).toBe(4);
-    expect(new Set(allCardIds(s)).size).toBe(49);
-  });
+  it.each([
+    [2, 8, 49],
+    [3, 9, 54],
+    [4, 10, 59],
+  ])(
+    '%i players: %i of each food, 2 goldfish, 3 bones, 4 dogs — %i unique cards',
+    (n, food, total) => {
+      const s = newGame(n);
+      const every = [...s.marketDeck, ...s.market, ...s.trashDeck];
+      for (const kind of FOOD_TYPES) expect(count(every, kind)).toBe(food);
+      expect(count(every, 'goldfish')).toBe(2);
+      expect(count(every, 'bone')).toBe(3);
+      expect(count(every, 'dog')).toBe(4);
+      expect(new Set(allCardIds(s)).size).toBe(total);
+    },
+  );
 
   it('gives every player meow cards 1–5', () => {
     for (const p of newGame(4).players) expect(p.meowLeft).toEqual([1, 2, 3, 4, 5]);
@@ -48,8 +55,17 @@ describe('§3 setup', () => {
     const marketSize = n + 1;
     expect(s.market).toHaveLength(marketSize);
     expect(s.marketDeck.length + s.market.length).toBe(5 * marketSize);
-    expect(s.trashDeck).toHaveLength(42 - 5 * marketSize + 7);
   });
+
+  it.each([2, 3, 4])(
+    'the bin starts with 27 food cards (+ 3 bones, 4 dogs) for %i players',
+    (n) => {
+      const s = newGame(n);
+      const food = s.trashDeck.filter((c) => c.kind !== 'bone' && c.kind !== 'dog');
+      expect(food).toHaveLength(27);
+      expect(s.trashDeck).toHaveLength(34);
+    },
+  );
 
   it('market holds only food and goldfish; bones and dogs are only in the bin', () => {
     const s = newGame(4);

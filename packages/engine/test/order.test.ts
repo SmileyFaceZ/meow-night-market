@@ -50,28 +50,20 @@ describe('§5/§6 turn order for Trash Dig and Feast Time', () => {
       c: 3,
       d: 1,
     }).state;
-    expect(s.turnOrder).toEqual(['d', 'b', 'c', 'a']);
+    expect(s.turnOrder).toEqual(['d', 'c', 'b', 'a']); // dig: the tied pair in reverse
   });
 
-  it('breaks ties with the round’s tie-break order, not with seats', () => {
-    const s = bidAll(patch(newGame(4), { tieOrder: ['c', 'a', 'd', 'b'] }), {
-      a: 2,
-      b: 2,
-      c: 4,
-      d: 2,
-    }).state;
-    expect(s.turnOrder).toEqual(['a', 'd', 'b', 'c']);
-    expect(computeTurnOrder(s.players, { a: 1, b: 1, c: 1, d: 1 }, ['d', 'b', 'a', 'c'])).toEqual([
-      'd',
-      'b',
-      'a',
-      'c',
-    ]);
+  it('breaks ties with the round’s tie-break order (eating) and its reverse (digging)', () => {
+    const tieOrder = ['c', 'a', 'd', 'b'];
+    const bids = { a: 2, b: 2, c: 4, d: 2 };
+    const s = bidAll(patch(newGame(4), { tieOrder }), bids).state;
+    expect(s.turnOrder).toEqual(['b', 'd', 'a', 'c']);
+    expect(computeTurnOrder(s.players, bids, tieOrder)).toEqual(['a', 'd', 'b', 'c']);
   });
 
-  it('eat phase uses the same order as the trash phase', () => {
+  it('Feast Time uses the same bids, with ties in tie-break order', () => {
     let s = bidAll(patch(newGame(3), { tieOrder: ['a', 'b', 'c'] }), { a: 3, b: 3, c: 1 }).state;
-    const order = [...s.turnOrder];
+    expect(s.turnOrder).toEqual(['c', 'b', 'a']);
     s = pickAll(s).state;
     s = patch(s, {
       players: s.players.map((p) => ({
@@ -81,7 +73,6 @@ describe('§5/§6 turn order for Trash Dig and Feast Time', () => {
     });
     const r = stopAll(s);
     expect(r.state.phase).toBe('eat');
-    expect(r.state.turnOrder).toEqual(order);
-    expect(r.state.turnOrder[r.state.turnIndex]).toBe('c');
+    expect(r.state.turnOrder).toEqual(['c', 'a', 'b']);
   });
 });

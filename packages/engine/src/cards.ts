@@ -6,22 +6,32 @@ export function isFood(kind: CardKind): kind is FoodType {
 }
 
 /** Every card in the game, ids assigned in a fixed order before any shuffle. */
-export function buildDeck(config: GameConfig): { food: Card[]; hazards: Card[] } {
+export function buildDeck(
+  config: GameConfig,
+  playerCount: number,
+): { food: Card[]; hazards: Card[] } {
   let id = 0;
   const make = (kind: CardKind, copies: number): Card[] =>
     Array.from({ length: copies }, () => ({ id: id++, kind }));
 
   const food = [
-    ...FOOD_TYPES.flatMap((kind) => make(kind, config.foodCopies)),
+    ...FOOD_TYPES.flatMap((kind) => make(kind, foodCopiesFor(config, playerCount))),
     ...make('goldfish', config.goldfishCopies),
   ];
   const hazards = [...make('bone', config.boneCopies), ...make('dog', config.dogCopies)];
   return { food, hazards };
 }
 
-export function totalCardCount(config: GameConfig): number {
+export function foodCopiesFor(config: GameConfig, playerCount: number): number {
+  const copies = config.foodCopies[playerCount];
+  if (copies === undefined)
+    throw new Error(`config.foodCopies has no entry for ${playerCount} players`);
+  return copies;
+}
+
+export function totalCardCount(config: GameConfig, playerCount: number): number {
   return (
-    FOOD_TYPES.length * config.foodCopies +
+    FOOD_TYPES.length * foodCopiesFor(config, playerCount) +
     config.goldfishCopies +
     config.boneCopies +
     config.dogCopies

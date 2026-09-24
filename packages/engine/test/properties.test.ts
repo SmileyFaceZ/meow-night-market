@@ -15,7 +15,7 @@ function deepFreeze<T>(value: T): T {
 
 function checkInvariants(s: GameState): void {
   const ids = allCardIds(s);
-  expect(ids.length).toBe(totalCardCount(s.config));
+  expect(ids.length).toBe(totalCardCount(s.config, s.players.length));
   expect(new Set(ids).size).toBe(ids.length);
 
   for (const food of FOOD_TYPES) {

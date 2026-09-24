@@ -16,7 +16,7 @@
 ├─ packages/
 │  └─ engine/
 │     ├─ src/
-│     │  ├─ config.ts        # ค่าคงที่ทั้งหมดของเกม (DEFAULT_CONFIG)
+│     │  ├─ config.ts        # ค่าสมดุลทั้งหมด: กติกา (DEFAULT_CONFIG) + บอท (BOT_TUNING) — ไฟล์เดียว
 │     │  ├─ types.ts         # GameState, Action, GameEvent, Card, ERROR_KEYS
 │     │  ├─ rng.ts           # seeded RNG (mulberry32) — ห้ามใช้ Math.random
 │     │  ├─ setup.ts         # createGame({ playerIds, seed, config? })
@@ -26,7 +26,7 @@
 │     │  ├─ cards.ts         # สร้างสำรับ ตรวจมื้อ (checkMeal) หามื้อที่กินได้ (findMealOptions)
 │     │  ├─ view.ts          # getPlayerView(state, playerId | null)  (null = ผู้ชม)
 │     │  ├─ scoring.ts
-│     │  └─ bots/            # index.ts (chooseBotAction), tuning.ts (เกณฑ์ทุกตัว), common.ts, greedy/sly/careful.ts, random.ts (ใช้ทดสอบ)
+│     │  └─ bots/            # index.ts (chooseBotAction), common.ts, greedy/sly/careful.ts, random.ts (ใช้ทดสอบ)
 │     ├─ scripts/simulate.ts # npm run simulate — log เกมภาษาไทยในเทอร์มินัล
 │     ├─ scripts/balance.ts  # npm run balance — รายงานสถิติสมดุล (docs/BALANCE.md)
 │     └─ test/
@@ -68,4 +68,5 @@
 - ทุกข้อใน GAME_RULES.md มี unit test
 - Property test: เล่นเกมสุ่มด้วยบอท 1,000 เกม ต้องไม่มี error, จำนวนการ์ดรวมคงที่, จบเกมเสมอ
 - Determinism test: seed เดิม + action เดิม = state เดิม
-- สถิติสมดุล (script แยก): อัตราชนะของบอทแต่ละนิสัย, แต้มเฉลี่ย, ความยาวเกม — ใช้ปรับค่าใน config.ts
+- สถิติสมดุล (`npm run balance`): อัตราชนะของบอทแต่ละนิสัย, แต้มเฉลี่ย, มื้อ, การชน, ความเสี่ยงคุ้ย ฯลฯ — ใช้ปรับค่าใน `config.ts`
+  เพิ่มตัวเลือกทดลองได้ที่ `VARIANTS` ใน `scripts/balance.ts` (แค่ใส่ config คนละชุด)

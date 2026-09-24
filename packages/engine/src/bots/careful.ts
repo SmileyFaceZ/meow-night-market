@@ -9,7 +9,7 @@ import {
   patientMeal,
   sortedMeow,
 } from './common.ts';
-import { BOT_TUNING } from './tuning.ts';
+import { BOT_TUNING } from '../config.ts';
 
 const T = BOT_TUNING.careful;
 
@@ -22,10 +22,7 @@ export const careful: BotPolicy = {
     const meow = sortedMeow(me);
     // Spend its highest number only when the stall has a card that finishes a meal.
     const worthIt = view.round >= 2 && view.market.some((card) => completesMeal(view.hand, card));
-    // Spare numbers (more cards than rounds left) would be wasted: cash in the high ones late.
-    const roundsLeft = view.config.rounds - view.round + 1;
-    const late = meow.length > roundsLeft && roundsLeft <= T.highBidLastRounds;
-    return worthIt || late ? meow.at(-1)! : leaning(meow, rng, T.lowBidChance);
+    return worthIt ? meow.at(-1)! : leaning(meow, rng, T.lowBidChance);
   },
   pick: (ctx) => bestPick(ctx),
   keepDigging: ({ view }) =>

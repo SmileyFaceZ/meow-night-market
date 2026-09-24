@@ -24,7 +24,7 @@ export function createGame(options: CreateGameOptions): GameState {
   if (new Set(playerIds).size !== playerIds.length) throw new Error('player ids must be unique');
 
   const rng = createRng(options.seed);
-  const { food, hazards } = buildDeck(config);
+  const { food, hazards } = buildDeck(config, playerIds.length);
 
   // 1–3. Shuffle food + goldfish, deal the market deck, the rest (+ bones, dogs) becomes the bin.
   const shuffledFood = rng.shuffle(food);

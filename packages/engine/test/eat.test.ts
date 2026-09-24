@@ -20,7 +20,7 @@ import {
 /** Feast Time where the first eater (`who`) holds `hand`; `hands` sets anyone else's. */
 function eatWith(hand: Card[], extra: Partial<GameState> = {}, hands: Record<string, Card[]> = {}) {
   const trash = skipToTrash(patch(newGame(3), extra)).state;
-  const [who, next] = trash.turnOrder as [string, string];
+  const [who, next] = trash.tieOrder as [string, string]; // all tied → eat in tie-break order
   const withHands = patch(trash, {
     players: trash.players.map((p) => ({ ...p, hand: p.id === who ? hand : (hands[p.id] ?? []) })),
   });
@@ -132,7 +132,7 @@ describe('§6 Feast Time', () => {
 
   it('skips a player with nothing to eat automatically (TURN_SKIPPED)', () => {
     const trash = skipToTrash(newGame(3)).state;
-    const [first, second] = trash.turnOrder as [string, string];
+    const [first, second] = trash.tieOrder as [string, string];
     const hands: Record<string, Card[]> = {
       [first]: cards('fish', 'milk'),
       [second]: n(3, 'shrimp'),
@@ -147,7 +147,7 @@ describe('§6 Feast Time', () => {
 
   it('ends the turn automatically once nothing more can be eaten', () => {
     const trash = skipToTrash(newGame(3)).state;
-    const [first, second] = trash.turnOrder as [string, string];
+    const [first, second] = trash.tieOrder as [string, string];
     const mine = [...n(3, 'fish'), ...cards('milk')];
     const hands: Record<string, Card[]> = { [first]: mine, [second]: n(3, 'snack') };
     const s = stopAll(

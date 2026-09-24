@@ -37,46 +37,11 @@ const GAMES = Number(values.games);
 const PLAYER_COUNTS = values.players.split(',').map(Number);
 const DIFFICULTY = values.difficulty as BotDifficulty;
 
-/** Rule sets to compare (config may depend on the player count). `base` = GAME_RULES.md. */
+/** Rule sets to compare. `base` = GAME_RULES.md. */
 const D = DEFAULT_CONFIG;
-/** M: meow numbers 1..(players + 3) → 2 players 1–5, 3 players 1–6, 4 players 1–7. */
-const wideMeow = (n: number) => Array.from({ length: n + 3 }, (_, i) => i + 1);
-const VARIANTS: Record<string, { label: string; config: (players: number) => GameConfig }> = {
-  base: { label: 'กติกาปัจจุบัน (D+E+R)', config: () => D },
-  M: {
-    label: 'M: เลขเหมียวตามจำนวนผู้เล่น (1–5/1–6/1–7)',
-    config: (n) => ({ ...D, meowValues: wideMeow(n) }),
-  },
-  S: {
-    label: 'S: ลำดับตัดสินเสมอรอบ 2+ แต้มน้อยก่อน',
-    config: () => ({ ...D, tieOrderByScore: true }),
-  },
-  MS: {
-    label: 'M+S',
-    config: (n) => ({ ...D, meowValues: wideMeow(n), tieOrderByScore: true }),
-  },
-  Xt: {
-    label: 'Xt: เลขเท่ากัน คนที่ได้เลือกของก่อน ต้องคุ้ยทีหลัง',
-    config: () => ({ ...D, tieReverse: 'trash' }),
-  },
-  SXt: { label: 'S+Xt', config: () => ({ ...D, tieOrderByScore: true, tieReverse: 'trash' }) },
-  SXtC4: {
-    label: 'S+Xt + หมา 3 ตัวเฉพาะ 4 คน',
-    config: (n) => ({
-      ...D,
-      tieOrderByScore: true,
-      tieReverse: 'trash',
-      dogCopies: n === 4 ? 3 : 4,
-    }),
-  },
-  MC: {
-    label: 'M+C (หมา 3 ตัว)',
-    config: (n) => ({ ...D, meowValues: wideMeow(n), dogCopies: 3 }),
-  },
-  MSC: {
-    label: 'M+S+C',
-    config: (n) => ({ ...D, meowValues: wideMeow(n), tieOrderByScore: true, dogCopies: 3 }),
-  },
+const VARIANTS: Record<string, { label: string; config: GameConfig }> = {
+  base: { label: 'กติกาปัจจุบัน', config: D },
+  // Add experiments here, e.g. dogs3: { label: 'หมา 3 ตัว', config: { ...D, dogCopies: 3 } },
 };
 const variantNames = values.variants.split(',');
 for (const name of variantNames) {
@@ -125,6 +90,10 @@ interface GameRecord {
   /** Of those cards, how many the same player eventually ate in a meal. */
   clashEaten: number;
   cleanEaten: number;
+  /** Food + goldfish in the bin when the game starts. */
+  startTrashFood: number;
+  /** Sum of the dog chance at the moment of every dig (divide by digs). */
+  riskSum: number;
 }
 
 function playGame(config: GameConfig, lineup: BotPersonality[], seed: string): GameRecord {
@@ -157,6 +126,8 @@ function playGame(config: GameConfig, lineup: BotPersonality[], seed: string): G
     cleanGainStall: 0,
     clashEaten: 0,
     cleanEaten: 0,
+    startTrashFood: state.trashDeck.filter((c) => c.kind !== 'dog' && c.kind !== 'bone').length,
+    riskSum: 0,
   };
 
   // Per-round tally of cards gained, keyed by player id.
@@ -237,7 +208,13 @@ function playGame(config: GameConfig, lineup: BotPersonality[], seed: string): G
     const actor = actors[botRng.int(actors.length)]!;
     const seat = ids.indexOf(actor);
     const bot = personalities[seat]!;
-    const action = chooseBotAction(bot, DIFFICULTY, getPlayerView(state, actor), botRng);
+    const view = getPlayerView(state, actor);
+    const action = chooseBotAction(bot, DIFFICULTY, view, botRng);
+    if (action?.type === 'dig') {
+      const dogs = view.trashDogCount;
+      const pool = view.trashCount > dogs ? view.trashCount : dogs + view.discard.length;
+      rec.riskSum += dogs / pool;
+    }
     if (!action) throw new Error(`bot ${actor} had no action in ${state.phase}`);
     const result = applyAction(state, action);
     if (!result.ok) throw new Error(`bot ${actor} (${bot}) ${action.type}: ${result.error}`);
@@ -287,6 +264,8 @@ interface Summary {
   cleanGainStall: number;
   clashEaten: number;
   cleanEaten: number;
+  startTrashFood: number;
+  avgRisk: number;
   byBot: Record<string, { seats: number; wins: number; score: number; meals: number }>;
 }
 
@@ -342,6 +321,8 @@ function summarize(records: GameRecord[]): Summary {
     cleanGain: sum('cleanGain') / cleanRounds,
     cleanGainStall: sum('cleanGainStall') / cleanRounds,
     clashEaten: sum('clashEaten') / clashRounds,
+    startTrashFood: sum('startTrashFood') / records.length,
+    avgRisk: sum('riskSum') / digs,
     cleanEaten: sum('cleanEaten') / cleanRounds,
     byBot,
   };
@@ -389,7 +370,7 @@ for (const variant of variantNames) {
     for (const lineup of lineups(n)) {
       const recs: GameRecord[] = [];
       for (let i = 0; i < GAMES; i++) {
-        recs.push(playGame(config(n), lineup, `${values.seed}:${n}:${lineup.join('-')}:${i}`));
+        recs.push(playGame(config, lineup, `${values.seed}:${n}:${lineup.join('-')}:${i}`));
       }
       all.push(...recs);
       detail.push(summaryRow(lineupName(lineup), summarize(recs)));
@@ -437,17 +418,17 @@ if (variantNames.length > 1) {
   out('## เทียบทุกตัวเลือก');
   out();
   out(
-    '| ตัวเลือก | ผู้เล่น | มื้อ/คน/เกม | จบ 0 แต้ม | รอบที่มีชน | ชนต่อคนต่อรอบ | ได้กินจริง ไม่ชน vs ชน | ลำดับที่ 1 รอบแรกชนะ | บอทห่างสุด |',
+    '| ตัวเลือก | ผู้เล่น | มื้อ/คน/เกม | จบ 0 แต้ม | รอบที่มีชน | ชนต่อคนต่อรอบ | ได้กินจริง ไม่ชน vs ชน | ลำดับที่ 1 รอบแรกชนะ | บอทห่างสุด | อาหารในถังตอนเริ่ม | ความเสี่ยงเฉลี่ยต่อการคุ้ย |',
   );
-  out('|---|---|---|---|---|---|---|---|---|');
+  out('|---|---|---|---|---|---|---|---|---|---|---|');
   for (const [variant, rows] of comparison) {
     for (const [n, s] of rows) {
       const mealsOk =
-        n === 4 ? s.mealsPerPlayer >= 1.8 : s.mealsPerPlayer >= 2 && s.mealsPerPlayer <= 4;
+        n === 4 ? s.mealsPerPlayer >= 1.7 : s.mealsPerPlayer >= 2 && s.mealsPerPlayer <= 4;
       const rates = BOT_PERSONALITIES.map((p) => s.byBot[p]!.wins / s.byBot[p]!.seats);
       const spread = Math.max(...rates) - Math.min(...rates);
       out(
-        `| ${variant} | ${n} | ${f2(s.mealsPerPlayer)} ${mark(mealsOk)} | ${pct(s.zeroRate)} ${mark(s.zeroRate <= 0.1)} | ${pct(s.clashRoundRate)} | ${pct(s.clashPlayerRate)} | ${f2(s.cleanEaten)} vs ${f2(s.clashEaten)} ${mark(n === 2 || s.cleanEaten > s.clashEaten)} | ${pct(s.firstTieWin)} ${mark(s.firstTieWin <= s.fairShare + 0.03)} | ${(spread * 100).toFixed(1)} ${mark(spread <= 0.1)} |`,
+        `| ${variant} | ${n} | ${f2(s.mealsPerPlayer)} ${mark(mealsOk)} | ${pct(s.zeroRate)} ${mark(s.zeroRate <= 0.1)} | ${pct(s.clashRoundRate)} | ${pct(s.clashPlayerRate)} | ${f2(s.cleanEaten)} vs ${f2(s.clashEaten)} ${mark(n === 2 || s.cleanEaten > s.clashEaten)} | ${pct(s.firstTieWin)} ${mark(s.firstTieWin <= s.fairShare + 0.03)} | ${(spread * 100).toFixed(1)} ${mark(spread <= 0.1)} | ${f1(s.startTrashFood)} | ${pct(s.avgRisk)} |`,
       );
     }
   }

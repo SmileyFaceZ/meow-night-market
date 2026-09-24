@@ -10,7 +10,7 @@ export { applyAction } from './actions.ts';
 export { getPlayerView } from './view.ts';
 export type { PlayerView, PublicPlayer } from './view.ts';
 export { scoreGame } from './scoring.ts';
-export { checkMeal, findMealOptions, isFood, totalCardCount } from './cards.ts';
+export { checkMeal, findMealOptions, foodCopiesFor, isFood, totalCardCount } from './cards.ts';
 export type { MealCheck, MealOption } from './cards.ts';
 export {
   canDigTrash,

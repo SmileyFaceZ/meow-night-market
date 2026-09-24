@@ -41,14 +41,16 @@ export function takeFromHand(hand: Card[], ids: readonly number[]): Card[] {
   return taken;
 }
 
-/** GAME_RULES §4.1: draw this round's public tie-break order, then lay out the stall. */
+/**
+ * GAME_RULES §4.1: draw this round's public tie-break order, then lay out the stall.
+ * Round 1 is a random draw; from round 2 the lowest score comes first (the draw breaks equal scores).
+ */
 export function startRound(ctx: Ctx, round: number): void {
   const { s } = ctx;
   s.round = round;
   s.phase = 'bidding';
   s.tieOrder = ctx.rng.shuffle(s.players.map((p) => p.id));
-  if (s.config.tieOrderByScore && round > 1) {
-    // Experimental S: lowest score first; the random draw above breaks equal scores.
+  if (round > 1) {
     const points = (id: PlayerId) =>
       playerById(s, id).meals.reduce((sum, meal) => sum + meal.points, 0);
     s.tieOrder = [...s.tieOrder].sort((a, b) => points(a) - points(b));
@@ -105,18 +107,18 @@ export function revealBids(ctx: Ctx): void {
       .map((p) => p.id),
     ...pickOrder.filter((id) => s.clashed.includes(id)),
   ];
-  // Experimental X: whoever picks first among equal bids digs and/or eats last.
   s.turnOrder = phaseOrder(s, 'trash');
   s.phase = 'pick';
   ctx.events.push({ type: 'PHASE_STARTED', phase: 'pick', turnOrder: [...s.pickQueue] });
   ctx.events.push({ type: 'TURN_STARTED', playerId: s.pickQueue[0]! });
 }
 
-/** Turn order for Trash Dig / Feast Time (GAME_RULES §5–6; experimental X may reverse ties). */
+/**
+ * Turn order for Trash Dig / Feast Time: lowest bid first. Equal bids eat in the tie-break
+ * order but DIG in reverse (GAME_RULES §5) — whoever picked first among them digs last.
+ */
 function phaseOrder(s: Draft<GameState>, phase: 'trash' | 'eat'): PlayerId[] {
-  const mode = s.config.tieReverse;
-  const reverse = mode === 'trashAndEat' || mode === phase;
-  const tie = reverse ? [...s.tieOrder].reverse() : s.tieOrder;
+  const tie = phase === 'trash' ? [...s.tieOrder].reverse() : s.tieOrder;
   return computeTurnOrder(s.players, s.revealedBids ?? {}, tie);
 }
 

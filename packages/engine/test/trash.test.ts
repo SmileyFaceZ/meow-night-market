@@ -187,7 +187,7 @@ describe('§5 Trash Dig', () => {
     expect(r.events).toContainEqual({
       type: 'PHASE_STARTED',
       phase: 'eat',
-      turnOrder: s.turnOrder,
+      turnOrder: s.tieOrder, // all tied: dug in reverse, eat in tie-break order,
     });
     // nobody holds a meal, so every eat turn is skipped and round 2 begins
     expect(eventTypes(r.events).filter((t) => t === 'TURN_SKIPPED')).toHaveLength(3);

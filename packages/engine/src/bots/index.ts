@@ -1,3 +1,4 @@
+import { EASY_MISTAKE_RATE } from '../config.ts';
 import type { Rng } from '../rng.ts';
 import type { Action } from '../types.ts';
 import type { PlayerView } from '../view.ts';
@@ -7,16 +8,13 @@ import { greedy } from './greedy.ts';
 import { chooseRandomAction } from './random.ts';
 import { sly } from './sly.ts';
 
-export { BOT_TUNING } from './tuning.ts';
+export { BOT_TUNING, EASY_MISTAKE_RATE } from '../config.ts';
 
 export const BOT_PERSONALITIES = ['greedy', 'sly', 'careful'] as const;
 export type BotPersonality = (typeof BOT_PERSONALITIES)[number];
 
 export const BOT_DIFFICULTIES = ['easy', 'normal'] as const;
 export type BotDifficulty = (typeof BOT_DIFFICULTIES)[number];
-
-/** GAME_RULES §9: easy bots make a random (legal) decision this often. */
-export const EASY_MISTAKE_RATE = 0.3;
 
 const POLICIES: Record<BotPersonality, BotPolicy> = { greedy, sly, careful };
 

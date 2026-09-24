@@ -14,7 +14,7 @@ import {
   sortedMeow,
   threatenedFoods,
 } from './common.ts';
-import { BOT_TUNING } from './tuning.ts';
+import { BOT_TUNING } from '../config.ts';
 
 const T = BOT_TUNING.sly;
 
