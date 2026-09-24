@@ -60,7 +60,9 @@ export class LocalController implements GameController {
   private recentEvents: GameEvent[] = [];
   private snapshot: ControllerSnapshot;
   private version = 0;
+  private eventCount = 0;
   private disposed = false;
+  private paused = false;
 
   constructor(options: LocalControllerOptions) {
     this.state = options.state;
@@ -110,12 +112,25 @@ export class LocalController implements GameController {
     if (!result.ok) return result.error;
     this.state = result.state;
     this.recentEvents = [...this.recentEvents, ...result.events].slice(-RECENT_EVENTS);
+    this.eventCount += result.events.length;
     this.version++;
     this.snapshot = this.buildSnapshot();
     this.save();
     for (const listener of this.listeners) listener();
     this.scheduleMoves();
     return null;
+  };
+
+  setPaused = (paused: boolean): void => {
+    if (this.paused === paused) return;
+    this.paused = paused;
+    if (paused) {
+      // Drop pending bot moves; they get a fresh "thinking" delay after the pause.
+      for (const handle of this.timers.values()) this.scheduler.clearTimeout(handle);
+      this.timers.clear();
+    } else {
+      this.scheduleMoves();
+    }
   };
 
   dispose = (): void => {
@@ -135,6 +150,7 @@ export class LocalController implements GameController {
       view: getPlayerView(this.state, this.viewerId),
       seats: this.seats,
       recentEvents: this.recentEvents,
+      eventCount: this.eventCount,
       version: this.version,
     };
   }
@@ -155,7 +171,7 @@ export class LocalController implements GameController {
 
   /** Give every bot the game is waiting on a turn after a short "thinking" pause. */
   private scheduleMoves(): void {
-    if (this.disposed) return;
+    if (this.disposed || this.paused) return;
     const waiting = pendingActors(this.state);
     for (const id of waiting) {
       if (this.timers.has(id)) continue;
@@ -191,7 +207,7 @@ export class LocalController implements GameController {
 
   private playBot(id: PlayerId): void {
     this.timers.delete(id);
-    if (this.disposed || !pendingActors(this.state).includes(id)) return;
+    if (this.disposed || this.paused || !pendingActors(this.state).includes(id)) return;
     const seat = this.seats.find((s) => s.id === id);
     if (!seat?.bot) return;
     const view = getPlayerView(this.state, id);

@@ -32,6 +32,8 @@ export interface ControllerSnapshot {
   readonly seats: readonly SeatInfo[];
   /** Events of the most recent actions, oldest first (for the feed / animations). */
   readonly recentEvents: readonly GameEvent[];
+  /** Total events emitted so far — lets the UI tell which of `recentEvents` are new. */
+  readonly eventCount: number;
   /** Increases on every change, so React can cheaply tell snapshots apart. */
   readonly version: number;
 }
@@ -45,5 +47,10 @@ export interface GameController {
   readonly subscribe: (listener: () => void) => () => void;
   /** Returns an i18n error key if the engine refused the action. */
   readonly dispatch: (action: Action) => ErrorKey | null;
+  /**
+   * While the UI is still showing events (animations, messages), the game holds:
+   * bots and automatic moves wait until it is unpaused.
+   */
+  readonly setPaused: (paused: boolean) => void;
   readonly dispose: () => void;
 }

@@ -15,6 +15,9 @@ import { GameCard, MeowCard } from '../components/cards';
 import { CatArt } from '../art/CatArt';
 import { Button, Modal } from '../components/ui';
 import { describeEvent, useSeatName, useSnapshot } from '../game/hooks';
+import { moodFromBeat } from '../game/stage';
+import { useStage } from '../game/useStage';
+import { Stage } from '../components/Stage';
 import type { GameController, SeatInfo } from '../game/types';
 
 export function GameScreen({
@@ -29,6 +32,9 @@ export function GameScreen({
   const { t } = useTranslation();
   const { view, seats, recentEvents } = useSnapshot(controller);
   const seatName = useSeatName(seats);
+  const stage = useStage(controller);
+  const beat = stage.current?.beat ?? null;
+  const moodOf = (id: string) => moodFromBeat(beat, id) ?? 'normal';
   const [bid, setBid] = useState<number | null>(null);
   const [toDiscard, setToDiscard] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +110,7 @@ export function GameScreen({
             seat={seatOf(p.id)}
             name={seatName(p.id)}
             status={statusOf(p.id)}
+            mood={moodOf(p.id)}
             stacked={opponents.length >= 3}
             onOpen={() => setModal({ player: p.id })}
           />
@@ -137,6 +144,7 @@ export function GameScreen({
       {/* me */}
       <section className="sticky bottom-0 z-10 mt-auto rounded-t-3xl bg-night-2 p-2 pb-3 shadow-[0_-8px_24px_rgb(0_0_0/0.35)]">
         <PlayerBadge
+          mood={moodOf(me.id)}
           player={me}
           seat={seatOf(me.id)}
           name={seatName(me.id)}
@@ -171,6 +179,14 @@ export function GameScreen({
           )}
         </div>
       </section>
+
+      <Stage
+        staged={stage.current}
+        seats={seats}
+        viewer={view.viewer}
+        name={seatName}
+        onSkip={stage.skip}
+      />
 
       {modal === 'discard' && (
         <Modal

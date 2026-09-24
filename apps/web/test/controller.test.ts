@@ -176,3 +176,27 @@ describe('save & resume', () => {
     flush();
   });
 });
+
+describe('pausing while the UI presents events', () => {
+  it('holds every bot until unpaused, then resumes', () => {
+    const { scheduler, flush, pending } = manualScheduler();
+    const controller = LocalController.newSolo(seats, 'pause', null, scheduler);
+    expect(pending()).toBe(3);
+    controller.setPaused(true);
+    expect(pending()).toBe(0);
+    controller.dispatch({ type: 'bid', playerId: 'p0', value: 3 });
+    flush();
+    expect(controller.getSnapshot().view.players.filter((p) => p.hasBid)).toHaveLength(1);
+    controller.setPaused(false);
+    flush();
+    expect(controller.getSnapshot().view.phase).not.toBe('bidding');
+  });
+
+  it('counts events so the UI can find the new ones', () => {
+    const { scheduler } = manualScheduler();
+    const controller = LocalController.newSolo(seats, 'count', null, scheduler);
+    const before = controller.getSnapshot().eventCount;
+    controller.dispatch({ type: 'bid', playerId: 'p0', value: 3 });
+    expect(controller.getSnapshot().eventCount).toBe(before + 1);
+  });
+});

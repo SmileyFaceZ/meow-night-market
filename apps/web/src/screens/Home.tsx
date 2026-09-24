@@ -10,10 +10,12 @@ export function HomeScreen({
   save,
   onContinue,
   onSolo,
+  onHowTo,
 }: {
   save: SoloSave | null;
   onContinue: () => void;
   onSolo: () => void;
+  onHowTo: () => void;
 }) {
   const { t, i18n } = useTranslation();
   const nextLang = i18n.language === 'th' ? 'en' : 'th';
@@ -73,7 +75,7 @@ export function HomeScreen({
         <Button variant="secondary" disabledReason={t('home.comingSoon')} onClick={() => {}}>
           {t('mode.online')}
         </Button>
-        <Button variant="ghost" disabledReason={t('home.comingSoon')} onClick={() => {}}>
+        <Button variant="secondary" onClick={onHowTo}>
           {t('home.howTo')}
         </Button>
       </nav>

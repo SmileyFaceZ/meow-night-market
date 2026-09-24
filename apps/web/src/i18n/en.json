@@ -190,5 +190,47 @@
     "noDiscardNeeded": "No need to discard",
     "alreadyDiscarded": "You already chose",
     "wrongDiscardCount": "Wrong number of cards"
+  },
+  "stage": {
+    "reveal": "Meows revealed!",
+    "bark": "Woof!",
+    "priceDrop": "{{food}} price {{from}} → {{to}}",
+    "gameOver": "The market has closed!",
+    "tapToSkip": "Tap to skip",
+    "noClash": "No clashes"
+  },
+  "bin": {
+    "calm": "All quiet",
+    "uneasy": "Strange noises…",
+    "scared": "A dog is close!",
+    "empty": "Only dogs left!",
+    "tapHint": "Tap for the odds",
+    "details": "Trash bin"
+  },
+  "howto": {
+    "title": "How to play",
+    "goal": "Be the fullest cat when the market closes! Play 5 rounds, collect sets of the same food and eat them for points.",
+    "roundTitle": "Each round has 3 parts",
+    "biddingText": "Everyone secretly plays a meow card 1–5, then all flip at once. Unique numbers pick from the stall first. Each number works once per game.",
+    "trashText": "Draw from the trash bin one card at a time into your bag and stop whenever you like — but meet a guard dog without a bone and your bag is lost!",
+    "eatText": "3 of the same food = a meal worth its market price. Each meal drops that price by 1, so eating first scores more.",
+    "orderTitle": "Who goes first",
+    "orderRound": "Each round shows a tie-break order before you bid: random in round 1, then lowest score first.",
+    "orderPickUnique": "Unique numbers pick first — highest number first.",
+    "orderPickClash": "Clashed? You still pick, after everyone who didn't.",
+    "orderDig": "Lower numbers dig first.",
+    "orderDigTie": "Same number: whoever picked first digs last.",
+    "orderEat": "Lower numbers eat first (ties follow the tie-break order).",
+    "orderSkip": "Nothing to eat? Your turn is skipped for you.",
+    "scoreTitle": "Meals and points",
+    "scoreMeal": "Meal of 3 = its price in points",
+    "scoreBig": "Big feast of 4 = price × 2",
+    "scoreGold": "A golden fish stands in for any food, one per meal",
+    "scoreBonus": "Eat the most kinds of food (at least 2) for the Foodie Bonus +3",
+    "scoreLimit": "Hold at most 10 cards at the end of a round — discard the rest",
+    "dogTitle": "Guard dogs and bones",
+    "dogText": "Bones you dig go straight to your hand (safe). When a dog appears, throw a bone to get away. The emptier the bin, the closer the dogs — watch the bin's mood!",
+    "startTutorial": "Try the tutorial",
+    "back": "Back"
   }
 }

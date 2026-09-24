@@ -1,6 +1,9 @@
 import { type Card, FOOD_TYPES, type PlayerView, type PublicPlayer } from '@meow/engine';
+import { motion, useReducedMotion } from 'motion/react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { TrashBinArt } from '../art/BackArt';
+import { BinArt } from '../art/BinArt';
+import { binMoodFor } from '../art/style';
 import { CardArt } from '../art/CardArt';
 import { CatArt, type CatMood } from '../art/CatArt';
 import type { FeedLine } from '../game/hooks';
@@ -166,25 +169,52 @@ export function MarketStall({
 
 export function TrashArea({ view }: { view: PlayerView }) {
   const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
   const dogs = view.trashDogCount;
   const pool = view.trashCount > dogs ? view.trashCount : dogs + view.discard.length;
-  const risk = pool > 0 ? Math.round((dogs / pool) * 100) : 0;
+  const risk = pool > 0 ? dogs / pool : 0;
+  const mood = binMoodFor(risk, view.trashDiggable);
+  const reduced = useReducedMotion() ?? false;
   const hasBag = view.bag.length > 0 || view.pendingDog;
   return (
     <section
       aria-label={t('term.trash')}
-      className="flex items-center gap-2 rounded-2xl bg-night-2/60 px-2 py-1.5"
+      className="relative flex items-center gap-2 rounded-2xl bg-night-2/60 px-2 py-1.5"
     >
-      <span className="size-11 shrink-0">
-        <TrashBinArt />
-      </span>
-      <span className="min-w-0 shrink-0 text-xs leading-snug">
-        <span className="block font-display text-sm text-card">{t('term.trash')}</span>
-        <span className="block text-card/80">
-          {t('trash.status', { count: view.trashCount, dogs })}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label={`${t('term.trash')}: ${t(`bin.${mood}`)}. ${t('bin.tapHint')}`}
+        className="flex min-h-tap items-center gap-2 rounded-xl text-left"
+      >
+        <motion.span
+          className="size-12 shrink-0"
+          animate={
+            reduced || mood === 'calm'
+              ? { rotate: 0 }
+              : { rotate: mood === 'uneasy' ? [0, -3, 3, 0] : [0, -6, 6, -4, 4, 0] }
+          }
+          transition={{ duration: mood === 'uneasy' ? 1.6 : 0.8, repeat: Infinity, repeatDelay: 1 }}
+        >
+          <BinArt mood={mood} />
+        </motion.span>
+        <span className="text-xs leading-snug">
+          <span className="block font-display text-sm text-card">{t(`bin.${mood}`)}</span>
+          <span className="block text-card/60">{t('bin.tapHint')}</span>
         </span>
-        <span className="block text-card/80">{t('trash.risk', { percent: risk })}</span>
-      </span>
+      </button>
+      {open && (
+        <span
+          role="status"
+          className="absolute top-full left-2 z-20 mt-1 rounded-xl bg-ink px-3 py-2 text-sm text-card shadow-lg"
+        >
+          <span className="block">{t('trash.status', { count: view.trashCount, dogs })}</span>
+          <span className="block font-display text-lantern">
+            {t('trash.risk', { percent: Math.round(risk * 100) })}
+          </span>
+        </span>
+      )}
       {hasBag && (
         <span
           className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-1"

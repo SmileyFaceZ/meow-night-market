@@ -24,3 +24,13 @@ export const KIND_COLOR: Record<CardKind, string> = {
   bone: '#FFFDF6',
   dog: 'var(--danger)',
 };
+
+export type BinMood = 'calm' | 'uneasy' | 'scared' | 'empty';
+
+/** Mood thresholds on the chance that the next dig finds a dog. */
+export function binMoodFor(risk: number, diggable: boolean): BinMood {
+  if (!diggable) return 'empty';
+  if (risk > 0.25) return 'scared';
+  if (risk >= 0.15) return 'uneasy';
+  return 'calm';
+}

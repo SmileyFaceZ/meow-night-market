@@ -3,11 +3,12 @@ import { browserScheduler, LocalController } from './game/LocalController';
 import { browserStorage, clearSave, readSave, type SoloSave } from './game/save';
 import { GameScreen } from './screens/Game';
 import { HomeScreen } from './screens/Home';
+import { HowToScreen } from './screens/HowTo';
 import { ResultScreen } from './screens/Result';
 import { seatsFromSetup, type SoloSetup } from './game/setup';
 import { SetupScreen } from './screens/Setup';
 
-type Screen = 'home' | 'setup' | 'game' | 'result';
+type Screen = 'home' | 'setup' | 'game' | 'result' | 'howto';
 
 function newSeed(): string {
   // Seed for a fresh game (UI side — the engine itself never touches Math.random).
@@ -65,6 +66,10 @@ export function App() {
     }
   }
 
+  if (screen === 'howto') {
+    return <HowToScreen onBack={() => setScreen('home')} />;
+  }
+
   if (screen === 'setup') {
     return <SetupScreen hasSave={save !== null} onStart={startSolo} onBack={goHome} />;
   }
@@ -73,6 +78,7 @@ export function App() {
     <HomeScreen
       save={save}
       onSolo={() => setScreen('setup')}
+      onHowTo={() => setScreen('howto')}
       onContinue={() => {
         if (!save) return;
         setController(LocalController.fromSave(save, storage, browserScheduler));
