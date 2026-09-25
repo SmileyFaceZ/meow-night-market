@@ -9,6 +9,7 @@ import {
   getPlayerView,
   pendingActors,
   type PlayerId,
+  upgradeState,
 } from '@meow/engine';
 import {
   AUTO_MOVE_MS,
@@ -142,7 +143,8 @@ export class RoomCore {
   private changed = false;
 
   constructor(room: StoredRoom, deps: RoomDeps) {
-    this.room = room;
+    // A room saved before a deploy may hold a game from an older version.
+    this.room = room.game ? { ...room, game: upgradeState(room.game) } : room;
     this.deps = deps;
   }
 

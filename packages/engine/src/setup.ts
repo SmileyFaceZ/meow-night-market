@@ -130,3 +130,26 @@ function eventsOnTop(deck: readonly EventId[], top: readonly EventId[]): EventId
   for (const e of top) if (!deck.includes(e)) throw new Error(`event ${e} is not in this deck`);
   return [...top, ...deck.filter((e) => !top.includes(e))];
 }
+
+/** Fields added after the first release, with the values that keep an older game classic. */
+const CLASSIC_FIELDS = {
+  powers: null,
+  powerWindow: null,
+  peek: null,
+  digCount: 0,
+  extraOrder: null,
+  events: null,
+  setAsideDogs: [],
+  faceDown: [],
+  dogsSlept: [],
+  passes: {},
+} as const satisfies Partial<GameState>;
+
+/**
+ * A game saved by an older version (a local save, or an online room across a deploy)
+ * may lack fields added since: fill them so it carries on as the classic game it was.
+ */
+export function upgradeState(state: GameState): GameState {
+  const config = { ...DEFAULT_CONFIG, ...state.config };
+  return { ...CLASSIC_FIELDS, ...state, config };
+}

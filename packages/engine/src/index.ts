@@ -4,7 +4,7 @@ export type { EventConfig, GameConfig } from './config.ts';
 export * from './types.ts';
 export { createRng, hashSeed, normalizeSeed } from './rng.ts';
 export type { Rng } from './rng.ts';
-export { createGame } from './setup.ts';
+export { createGame, upgradeState } from './setup.ts';
 export type { CreateGameOptions } from './setup.ts';
 export { applyAction } from './actions.ts';
 export { getPlayerView } from './view.ts';

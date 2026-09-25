@@ -126,7 +126,7 @@ Playwright (`npm run test:e2e`) **ไม่ได้รัน**ใน build (ต
 
 ## ข้อควรรู้ตอน deploy
 - deploy ใหม่ = Durable Object ทุกห้องรีสตาร์ต → WebSocket หลุดชั่วครู่ แล้ว client ต่อใหม่เอง (state อยู่ใน storage)
-  แต่ถ้าเปลี่ยนรูปแบบข้อมูลห้อง (`StoredRoom`) ต้องคิดเรื่องห้องเก่าที่ค้างอยู่ด้วย
+  เกมในห้องที่ค้างอยู่ได้ฟิลด์ใหม่อัตโนมัติ (`upgradeState`) · ถ้าเปลี่ยนรูปแบบ `StoredRoom` เอง ต้องคิดเรื่องห้องเก่าด้วย
 - ประเภท storage ของ Durable Object (SQLite) **เปลี่ยนไม่ได้หลัง deploy ครั้งแรก**
 
 ## อ้างอิง

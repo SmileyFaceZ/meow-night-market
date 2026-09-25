@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG, FOOD_TYPES } from '../src/config.ts';
 import { createRng, hashSeed } from '../src/rng.ts';
-import { createGame } from '../src/setup.ts';
+import { applyAction } from '../src/actions.ts';
+import { chooseRandomAction } from '../src/bots/random.ts';
+import { pendingActors } from '../src/rules.ts';
+import { createGame, upgradeState } from '../src/setup.ts';
+import type { GameState } from '../src/types.ts';
+import { getPlayerView } from '../src/view.ts';
 import { allCardIds, newGame, P } from './helpers.ts';
 
 const count = (cards: readonly { kind: string }[], kind: string) =>
@@ -136,5 +141,29 @@ describe('seeded RNG', () => {
     const out = createRng(7).shuffle(input);
     expect(input).toEqual([1, 2, 3, 4, 5, 6]);
     expect([...out].sort()).toEqual(input);
+  });
+});
+
+describe('upgradeState (older saves and rooms)', () => {
+  it('fills fields added since, so an old game carries on as a classic game', () => {
+    const fresh = createGame({ playerIds: ['a', 'b'], seed: 'old' });
+    const old = JSON.parse(JSON.stringify(fresh)) as Record<string, unknown> & {
+      config: Record<string, unknown>;
+    };
+    for (const key of ['powers', 'powerWindow', 'peek', 'digCount', 'extraOrder', 'events']) {
+      delete old[key];
+    }
+    for (const key of ['setAsideDogs', 'faceDown', 'dogsSlept', 'passes']) delete old[key];
+    delete old.config.events;
+
+    let state = upgradeState(old as unknown as GameState);
+    expect(state).toEqual(fresh);
+    const rng = createRng(1);
+    while (state.phase !== 'gameOver') {
+      const actor = pendingActors(state)[0]!;
+      const result = applyAction(state, chooseRandomAction(getPlayerView(state, actor), rng)!);
+      if (!result.ok) throw new Error(result.error);
+      state = result.state;
+    }
   });
 });

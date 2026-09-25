@@ -399,6 +399,30 @@ describe('rematch', () => {
 
 type TestConnOf<R extends Room> = ReturnType<R['connect']>;
 
+describe('after a deploy', () => {
+  it('carries on a game saved by an older version (fields added since are filled in)', () => {
+    const room = setup();
+    const a = room.connect('Ann');
+    a.say({ type: 'addBot', bot: { personality: 'greedy', difficulty: 'normal' } });
+    a.say({ type: 'start' });
+    // What an older version stored: the game without the newer fields.
+    const stored = JSON.parse(JSON.stringify(room.core.state)) as {
+      game: Record<string, unknown>;
+    };
+    for (const key of ['powers', 'faceDown', 'passes', 'events', 'setAsideDogs', 'dogsSlept']) {
+      delete stored.game[key];
+    }
+    const revived = new RoomCore(stored as never, {
+      now: () => room.now + 60_000,
+      random: () => 0.5,
+      token: () => 'token-000000000000',
+      conns: () => [],
+    });
+    expect(() => revived.handleAlarm()).not.toThrow();
+    expect(revived.state.game?.faceDown).toEqual([]);
+  });
+});
+
 describe('room lifetime', () => {
   it('expires 30 minutes after the last person leaves', () => {
     const room = setup();
