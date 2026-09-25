@@ -1,11 +1,16 @@
 import { CLASSIC_MODE, type GameMode, MAYHEM_MODE } from '@meow/protocol';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { hasSeenMayhemIntro, markMayhemIntroSeen } from '../game/mayhemIntro';
 import { modeName } from '../game/mode';
-import { Switch } from './ui';
+import { MayhemIntro } from './MayhemIntro';
+import { Button, Switch } from './ui';
 
 /**
  * Classic / Market Mayhem in one tap, or cat powers and market events one by one.
  * Without `onChange` it only shows the rules (a guest in an online room).
+ * The first time any Mayhem rule is on (chosen here, or the room's host chose it), the
+ * two-page intro opens once; "What is Market Mayhem?" opens it again.
  */
 export function ModeSwitch({
   mode,
@@ -16,11 +21,31 @@ export function ModeSwitch({
 }) {
   const { t } = useTranslation();
   const name = modeName(mode);
+  const mayhemOn = mode.powers || mode.events;
+  const [seen, setSeen] = useState(hasSeenMayhemIntro);
+  const [reopened, setReopened] = useState(false);
+  const intro =
+    reopened || (mayhemOn && !seen) ? (
+      <MayhemIntro
+        onClose={() => {
+          markMayhemIntroSeen();
+          setSeen(true);
+          setReopened(false);
+        }}
+      />
+    ) : null;
+  const explain = mayhemOn && (
+    <Button variant="ghost" onClick={() => setReopened(true)}>
+      {t('intro.open')}
+    </Button>
+  );
   if (!onChange) {
     return (
       <section className="grid gap-1">
         <h2 className="font-display">{t('mode.title')}</h2>
         <p className="text-sm text-card/80">{t(`modeName.${name}`)}</p>
+        {explain}
+        {intro}
       </section>
     );
   }
@@ -54,6 +79,8 @@ export function ModeSwitch({
         checked={mode.events}
         onChange={(events) => onChange({ ...mode, events })}
       />
+      {explain}
+      {intro}
     </section>
   );
 }

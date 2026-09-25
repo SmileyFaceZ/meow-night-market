@@ -62,7 +62,7 @@ describe('i18n dictionaries (docs/I18N.md)', () => {
       'bot.careful': ['แมวขาวขี้ระวัง', 'Careful Snowy'],
       'mode.chaos': ['ตลาดป่วน', 'Market Mayhem'],
       'term.power': ['พลังแมว', 'Cat Power'],
-      'term.event': ['การ์ดเหตุการณ์', 'Market Event'],
+      'term.event': ['เหตุการณ์', 'Market Event'],
       'powerName.keenNose': ['จมูกไว', 'Keen Nose'],
       'powerName.secondThought': ['เปลี่ยนใจ', 'Second Thought'],
       'powerName.scavenger': ['เก็บของเก่ง', 'Scavenger'],

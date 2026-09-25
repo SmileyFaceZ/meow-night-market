@@ -1,20 +1,44 @@
-import type { CardKind } from '@meow/engine';
-import type { ReactNode } from 'react';
+import { CAT_IDS, CAT_POWER, type CardKind, DEFAULT_CONFIG, EVENT_IDS } from '@meow/engine';
+import { type ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BinArt } from '../art/BinArt';
 import { CatArt } from '../art/CatArt';
+import { EventIcon } from '../art/EventIcon';
+import { PowerIcon } from '../art/PowerIcon';
 import { GameCard, MeowCard } from '../components/cards';
 import { Button } from '../components/ui';
+import { eventDescParams } from '../game/mayhem';
 
-/** Visual how-to-play page (GAME_RULES §11 is the source for the "who goes first" lines). */
+type Tab = 'basics' | 'mayhem';
+
+/**
+ * Visual how-to-play page: the basics (GAME_RULES §11 is the source for the "who goes
+ * first" lines) and a Market Mayhem tab listing every power and event (§14–15).
+ */
 export function HowToScreen({
   onBack,
   onTutorial,
+  initialTab = 'basics',
 }: {
   onBack: () => void;
   onTutorial?: (() => void) | undefined;
+  initialTab?: Tab;
 }) {
   const { t } = useTranslation();
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const tabButton = (id: Tab, label: string) => (
+    <button
+      type="button"
+      role="tab"
+      id={`howto-tab-${id}`}
+      aria-selected={tab === id}
+      aria-controls="howto-panel"
+      onClick={() => setTab(id)}
+      className={`min-h-tap rounded-xl px-2 font-display ${tab === id ? 'bg-lantern text-ink' : 'bg-night-2 text-card'}`}
+    >
+      {label}
+    </button>
+  );
   return (
     <main className="mx-auto flex min-h-dvh max-w-xl flex-col gap-4 px-4 pt-4 pb-10">
       <header className="flex items-center justify-between gap-3">
@@ -23,7 +47,33 @@ export function HowToScreen({
           {t('howto.back')}
         </Button>
       </header>
+      <div className="grid grid-cols-2 gap-1.5" role="tablist" aria-label={t('howto.title')}>
+        {tabButton('basics', t('howto.tabBasics'))}
+        {tabButton('mayhem', t('mode.chaos'))}
+      </div>
+      <div
+        id="howto-panel"
+        role="tabpanel"
+        aria-labelledby={`howto-tab-${tab}`}
+        className="flex flex-col gap-4"
+      >
+        {tab === 'basics' ? <Basics /> : <Mayhem />}
+      </div>
 
+      <div className="grid gap-2">
+        {onTutorial && <Button onClick={onTutorial}>{t('howto.startTutorial')}</Button>}
+        <Button variant="secondary" onClick={onBack}>
+          {t('howto.back')}
+        </Button>
+      </div>
+    </main>
+  );
+}
+
+function Basics() {
+  const { t } = useTranslation();
+  return (
+    <>
       <Panel>
         <div className="flex items-center gap-3">
           <span className="size-16 shrink-0">
@@ -123,14 +173,76 @@ export function HowToScreen({
           ))}
         </div>
       </Panel>
+    </>
+  );
+}
 
-      <div className="grid gap-2">
-        {onTutorial && <Button onClick={onTutorial}>{t('howto.startTutorial')}</Button>}
-        <Button variant="secondary" onClick={onBack}>
-          {t('howto.back')}
-        </Button>
-      </div>
-    </main>
+/** Market Mayhem: the extra rules, all 8 cats with their powers, all 13 events. */
+function Mayhem() {
+  const { t } = useTranslation();
+  return (
+    <>
+      <Panel>
+        <p>{t('howto.mayhemText')}</p>
+      </Panel>
+
+      <Panel>
+        <h2 className="mb-2 text-xl">{t('term.power')}</h2>
+        <ul className="mb-3 list-disc space-y-1 pl-5 text-sm text-card/85">
+          {(['powerOnce', 'powerOpen', 'powerWait', 'powerTimer'] as const).map((key) => (
+            <li key={key}>{t(`howto.${key}`)}</li>
+          ))}
+        </ul>
+        <ul className="space-y-3">
+          {CAT_IDS.map((cat) => {
+            const power = CAT_POWER[cat];
+            return (
+              <li key={cat} className="flex items-start gap-3">
+                <span className="relative size-12 shrink-0">
+                  <CatArt color={cat} />
+                  <span className="absolute -right-1.5 -bottom-1 size-6">
+                    <PowerIcon power={power} />
+                  </span>
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-display leading-tight">
+                    {t(`powerName.${power}`)}
+                    <span className="ml-2 text-xs text-card/70">{t(`cat.${cat}`)}</span>
+                  </span>
+                  <span className="block text-sm leading-snug text-card/85">
+                    {t(`powerDesc.${power}`)}
+                  </span>
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </Panel>
+
+      <Panel>
+        <h2 className="mb-2 text-xl">{t('term.event')}</h2>
+        <ul className="mb-3 list-disc space-y-1 pl-5 text-sm text-card/85">
+          {(['eventDeck', 'eventMoon', 'eventStall'] as const).map((key) => (
+            <li key={key}>{t(`howto.${key}`)}</li>
+          ))}
+        </ul>
+        <ul className="space-y-3">
+          {EVENT_IDS.map((event) => (
+            <li key={event} className="flex items-start gap-3">
+              <span className="size-10 shrink-0">
+                <EventIcon event={event} />
+              </span>
+              <span className="min-w-0">
+                <span className="block font-display leading-tight">{t(`eventName.${event}`)}</span>
+                <span className="block text-sm leading-snug text-card/85">
+                  {t(`eventDesc.${event}`, eventDescParams(event, DEFAULT_CONFIG))}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Panel>
+    </>
   );
 }
 

@@ -416,7 +416,16 @@
     "dogTitle": "Guard dogs and bones",
     "dogText": "Bones you dig go straight to your hand (safe). When a dog appears, throw a bone to get away. The emptier the bin, the closer the dogs — watch the bin's mood!",
     "startTutorial": "Try the tutorial",
-    "back": "Back"
+    "back": "Back",
+    "tabBasics": "Basics",
+    "mayhemText": "Market Mayhem = all the usual rules, plus cat powers and market events. In the setup you can also switch each one on by itself.",
+    "powerOnce": "Each power works once per game, and no two players have the same cat.",
+    "powerOpen": "Everyone sees who used their power (the icon turns grey).",
+    "powerWait": "Lucky Swap and Second Thought: the game waits while the owner decides.",
+    "powerTimer": "Online: deciding on a power counts toward that turn’s timer.",
+    "eventDeck": "12 event cards are shuffled at the start; one is turned up each round, never the same twice.",
+    "eventMoon": "Full Moon only appears with cat powers on — otherwise Snack Sale takes its place.",
+    "eventStall": "Extra stall cards come from the trash bin (skipping dogs and bones)."
   },
   "tutorial": {
     "coach": "Auntie Meow",
@@ -537,5 +546,18 @@
     "sheltering_other": "{{count}} dogs sheltering",
     "sleepy": "The first dog will be asleep",
     "faceDown": "Face-down card"
+  },
+  "intro": {
+    "title": "What is Market Mayhem?",
+    "page": "{{n}}/2",
+    "powersText": "Every cat has one special power, usable once per game — picking a cat means picking a power.",
+    "powersButton": "The power button glows only when you can use it. Once used, the icon turns grey.",
+    "eventsText": "Every round opens with one market event that lasts just that round — rain, blackouts, freebies and more.",
+    "eventsChip": "Tap the event icon next to the tie-break order to see what this round brings.",
+    "more": "Every power and event is listed in How to play › Market Mayhem.",
+    "next": "Next",
+    "back": "Back",
+    "done": "Got it!",
+    "open": "What is Market Mayhem?"
   }
 }
