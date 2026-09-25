@@ -47,28 +47,26 @@ Server → Client
 ## Cloudflare ที่ใช้ (เช็กเอกสารล่าสุดเมื่อ 25 ก.ย. 2026)
 - Durable Object ประกาศแบบใหม่ด้วย `exports: { GameRoom: { type: "durable-object", storage: "sqlite" } }`
   ใน `wrangler.jsonc` (แทน `migrations` แบบเก่า — ใช้ได้แบบใดแบบหนึ่ง และเปลี่ยนกลับไม่ได้หลัง deploy)
-  · เอกสารหน้านั้นไม่ได้บอกว่าแพ็กเกจฟรีต้องใช้ SQLite — เลือก SQLite ไว้ และจะเช็กอีกครั้งก่อน deploy ในเฟส 7
+  · แพ็กเกจฟรีใช้ได้เฉพาะ Durable Object แบบ SQLite (ยืนยันจากหน้า pricing แล้ว)
+- หน้าเว็บเป็น Static Assets ของ Worker ตัวเดียวกัน: `not_found_handling: "single-page-application"` +
+  `run_worker_first: ["/api/*"]` → มีแค่ `/api/*` ที่รันโค้ด Worker
 - WebSocket Hibernation API (`ctx.acceptWebSocket`, `webSocketMessage/Close`, `serializeAttachment` ≤ 16 KB,
   `setWebSocketAutoResponse` สำหรับ ping) — ห้องหลับได้ระหว่างรอ จึงแทบไม่เสียค่าใช้จ่าย
-- Alarm ตัวเดียวต่อห้อง: ตั้งเป็นเวลาที่เร็วที่สุดของ บอทถึงตา / หมดเวลา / หลุดครบ 60 วิ / ห้องว่างครบ 30 นาที
+- Alarm ตัวเดียวต่อห้อง: เวลาที่เร็วที่สุดของ บอทถึงตา / หมดเวลา / หลุดครบ 60 วิ / ห้องว่างครบ 30 นาที ·
+  เลื่อนได้แค่เร็วขึ้นและไม่ลบ (ทุก setAlarm/deleteAlarm = 1 แถวที่เขียน ซึ่งเป็นโควตาที่ตึงที่สุด — DEPLOY.md)
 - state ทั้งห้องเก็บเป็นค่าเดียวใน `ctx.storage` (โหลดใหม่ใน constructor ทุกครั้งที่ห้องตื่น) · test ด้วย
   `@cloudflare/vitest-plugin` (รันใน workerd จริง รวมการ evict ห้องแล้วเล่นต่อ)
 - type ของ Worker สร้างด้วย `wrangler types` (Cloudflare แนะนำแทน `@cloudflare/workers-types`)
 
 ## การพัฒนาในเครื่อง
-`npm run dev:server` (wrangler dev พอร์ต 8787) + `npm run dev` แล้วเปิดสองแท็บ (หรือหน้าต่างไม่ระบุตัวตน) เพื่อทดสอบสองผู้เล่น
-· client หา server จาก `VITE_SERVER_URL` ถ้าไม่ตั้ง: ตอน dev ใช้ `http://<host>:8787` ตอน build ใช้ origin เดียวกับหน้าเว็บ
-· `npm run test:e2e` = Playwright เปิด 2 browser context สร้างห้อง เข้าด้วยลิงก์ เล่นจนจบเกม แล้วกลับห้องรอ
+client เรียก server ที่ origin เดียวกับหน้าเว็บเสมอ (`/api/...`) — ไม่มีการตั้ง URL ของ server
+- **dev:** `npm run dev:server` (wrangler dev พอร์ต 8787) + `npm run dev` (Vite 5173 ส่งต่อ `/api` และ WebSocket
+  ไปที่ 8787 ผ่าน proxy ใน `vite.config.ts`) แล้วเปิด http://localhost:5173 สองแท็บ (หรือหน้าต่างไม่ระบุตัวตน)
+- **preview (เหมือนของจริง):** `npm run preview` = build หน้าเว็บ แล้วรัน Worker ตัวเดียวที่ http://localhost:8787
+- `npm run test:e2e` = Playwright บน `npm run preview`: เปิด 2 browser context สร้างห้อง เข้าด้วยลิงก์ `/room/XXXX`
+  เล่นจนจบเกม แล้วกลับห้องรอ
 
-## Deploy (ให้ Claude Code เช็กเอกสาร Cloudflare ล่าสุดก่อนทำ)
-1. สมัครบัญชี Cloudflare (ฟรี) และล็อกอิน `npx wrangler login` — **ผู้ใช้ต้องทำขั้นตอนล็อกอินเอง**
-2. Deploy server: `wrangler deploy` ใน `apps/server`
-3. Deploy client: Cloudflare Pages เชื่อมกับ GitHub repo (build: `npm run build -w apps/web`, output: `apps/web/dist`) — push แล้ว deploy อัตโนมัติ
-4. ตั้ง env `VITE_SERVER_URL` ให้ client ชี้ไป Worker
-5. ตั้ง SPA fallback ให้ `/room/*` เปิด index.html
-6. (ทางเลือก) ผูกโดเมนของตัวเอง
-7. เขียนขั้นตอนทั้งหมดเป็นภาษาไทยไว้ใน `docs/DEPLOY.md` ให้ผู้ใช้ทำตามได้เอง
-
-> **ทางเลือกที่พบตอนเช็กเอกสาร (ให้ผู้ใช้ตัดสินในเฟส 7):** Workers รองรับไฟล์เว็บในตัว (Static Assets,
-> `assets.not_found_handling: "single-page-application"`) จึงรวมหน้าเว็บ + server เป็น Worker เดียวได้ —
-> โดเมนเดียว ไม่ต้องตั้ง `VITE_SERVER_URL`/CORS และ `/room/*` เปิด index.html ให้เอง (client รองรับแล้ว: ไม่ตั้ง URL = origin เดียวกัน)
+## Deploy
+ขั้นตอนทั้งหมด (ภาษาไทย) + โควตาแพ็กเกจฟรี อยู่ที่ **`docs/DEPLOY.md`**
+สรุป: Worker ตัวเดียว `meow-night-market` เสิร์ฟทั้งหน้าเว็บ (static assets, โหมด SPA) และ `/api/*` ·
+deploy อัตโนมัติด้วย Workers Builds เมื่อ push ขึ้น `main` (ต้องผ่าน `npm run check` ก่อน)

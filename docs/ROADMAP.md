@@ -45,8 +45,9 @@
 - [x] Playwright test 2 ผู้เล่นจนจบเกม
 
 ## เฟส 7 — ปล่อยเกม
-- [ ] deploy server + client ตาม MULTIPLAYER.md
-- [ ] `docs/DEPLOY.md` ภาษาไทย
+- [x] Worker ตัวเดียวเสิร์ฟหน้าเว็บ + server, deploy อัตโนมัติด้วย Workers Builds (ตั้งค่าใน repo แล้ว)
+- [ ] deploy จริง — รอผู้ใช้ทำขั้นตอนในหน้า Cloudflare ตาม `docs/DEPLOY.md`
+- [x] `docs/DEPLOY.md` ภาษาไทย + ประเมินโควตาแพ็กเกจฟรี (`npm run usage`)
 - [ ] meta tags + รูปพรีวิวตอนแชร์ลิงก์ (Open Graph) เป็น SVG→PNG ที่สร้างเอง
 - [ ] favicon แมว, PWA ติดตั้งได้
 - [ ] หน้า "เกี่ยวกับ" + เครดิต

@@ -6,7 +6,7 @@
 - **Engine:** TypeScript ล้วน ใช้ร่วมกันระหว่าง client และ server
 - **Server:** Cloudflare Workers + Durable Objects (1 ห้อง = 1 Durable Object) ผ่าน WebSocket
 - **Test:** Vitest (engine, bots), Playwright (smoke test ฝั่งเว็บ)
-- **Hosting:** Cloudflare Pages (client) + Workers (server) — มี free tier
+- **Hosting:** Cloudflare Worker ตัวเดียว — หน้าเว็บเป็น Static Assets + `/api/*` เป็น Worker/Durable Object (docs/DEPLOY.md) · free tier
 
 ## โครงสร้างโฟลเดอร์
 ```
@@ -45,12 +45,13 @@
 │  │  │  └─ styles/
 │  │  ├─ scripts/           # find-tutorial-seed.ts (หา seed ของบทสอน)
 │  │  └─ test/              # i18n, controller + save/resume, stage, tutorial, handoff, online
-│  └─ server/               # @meow/server — Cloudflare Worker + Durable Object
-│     ├─ wrangler.jsonc     # binding ROOMS → GameRoom (SQLite), ALLOWED_ORIGINS
+│  └─ server/               # @meow/server — Worker ตัวเดียวของทั้งเกม (docs/DEPLOY.md)
+│     ├─ wrangler.jsonc     # assets ← ../web/dist (SPA, run_worker_first /api/*), binding ROOMS → GameRoom (SQLite)
 │     ├─ worker-configuration.d.ts  # สร้างด้วย `wrangler types` (typecheck ใช้ --check)
 │     ├─ src/index.ts       # Worker: POST /api/rooms, GET /api/rooms/:code/ws, /api/health
 │     ├─ src/room.ts        # GameRoom: WebSocket Hibernation API + storage + alarm (บางๆ)
 │     ├─ src/core.ts        # RoomCore: ตรรกะห้องทั้งหมด (ไม่มี API ของ Cloudflare — test ด้วยนาฬิกาปลอม)
+│     ├─ scripts/           # estimate-usage.ts — ประเมินโควตาแพ็กเกจฟรีต่อเกม (`npm run usage`)
 │     └─ test/              # core (ตรรกะห้อง) + worker (Worker + DO จริงใน workerd)
 ├─ packages/protocol/       # @meow/protocol — ใช้ร่วม client/server: zod schema ข้อความ, ค่าห้อง (room.ts),
 │                           #   จังหวะเหตุการณ์ (pacing.ts: beat + เวลาแสดง)

@@ -13,15 +13,18 @@
     "dev": "npm run dev -w @meow/web",
     "dev:server": "npm run dev -w @meow/server",
     "build": "npm run build -w @meow/web",
-    "preview": "npm run preview -w @meow/web",
+    "preview": "npm run build && npm run dev:server",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "check": "npm run lint && npm run typecheck && npm test",
     "simulate": "node packages/engine/scripts/simulate.ts",
     "balance": "node packages/engine/scripts/balance.ts",
+    "usage": "node apps/server/scripts/estimate-usage.ts",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
-    "typecheck": "tsc -p tsconfig.json && npm run typecheck --workspaces --if-present"
+    "typecheck": "tsc -p tsconfig.json && npm run typecheck --workspaces --if-present",
+    "deploy": "npm run build && npm run deploy -w @meow/server"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

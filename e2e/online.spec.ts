@@ -37,7 +37,13 @@ async function step(page: Page): Promise<boolean> {
   if (hint.startsWith('Secretly pick')) {
     if (await clickIfVisible(/^Meow \d$/)) await clickIfVisible(/^Bid/);
   } else if (hint.startsWith('Your turn! Tap one food')) {
-    await page.getByRole('region', { name: 'Market stall' }).getByRole('button').first().click();
+    // Short timeout like every click here: the stall can empty before the click lands.
+    await page
+      .getByRole('region', { name: 'Market stall' })
+      .getByRole('button')
+      .first()
+      .click({ timeout: 1_000 })
+      .catch(() => {});
   } else if (hint.startsWith('A guard dog')) {
     await clickIfVisible('Run away');
   } else if (hint.startsWith('Keep digging')) {
@@ -47,7 +53,11 @@ async function step(page: Page): Promise<boolean> {
   } else if (hint.startsWith('Too many cards')) {
     const count = Number(/Discard (\d+)/.exec(hint)?.[1] ?? 0);
     const hand = page.locator('section.sticky').getByRole('button');
-    for (let i = 0; i < count; i++) await hand.nth(i).click();
+    for (let i = 0; i < count; i++)
+      await hand
+        .nth(i)
+        .click({ timeout: 1_000 })
+        .catch(() => {});
     await clickIfVisible(/^Discard \d/);
   }
   return false;

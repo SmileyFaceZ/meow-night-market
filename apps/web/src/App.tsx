@@ -20,7 +20,6 @@ import {
   createRoom,
   type Profile,
   RemoteController,
-  serverUrl,
   sessionTokens,
 } from './game/online';
 import { OnlineScreen } from './screens/Online';
@@ -72,7 +71,7 @@ export function App() {
       controller: new RemoteController({
         code,
         profile,
-        serverUrl: serverUrl(),
+        origin: location.origin,
         connect: browserSocket,
         scheduler: browserScheduler,
         tokens: sessionTokens(),

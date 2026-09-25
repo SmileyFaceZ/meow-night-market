@@ -8,15 +8,9 @@ import { env, exports } from 'cloudflare:workers';
 import { evictDurableObject, runDurableObjectAlarm } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 
-const ORIGIN = 'http://localhost:5173';
-
 async function createRoom(): Promise<string> {
-  const response = await exports.default.fetch('http://room.test/api/rooms', {
-    method: 'POST',
-    headers: { Origin: ORIGIN },
-  });
+  const response = await exports.default.fetch('http://room.test/api/rooms', { method: 'POST' });
   expect(response.status).toBe(200);
-  expect(response.headers.get('Access-Control-Allow-Origin')).toBe(ORIGIN);
   const { code } = await response.json<{ code: string }>();
   return code;
 }
@@ -24,7 +18,7 @@ async function createRoom(): Promise<string> {
 /** Opens a WebSocket into a room and collects what the server sends. */
 async function join(code: string) {
   const response = await exports.default.fetch(`http://room.test/api/rooms/${code}/ws`, {
-    headers: { Upgrade: 'websocket', Origin: ORIGIN },
+    headers: { Upgrade: 'websocket' },
   });
   expect(response.status).toBe(101);
   const ws = response.webSocket!;
@@ -58,9 +52,8 @@ describe('worker', () => {
     expect(code).toMatch(ROOM_CODE_PATTERN);
   });
 
-  it('refuses other sites when an allow-list is set, and unknown paths', async () => {
-    expect(env.ALLOWED_ORIGINS).toBe('*');
-    const missing = await exports.default.fetch('http://room.test/nope');
+  it('refuses unknown API paths and malformed room codes', async () => {
+    const missing = await exports.default.fetch('http://room.test/api/nope');
     expect(missing.status).toBe(404);
     const badCode = await exports.default.fetch('http://room.test/api/rooms/0000/ws', {
       headers: { Upgrade: 'websocket' },

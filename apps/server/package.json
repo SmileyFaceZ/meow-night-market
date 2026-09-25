@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --port 8787",
+    "dev": "node -e \"require('fs').mkdirSync('../web/dist',{recursive:true})\" && wrangler dev --port 8787",
     "types": "wrangler types",
     "deploy": "wrangler deploy",
     "typecheck": "wrangler types --check && tsc -p tsconfig.json"

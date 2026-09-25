@@ -116,13 +116,19 @@ export class GameRoom extends DurableObject<Env> {
     };
   }
 
-  /** Persist the room if it changed, and wake up for whatever is due next. */
+  /**
+   * Persist the room if it changed, and make sure we wake up for whatever is due next.
+   * Each setAlarm/deleteAlarm is a billed row write, so the alarm only ever moves earlier
+   * and is never deleted: an early or stale alarm just wakes the room, which finds nothing
+   * due and sets the next one (docs/DEPLOY.md › โควตาแพ็กเกจฟรี).
+   */
   private async save(): Promise<void> {
     if (!this.core) return;
     if (this.core.takeChanged()) await this.ctx.storage.put(STORAGE_KEY, this.core.state);
     const wake = this.core.nextWake();
-    if (wake === null) await this.ctx.storage.deleteAlarm();
-    else if ((await this.ctx.storage.getAlarm()) !== wake) await this.ctx.storage.setAlarm(wake);
+    if (wake === null) return;
+    const current = await this.ctx.storage.getAlarm();
+    if (current === null || wake < current) await this.ctx.storage.setAlarm(wake);
   }
 }
 

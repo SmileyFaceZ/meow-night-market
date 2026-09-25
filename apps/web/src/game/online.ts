@@ -56,7 +56,8 @@ export interface SocketLike {
 export interface RemoteOptions {
   readonly code: string;
   readonly profile: Profile;
-  readonly serverUrl: string;
+  /** The site's own origin (the Worker serves both the page and /api). */
+  readonly origin: string;
   readonly connect: (url: string) => SocketLike;
   readonly scheduler: Scheduler;
   /** Where the reconnect token lives (sessionStorage in the browser). */
@@ -157,8 +158,8 @@ export class RemoteController implements GameController {
   }
 
   private open(): void {
-    const { serverUrl, code, connect } = this.options;
-    const url = `${serverUrl.replace(/^http/, 'ws')}/api/rooms/${code}/ws`;
+    const { origin, code, connect } = this.options;
+    const url = `${origin.replace(/^http/, 'ws')}/api/rooms/${code}/ws`;
     const socket = connect(url);
     this.socket = socket;
     socket.onopen = () => {
@@ -310,19 +311,11 @@ function seatsOf(room: RoomInfo | null): SeatInfo[] {
 }
 
 /**
- * Where the online server lives: VITE_SERVER_URL when set (production build), otherwise
- * `wrangler dev` next to the Vite dev server, or this same site.
+ * Asks the server for a new room; resolves to its code. The API is always on this same
+ * origin — in development Vite forwards /api to `wrangler dev` (vite.config.ts).
  */
-export function serverUrl(): string {
-  const configured = import.meta.env.VITE_SERVER_URL as string | undefined;
-  if (configured) return configured.replace(/\/$/, '');
-  if (import.meta.env.DEV) return `${location.protocol}//${location.hostname}:8787`;
-  return location.origin;
-}
-
-/** Asks the server for a new room; resolves to its code. */
-export async function createRoom(base = serverUrl()): Promise<string> {
-  const response = await fetch(`${base}/api/rooms`, { method: 'POST' });
+export async function createRoom(): Promise<string> {
+  const response = await fetch('/api/rooms', { method: 'POST' });
   if (!response.ok) throw new Error(`create room: ${response.status}`);
   const { code } = (await response.json()) as { code: string };
   return code;

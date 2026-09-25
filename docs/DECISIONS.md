@@ -269,3 +269,27 @@ D, E, R กลายเป็นกติกาถาวร (ไม่มีส�
 ตั้ง `PW_BUNDLED_BROWSER=1` เพื่อใช้ Chromium ของ Playwright (เช่นบน CI) · trace ปิดไว้ (เปิดด้วย `PW_TRACE=1`)
 รัน worker เดียว — ครั้งหนึ่งที่รัน 3 เกมพร้อมกันพร้อม trace ทำดิสก์เต็มและเกมค้างจนหมดเวลา
 test เล่นเกมจริงจนจบ ~5 วินาที แล้วตรวจว่า console ไม่มี error (เจอ favicon 404 จึงเพิ่มไอคอนแมว SVG ก่อนเฟส 7)
+
+## 040 — Worker ตัวเดียวเสิร์ฟหน้าเว็บ + server (ผู้ใช้เลือก)
+วันที่: 2026-09-25 (ก่อนเฟส 7)
+แทนแผนเดิม Cloudflare Pages (client) + Worker (server): `apps/server/wrangler.jsonc` เสิร์ฟ `apps/web/dist` เป็น
+Static Assets (`not_found_handling: "single-page-application"`, `run_worker_first: ["/api/*"]`)
+- เหตุผล: โดเมนเดียว → ไม่มี CORS / `ALLOWED_ORIGINS` / `VITE_SERVER_URL` · ลิงก์ `/room/XXXX` เปิด index.html เอง ·
+  ไฟล์หน้าเว็บโหลดฟรีไม่นับโควตา · deploy ครั้งเดียวได้ทั้งเกม (ไม่มีจังหวะที่ client กับ server คนละเวอร์ชัน)
+- ลบโค้ดแบบแยกออกทั้งหมด (ไม่เก็บไว้สองทาง): CORS + ตรวจ Origin ใน Worker, `serverUrl()` ใน client
+  · ไม่ใส่การตรวจ Origin แทน: ไม่มี cookie/บัญชีให้ขโมย และตรวจ Origin ก็กันได้แค่เบราว์เซอร์ — ใช้ rate limit ในห้องแทน
+- dev: Vite proxy `/api` (รวม WebSocket) → `wrangler dev` :8787 ดังนั้น client เรียก origin ของตัวเองเสมอทั้ง dev และจริง
+- `npm run preview` = build + Worker ตัวเดียวแบบของจริง · Playwright รันบนนี้ (ครอบคลุม SPA fallback ของ `/room/XXXX`)
+- ชื่อ Worker เปลี่ยนเป็น `meow-night-market` (ต้องตรงกับชื่อใน Workers Builds)
+
+## 041 — Deploy อัตโนมัติด้วย Workers Builds (ไม่ใช้ GitHub Actions)
+ตั้งค่าในหน้า Cloudflare ครั้งเดียว ไม่ต้องเก็บ API token ไว้ใน GitHub secrets · Build command `npm run check`
+(lint + typecheck + test — ไม่ผ่านก็ไม่ deploy) · Deploy command `npm run deploy` · root = รากของ repo (npm workspaces)
+· ปิด preview build ของ branch อื่น (คำสั่งตั้งต้นหา wrangler config ที่รากไม่เจอ) · Playwright ไม่รันใน build — รันในเครื่อง
+ขั้นตอนที่ผู้ใช้ต้องทำ: `docs/DEPLOY.md`
+
+## 042 — alarm ของห้องเลื่อนได้แค่เร็วขึ้น (ประหยัดโควตาเขียน)
+วัดด้วย `npm run usage`: โควตาที่หมดก่อนบนแพ็กเกจฟรีคือ **rows written** (100,000/วัน) และ 30–45% มาจาก setAlarm/deleteAlarm
+เปลี่ยน `GameRoom.save()` ให้ตั้ง alarm ใหม่เฉพาะเมื่อเวลาใหม่เร็วกว่าเดิม และไม่ลบ alarm — alarm ที่ดังก่อนเวลาแค่ปลุกห้อง
+(ไม่มีอะไรถึงเวลา → ตั้งตัวถัดไป) แลกกับ DO request ซึ่งเหลืออีกหลายเท่า → เขียนน้อยลง 10–35% ในเกมที่มีแต่คน
+ผลประเมิน: ~480–1,150 เกมออนไลน์/วัน (ขึ้นกับจำนวนบอท) รายละเอียดใน DEPLOY.md
