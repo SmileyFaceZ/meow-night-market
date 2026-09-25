@@ -8,6 +8,7 @@ import {
   RATE_LIMIT,
   RESULT_IDLE_MS,
   type RoomInfo,
+  roomInfoSchema,
   type ServerMessage,
 } from '@meow/protocol';
 import { describe, expect, it } from 'vitest';
@@ -420,6 +421,25 @@ describe('after a deploy', () => {
     });
     expect(() => revived.handleAlarm()).not.toThrow();
     expect(revived.state.game?.faceDown).toEqual([]);
+    // Room fields added with rematch are filled in too.
+    const oldRoom = JSON.parse(JSON.stringify(room.core.state)) as Record<string, unknown> & {
+      seats: Record<string, unknown>[];
+    };
+    delete oldRoom.gameNo;
+    delete oldRoom.idleSince;
+    for (const seat of oldRoom.seats) {
+      delete seat.ready;
+      delete seat.wins;
+      delete seat.sittingOut;
+    }
+    const info = new RoomCore(oldRoom as never, {
+      now: () => room.now,
+      random: () => 0.5,
+      token: () => 'token-000000000000',
+      conns: () => [],
+    }).roomInfo(null);
+    expect(roomInfoSchema.safeParse(info).success).toBe(true);
+    expect(info.seats[0]).toMatchObject({ wins: 0, ready: false, sittingOut: null });
   });
 });
 

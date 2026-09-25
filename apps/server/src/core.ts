@@ -129,6 +129,25 @@ export function newRoom(code: string, now: number): StoredRoom {
   };
 }
 
+/**
+ * A room saved before a deploy may lack fields added since (rematch, cat powers, events):
+ * fill them in so it carries on.
+ */
+export function upgradeRoom(room: StoredRoom): StoredRoom {
+  return {
+    ...room,
+    gameNo: room.gameNo ?? (room.game ? 1 : 0),
+    idleSince: room.idleSince ?? null,
+    seats: room.seats.map((s) => ({
+      ...s,
+      ready: s.ready ?? false,
+      wins: s.wins ?? 0,
+      sittingOut: s.sittingOut ?? null,
+    })),
+    game: room.game ? upgradeState(room.game) : null,
+  };
+}
+
 /** Between games the room works like a lobby: seats, bots and settings can change. */
 function betweenGames(status: RoomStatus): boolean {
   return status === 'lobby' || status === 'ended';
@@ -143,8 +162,7 @@ export class RoomCore {
   private changed = false;
 
   constructor(room: StoredRoom, deps: RoomDeps) {
-    // A room saved before a deploy may hold a game from an older version.
-    this.room = room.game ? { ...room, game: upgradeState(room.game) } : room;
+    this.room = upgradeRoom(room);
     this.deps = deps;
   }
 

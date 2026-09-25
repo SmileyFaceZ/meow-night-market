@@ -95,10 +95,10 @@ describe('the event deck', () => {
 });
 
 describe('each event', () => {
-  it('Downpour: two dogs leave the bin for the round, then come back', () => {
+  it('Downpour: a dog leaves the bin for the round, then comes back', () => {
     const s = game(['downpour']);
-    expect(s.setAsideDogs).toHaveLength(2);
-    expect(getPlayerView(s, 'a').trashDogCount).toBe(DEFAULT_CONFIG.dogCopies - 2);
+    expect(s.setAsideDogs).toHaveLength(1);
+    expect(getPlayerView(s, 'a').trashDogCount).toBe(DEFAULT_CONFIG.dogCopies - 1);
     const next = finishRound(s);
     expect(next.setAsideDogs).toHaveLength(0);
     expect(next.trashDeck.filter((c) => c.kind === 'dog')).toHaveLength(DEFAULT_CONFIG.dogCopies);
@@ -131,11 +131,13 @@ describe('each event', () => {
     expect(game(['busyNight']).market).toHaveLength(5);
   });
 
-  it('Garbage Truck: at most three draws per Trash Dig turn', () => {
+  it('Garbage Truck: at most four draws per Trash Dig turn', () => {
     let s = skipToTrash(game(['garbageTruck'])).state;
     const me = current(s);
-    s = patch(s, { trashDeck: [...cards('fish', 'milk', 'shrimp', 'snack'), ...s.trashDeck] });
-    for (let i = 0; i < 3; i++) s = act(s, { type: 'dig', playerId: me }).state;
+    s = patch(s, {
+      trashDeck: [...cards('fish', 'milk', 'shrimp', 'snack', 'chicken'), ...s.trashDeck],
+    });
+    for (let i = 0; i < 4; i++) s = act(s, { type: 'dig', playerId: me }).state;
     expect(getPlayerView(s, me).trashDiggable).toBe(false);
     expectError(s, { type: 'dig', playerId: me }, 'error.digLimit');
     act(s, { type: 'stop', playerId: me });
@@ -176,40 +178,18 @@ describe('each event', () => {
     expect(s.prices).toMatchObject({ fish: 3, milk: 3, chicken: 4, snack: 5 });
   });
 
-  it('Sleepy Dogs: the first dog each player meets this round is asleep', () => {
+  it('Sleepy Dogs: the round’s first dog is asleep — whoever meets it; the next one is awake', () => {
     let s = skipToTrash(game(['sleepyDogs'])).state;
-    const me = current(s);
+    const first = current(s);
     const fish = card('fish');
     s = patch(s, { trashDeck: [fish, card('dog'), ...s.trashDeck] });
-    s = act(s, { type: 'dig', playerId: me }).state;
-    const slept = act(s, { type: 'dig', playerId: me });
+    s = act(s, { type: 'dig', playerId: first }).state;
+    const slept = act(s, { type: 'dig', playerId: first });
     expect(eventTypes(slept.events)).toContain('DOG_SLEPT');
     expect(slept.state.bag).toEqual([fish]);
-    expect(current(slept.state)).toBe(me);
-    // The next dog is wide awake.
-    const s2 = patch(slept.state, { trashDeck: [card('dog'), ...slept.state.trashDeck] });
-    const caught = act(s2, { type: 'dig', playerId: me });
-    expect(eventTypes(caught.events)).toContain('DOG_CAUGHT');
-  });
-
-  it('Sleepy Dogs, proposed variant: only the round’s very first dog sleeps', () => {
-    const config = {
-      ...DEFAULT_CONFIG,
-      events: { ...DEFAULT_CONFIG.events, sleepyDogs: 'firstOfRound' as const },
-    };
-    let s = skipToTrash(
-      createGame({
-        playerIds: ['a', 'b', 'c'],
-        seed: 'sleepy',
-        events: true,
-        eventTop: ['sleepyDogs'],
-        config,
-      }),
-    ).state;
-    const first = current(s);
-    s = patch(s, { trashDeck: [card('dog'), ...s.trashDeck] });
-    s = act(s, { type: 'dig', playerId: first }).state;
-    s = act(s, { type: 'stop', playerId: first }).state;
+    expect(current(slept.state)).toBe(first);
+    s = act(slept.state, { type: 'stop', playerId: first }).state;
+    // The next player's dog is wide awake.
     const second = current(s);
     s = patch(s, { trashDeck: [card('dog'), ...s.trashDeck] });
     const awake = act(s, { type: 'dig', playerId: second });

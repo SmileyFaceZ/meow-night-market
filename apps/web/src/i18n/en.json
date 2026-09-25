@@ -314,7 +314,7 @@
     "powerNotNow": "You can’t use that power right now",
     "powerPending": "Wait — someone is deciding on their cat power",
     "invalidPowerTarget": "That power can’t be used on that",
-    "digLimit": "The garbage truck came by — at most 3 draws per turn this round",
+    "digLimit": "The garbage truck came by — at most 4 draws per turn this round",
     "noPassNeeded": "You have nothing to pass this round",
     "alreadyPassed": "You already chose a card to pass"
   },

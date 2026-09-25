@@ -93,7 +93,6 @@ const gameConfig = z.object({
     seafoodBonus: count,
     garbageTruckDigs: count,
     blackoutCards: count,
-    sleepyDogs: z.enum(['perPlayer', 'firstOfRound']),
   }),
 });
 
@@ -157,7 +156,7 @@ export const playerViewSchema = z.object({
   extraOrder: id.nullable(),
   digCount: count,
   hand: cards,
-  peek: z.object({ cards, decided: z.boolean() }).nullable(),
+  peek: z.object({ cards }).nullable(),
   canUsePower: z.boolean(),
   yourBid: z.number().int().nullable(),
   yourDiscard: z.array(cardId).nullable(),
@@ -199,7 +198,6 @@ export const gameEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('GAME_OVER'), result: gameResult }),
   z.object({ type: z.literal('POWER_USED'), playerId: id, power: powerId }),
   z.object({ type: z.literal('POWER_WINDOW'), playerId: id, power: powerId }),
-  z.object({ type: z.literal('SNIFFED'), playerId: id, movedToBottom: z.boolean() }),
   z.object({
     type: z.literal('BID_CHANGED'),
     playerId: id,
@@ -250,7 +248,6 @@ export const actionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('discard'), playerId: id, cardIds }),
   z.object({ type: z.literal('usePower'), playerId: id, use: powerUse }),
   z.object({ type: z.literal('passPower'), playerId: id }),
-  z.object({ type: z.literal('sniff'), playerId: id, bottomCardId: cardId.nullable() }),
   z.object({ type: z.literal('passCard'), playerId: id, cardId }),
 ]);
 

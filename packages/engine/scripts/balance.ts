@@ -59,25 +59,6 @@ const VARIANTS: Record<
     events: true,
     baseline: 'powers',
   },
-  eventsTuned: {
-    label: 'การ์ดเหตุการณ์ — ปรับ: ฝนตก 1 ตัว · รถขยะ 4 ใบ · หมาขี้เซาเฉพาะตัวแรกของรอบ',
-    config: {
-      ...D,
-      events: { ...D.events, downpourDogs: 1, garbageTruckDigs: 4, sleepyDogs: 'firstOfRound' },
-    },
-    events: true,
-    baseline: 'base',
-  },
-  chaosTuned: {
-    label: 'ตลาดป่วน — ปรับเหตุการณ์แบบเดียวกัน',
-    config: {
-      ...D,
-      events: { ...D.events, downpourDogs: 1, garbageTruckDigs: 4, sleepyDogs: 'firstOfRound' },
-    },
-    powers: true,
-    events: true,
-    baseline: 'powers',
-  },
   // Add experiments here, e.g. dogs3: { label: 'หมา 3 ตัว', config: { ...D, dogCopies: 3 } },
 };
 const variantNames = values.variants.split(',');

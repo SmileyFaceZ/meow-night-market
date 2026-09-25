@@ -47,14 +47,13 @@ export function applyAction(state: GameState, action: Action): ActionResult {
   return { ok: true, state: ctx.s, events: ctx.events };
 }
 
-/** While a power window or an undecided sniff is open, nothing else can happen. */
+/** While a power window is open, nothing else can happen. */
 function blockedByPower(ctx: Ctx, action: Action): ErrorKey | null {
-  const { powerWindow, peek } = ctx.s;
+  const { powerWindow } = ctx.s;
   if (powerWindow) {
     const decides = action.type === 'usePower' || action.type === 'passPower';
     return decides && action.playerId === powerWindow.playerId ? null : 'error.powerPending';
   }
-  if (peek && !peek.decided && action.type !== 'sniff') return 'error.powerPending';
   return null;
 }
 
@@ -64,8 +63,6 @@ function handle(ctx: Ctx, action: Action): ErrorKey | null {
       return usePower(ctx, action.playerId, action.use);
     case 'passPower':
       return passPower(ctx, action.playerId);
-    case 'sniff':
-      return sniff(ctx, action.playerId, action.bottomCardId);
     case 'passCard':
       return passCard(ctx, action.playerId, action.cardId);
     case 'bid':
@@ -149,14 +146,8 @@ function dig(ctx: Ctx, playerId: string): ErrorKey | null {
   if (card.kind === 'bone') {
     player.hand.push(card);
     ctx.events.push({ type: 'CARD_DUG', playerId, card: { ...card }, to: 'hand' });
-  } else if (
-    card.kind === 'dog' &&
-    currentEvent(s) === 'sleepyDogs' &&
-    (s.config.events.sleepyDogs === 'perPlayer'
-      ? !s.dogsSlept.includes(playerId)
-      : s.dogsSlept.length === 0)
-  ) {
-    // §15 Sleepy Dogs: the first dog each player meets this round is asleep.
+  } else if (card.kind === 'dog' && currentEvent(s) === 'sleepyDogs' && s.dogsSlept.length === 0) {
+    // §15 Sleepy Dogs: the round's first dog (whoever meets it) is asleep.
     ctx.events.push({ type: 'CARD_DUG', playerId, card: { ...card }, to: 'dog' });
     ctx.events.push({ type: 'DOG_SLEPT', playerId });
     s.dogsSlept.push(playerId);
@@ -316,7 +307,8 @@ function applyPower(ctx: Ctx, playerId: string, use: PowerUse): ErrorKey | null 
         ctx.events.push({ type: 'TRASH_RESHUFFLED', count: s.trashDeck.length });
       }
       spend();
-      s.peek = { playerId, cards: s.trashDeck.slice(0, 2).map((c) => ({ ...c })), decided: false };
+      // Look at the top two — nothing moves (GAME_RULES §14, DECISIONS 048).
+      s.peek = { playerId, cards: s.trashDeck.slice(0, 2).map((c) => ({ ...c })) };
       return null;
     }
     case 'secondThought': {
@@ -419,23 +411,6 @@ function passPower(ctx: Ctx, playerId: string): ErrorKey | null {
   if (!window || window.playerId !== playerId) return 'error.powerNotNow';
   s.powerWindow = null;
   if (window.power === 'secondThought') resolveClashes(ctx);
-  return null;
-}
-
-/** Keen Nose: send one of the two sniffed cards to the bottom of the bin, or neither. */
-function sniff(ctx: Ctx, playerId: string, bottomCardId: number | null): ErrorKey | null {
-  const { s } = ctx;
-  const peek = s.peek;
-  if (!peek || peek.decided || peek.playerId !== playerId) return 'error.powerNotNow';
-  if (bottomCardId !== null) {
-    if (!peek.cards.some((c) => c.id === bottomCardId)) return 'error.invalidPowerTarget';
-    const index = s.trashDeck.findIndex((c) => c.id === bottomCardId);
-    const [card] = s.trashDeck.splice(index, 1) as [Card];
-    s.trashDeck.push(card);
-    peek.cards = peek.cards.filter((c) => c.id !== bottomCardId);
-  }
-  peek.decided = true;
-  ctx.events.push({ type: 'SNIFFED', playerId, movedToBottom: bottomCardId !== null });
   return null;
 }
 

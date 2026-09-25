@@ -116,7 +116,7 @@ export interface GameState {
   readonly setAsideDogs: readonly Card[];
   /** Blackout: stall cards lying face down (their kind is secret). */
   readonly faceDown: readonly CardId[];
-  /** Sleepy Dogs: players whose first dog of the round already slept. */
+  /** Sleepy Dogs: who met the round's first (sleeping) dog — empty until then. */
   readonly dogsSlept: readonly PlayerId[];
   /** Gusty Wind: the card each player passes on — secret until everyone has chosen. */
   readonly passes: Readonly<Record<PlayerId, CardId | null>>;
@@ -135,8 +135,6 @@ export type Action =
   | { readonly type: 'usePower'; readonly playerId: PlayerId; readonly use: PowerUse }
   /** Let an open power window pass without using the power. */
   | { readonly type: 'passPower'; readonly playerId: PlayerId }
-  /** Keen Nose: send one of the two sniffed cards to the bottom of the bin (or neither). */
-  | { readonly type: 'sniff'; readonly playerId: PlayerId; readonly bottomCardId: CardId | null }
   /** Gusty Wind: the card to pass to the next seat (chosen in secret). */
   | { readonly type: 'passCard'; readonly playerId: PlayerId; readonly cardId: CardId };
 
@@ -199,8 +197,6 @@ export type GameEvent =
   | { readonly type: 'POWER_USED'; readonly playerId: PlayerId; readonly power: PowerId }
   /** A power window opened: the game waits for this player to decide. */
   | { readonly type: 'POWER_WINDOW'; readonly playerId: PlayerId; readonly power: PowerId }
-  /** Keen Nose done. Which card moved stays secret; only whether one did. */
-  | { readonly type: 'SNIFFED'; readonly playerId: PlayerId; readonly movedToBottom: boolean }
   | {
       readonly type: 'BID_CHANGED';
       readonly playerId: PlayerId;

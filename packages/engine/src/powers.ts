@@ -66,10 +66,8 @@ export interface PowerWindow {
 /** Keen Nose: the top of the bin as the sniffer knows it (secret to everyone else). */
 export interface Peek {
   readonly playerId: PlayerId;
-  /** Known top cards, in draw order. */
+  /** Known top cards, in draw order (they drop off as they are drawn). */
   readonly cards: readonly Card[];
-  /** False while choosing which card (if any) goes to the bottom. */
-  readonly decided: boolean;
 }
 
 type PowerView = Pick<
@@ -136,14 +134,13 @@ const ateThisRound = (s: PowerView, playerId: PlayerId) =>
   s.players.find((p) => p.id === playerId)?.meals.some((m) => m.round === s.round) ?? false;
 
 /**
- * Can `playerId` use their power right now (ignoring the payload)? Windows and peeks
- * are handled first: while one is open, only its owner may act, and only on it.
+ * Can `playerId` use their power right now (ignoring the payload)? While a power window
+ * is open, only its owner may act, and only on it.
  */
 export function canUsePowerNow(s: PowerView, playerId: PlayerId): boolean {
   const power = unusedPower(s, playerId);
   if (!power) return false;
   if (s.powerWindow) return s.powerWindow.playerId === playerId && s.powerWindow.power === power;
-  if (s.peek) return false;
   if (!isCurrent(s, playerId)) return false;
   switch (power) {
     case 'keenNose':

@@ -17,10 +17,7 @@ import {
 
 const T = POWER_TUNING;
 
-/**
- * A power move to make now, or null to play normally. Open windows and an undecided
- * sniff always get an answer (the game waits for it).
- */
+/** A power move to make now, or null to play normally. Open windows always get an answer. */
 export function powerMove(policy: BotPolicy, ctx: BotCtx): Action | null {
   const { view, me } = ctx;
   const playerId = me.id;
@@ -28,9 +25,6 @@ export function powerMove(policy: BotPolicy, ctx: BotCtx): Action | null {
   if (window?.playerId === playerId) {
     const use = windowChoice(ctx);
     return use ? { type: 'usePower', playerId, use } : { type: 'passPower', playerId };
-  }
-  if (view.peek && !view.peek.decided) {
-    return { type: 'sniff', playerId, bottomCardId: sniffChoice(view.peek.cards) };
   }
   if (!view.canUsePower) return null;
 
@@ -117,13 +111,6 @@ function windowChoice(ctx: BotCtx): Extract<Action, { type: 'usePower' }>['use']
   }
 }
 
-/** Keen Nose: push a dog to the bottom if one is on top; otherwise leave the bin alone. */
-function sniffChoice(cards: readonly Card[]): number | null {
-  if (cards[0]?.kind === 'dog') return cards[0].id;
-  if (cards[1]?.kind === 'dog') return cards[1].id;
-  return null;
-}
-
 /** Scavenger: a discard-pile card that finishes a meal, or (late) the most useful one. */
 function scavengeTarget(view: PlayerView, cards: readonly Card[]): Card | null {
   const finishing = cards.find((c) => completesMeal(view.hand, c));
@@ -137,5 +124,5 @@ function scavengeTarget(view: PlayerView, cards: readonly Card[]): Card | null {
 
 /** After sniffing, the bot knows the next card: dig if it is safe, stop if it is a dog. */
 export function knownNextCard(view: PlayerView): Card | null {
-  return view.peek?.decided ? (view.peek.cards[0] ?? null) : null;
+  return view.peek?.cards[0] ?? null;
 }

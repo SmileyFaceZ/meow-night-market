@@ -19,17 +19,13 @@ export function chooseRandomAction(view: PlayerView, rng: Rng): Action | null {
 
   const pickOne = <T>(items: readonly T[]): T => items[rng.int(items.length)] as T;
 
-  // Cat powers: answer open windows and sniffs; now and then use a power at random.
+  // Cat powers: answer open windows; now and then use a power at random.
   if (view.powerWindow) {
     if (view.powerWindow.playerId !== playerId) return null;
     const use = randomUse(view, me, rng);
     return use && rng.next() < 0.5
       ? { type: 'usePower', playerId, use }
       : { type: 'passPower', playerId };
-  }
-  if (view.peek && !view.peek.decided) {
-    const choices = [null, ...view.peek.cards.map((c) => c.id)];
-    return { type: 'sniff', playerId, bottomCardId: pickOne(choices) };
   }
   if (view.canUsePower && rng.next() < 0.3) {
     const use = randomUse(view, me, rng);

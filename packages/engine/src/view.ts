@@ -71,7 +71,7 @@ export interface PlayerView {
   readonly eventsLeft: number;
   /** Downpour: dogs out of the bin this round. */
   readonly dogsSheltering: number;
-  /** Sleepy Dogs: players whose first dog already slept this round. */
+  /** Sleepy Dogs: who met the round's sleeping dog (empty = it is still to come). */
   readonly dogsSlept: readonly PlayerId[];
 
   readonly pickQueue: readonly PlayerId[];
@@ -94,7 +94,7 @@ export interface PlayerView {
   /** The viewer's own secrets. */
   readonly hand: readonly Card[];
   /** Keen Nose: the top of the bin as the viewer knows it (only for the sniffer). */
-  readonly peek: { readonly cards: readonly Card[]; readonly decided: boolean } | null;
+  readonly peek: { readonly cards: readonly Card[] } | null;
   /** The viewer may use their power right now (the button glows). */
   readonly canUsePower: boolean;
   readonly yourBid: number | null;
@@ -171,10 +171,7 @@ export function getPlayerView(state: GameState, viewer: PlayerId | null): Player
     extraOrder: state.extraOrder,
     digCount: state.digCount,
     hand: me ? copyCards(me.hand) : [],
-    peek:
-      me && state.peek?.playerId === me.id
-        ? { cards: copyCards(state.peek.cards), decided: state.peek.decided }
-        : null,
+    peek: me && state.peek?.playerId === me.id ? { cards: copyCards(state.peek.cards) } : null,
     canUsePower: me ? canUsePowerNow(state, me.id) : false,
     yourBid: me && state.phase === 'bidding' ? (state.bids[me.id] ?? null) : null,
     yourDiscard: me ? (state.pendingDiscards[me.id]?.slice() ?? null) : null,

@@ -43,8 +43,6 @@ export interface EventConfig {
   readonly garbageTruckDigs: number;
   /** Blackout: stall cards laid face down. */
   readonly blackoutCards: number;
-  /** Sleepy Dogs: the first dog EACH player meets sleeps ('perPlayer'), or only the round's first dog ('firstOfRound'). */
-  readonly sleepyDogs: 'perPlayer' | 'firstOfRound';
 }
 
 export const DEFAULT_CONFIG: GameConfig = {
@@ -69,12 +67,12 @@ export const DEFAULT_CONFIG: GameConfig = {
   varietyMinTypes: 2,
   minPlayers: 2,
   maxPlayers: 4,
+  // Downpour 1 (not 2) and Garbage Truck 4 (not 3): from the balance runs (DECISIONS 048).
   events: {
-    downpourDogs: 2,
+    downpourDogs: 1,
     seafoodBonus: 2,
-    garbageTruckDigs: 3,
+    garbageTruckDigs: 4,
     blackoutCards: 2,
-    sleepyDogs: 'perPlayer',
   },
 };
 

@@ -74,29 +74,26 @@ describe('Keen Nose (orange)', () => {
     s = giveCat(s, current(s), 'orange');
     const [dog, fish, chicken] = [card('dog'), card('fish'), card('chicken')];
     s = patch(s, {
-      trashDeck: [dog, fish, chicken, ...s.trashDeck.filter((c) => c.kind !== 'dog')],
+      trashDeck: [fish, dog, chicken, ...s.trashDeck.filter((c) => c.kind !== 'dog')],
     });
-    return { s, me: current(s), dog, fish, chicken };
+    return { s, me: current(s), dog, fish };
   }
 
-  it('shows the top two bin cards to the sniffer only, then a dog can go to the bottom', () => {
+  it('shows the top two bin cards to the sniffer only; nothing moves', () => {
     const { s, me, dog, fish } = sniffer();
     const used = act(s, { type: 'usePower', playerId: me, use: { power: 'keenNose' } });
-    expect(eventTypes(used.events)).toContain('POWER_USED');
-    expect(getPlayerView(used.state, me).peek?.cards.map((c) => c.id)).toEqual([dog.id, fish.id]);
+    expect(eventTypes(used.events)).toEqual(['POWER_USED']);
+    expect(used.state.trashDeck.slice(0, 2).map((c) => c.id)).toEqual([fish.id, dog.id]);
+    expect(getPlayerView(used.state, me).peek?.cards.map((c) => c.id)).toEqual([fish.id, dog.id]);
     const other = s.players.find((p) => p.id !== me)!.id;
     const theirs = getPlayerView(used.state, other);
     expect(theirs.peek).toBeNull();
     expect(theirs.sniffing).toBe(me);
     expect(reachableCardIds(theirs).has(dog.id)).toBe(false);
-    // Nothing else until the choice is made.
-    expectError(used.state, { type: 'dig', playerId: me }, 'error.powerPending');
-
-    const sniffed = act(used.state, { type: 'sniff', playerId: me, bottomCardId: dog.id });
-    expect(sniffed.state.trashDeck.at(-1)!.id).toBe(dog.id);
-    expect(getPlayerView(sniffed.state, me).peek).toEqual({ cards: [fish], decided: true });
-    const dug = act(sniffed.state, { type: 'dig', playerId: me });
-    expect(dug.state.bag.map((c) => c.id)).toEqual([fish.id]);
+    // The sniffer keeps knowing what comes next as cards are drawn.
+    const dug = act(used.state, { type: 'dig', playerId: me }).state;
+    expect(dug.bag.map((c) => c.id)).toEqual([fish.id]);
+    expect(getPlayerView(dug, me).peek?.cards.map((c) => c.id)).toEqual([dog.id]);
   });
 
   it('works only before the first draw of the turn, and only once per game', () => {
@@ -108,10 +105,9 @@ describe('Keen Nose (orange)', () => {
       'error.powerNotNow',
     );
     const used = act(s, { type: 'usePower', playerId: me, use: { power: 'keenNose' } }).state;
-    const done = act(used, { type: 'sniff', playerId: me, bottomCardId: null }).state;
-    expect(done.powers![me]!.used).toBe(true);
+    expect(used.powers![me]!.used).toBe(true);
     expectError(
-      done,
+      used,
       { type: 'usePower', playerId: me, use: { power: 'keenNose' } },
       'error.noPower',
     );
