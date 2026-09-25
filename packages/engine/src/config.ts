@@ -30,6 +30,18 @@ export interface GameConfig {
   readonly varietyMinTypes: number;
   readonly minPlayers: number;
   readonly maxPlayers: number;
+  /**
+   * Scavenger (white cat, GAME_RULES §14): take a food card from the discard pile on your
+   * eat turn ('eat'), or take the stall's leftover card once everyone has picked ('afterPick',
+   * the alternative the user asked to test — DECISIONS 044).
+   */
+  readonly scavengerTiming: 'eat' | 'afterPick';
+  /**
+   * Good-Luck Cat (korat): after surviving the dog, keep digging ('keepDigging', the rule),
+   * keep the bag but end the turn ('endTurn'), or lose half the bag and carry on ('halfBag').
+   * The last two are balance experiments (docs/BALANCE.md).
+   */
+  readonly goodLuckEffect: 'keepDigging' | 'endTurn' | 'halfBag' | 'halfBagEndTurn';
 }
 
 export const DEFAULT_CONFIG: GameConfig = {
@@ -54,6 +66,8 @@ export const DEFAULT_CONFIG: GameConfig = {
   varietyMinTypes: 2,
   minPlayers: 2,
   maxPlayers: 4,
+  scavengerTiming: 'eat',
+  goodLuckEffect: 'keepDigging',
 };
 
 export function validateConfig(config: GameConfig): void {
@@ -105,5 +119,52 @@ export const BOT_TUNING = {
     /** Eat a normal (3-card) meal without waiting once its price is this low. */
     eatSmallAtPrice: 3,
     boneKeepBias: 1.5,
+  },
+};
+
+// ── Bots and cat powers (GAME_RULES §14) ─────────────────────────────────────
+// Simple rules per power; a bot that ends the game without using its power must have
+// had no chance (the balance report checks). Tuned with `npm run balance`.
+
+export const POWER_TUNING = {
+  keenNose: {
+    /** Sniff before the first draw once the chance of a dog is at least this. */
+    minDogRisk: 0.12,
+  },
+  secondThought: {
+    /** From this round on, also move up to a free higher number when not clashing. */
+    climbFromRound: 1,
+  },
+  scavenger: {
+    /** From this round on, take any food card, not only one that finishes a meal. */
+    anyCardFromRound: 1,
+  },
+  luckySwap: {
+    /** Swap when no stall card is worth at least this much to me… */
+    minBestValue: 3,
+    /** …or anyway from this round on. */
+    anywayFromRound: 4,
+  },
+  goodLuck: {
+    /** Use the power on a dog when the bag holds at least this many cards. */
+    minBag: 2,
+    /** From this round on, use it for any non-empty bag. */
+    anyBagFromRound: 4,
+  },
+  extraOrder: {
+    /** Order the leftover card when it would be worth at least this… */
+    minLeftoverValue: 2,
+    /** …or anyway from this round on. */
+    anywayFromRound: 4,
+  },
+  haggle: {
+    /** Before that, raise a price only for a meal I am about to eat; from then, for my best set. */
+    anywayFromRound: 4,
+  },
+  bigAppetite: {
+    /** Eat a pair when it scores at least this… */
+    minPoints: 3,
+    /** …or anyway from this round on. */
+    anywayFromRound: 4,
   },
 };

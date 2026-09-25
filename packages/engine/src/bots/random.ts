@@ -1,4 +1,6 @@
 import { findMealOptions } from '../cards.ts';
+import { FOOD_TYPES } from '../config.ts';
+import { pairOptions, type PowerUse, scavengeable } from '../powers.ts';
 import type { Rng } from '../rng.ts';
 import type { Action } from '../types.ts';
 import type { PlayerView } from '../view.ts';
@@ -17,6 +19,23 @@ export function chooseRandomAction(view: PlayerView, rng: Rng): Action | null {
 
   const pickOne = <T>(items: readonly T[]): T => items[rng.int(items.length)] as T;
 
+  // Cat powers: answer open windows and sniffs; now and then use a power at random.
+  if (view.powerWindow) {
+    if (view.powerWindow.playerId !== playerId) return null;
+    const use = randomUse(view, me, rng);
+    return use && rng.next() < 0.5
+      ? { type: 'usePower', playerId, use }
+      : { type: 'passPower', playerId };
+  }
+  if (view.peek && !view.peek.decided) {
+    const choices = [null, ...view.peek.cards.map((c) => c.id)];
+    return { type: 'sniff', playerId, bottomCardId: pickOne(choices) };
+  }
+  if (view.canUsePower && rng.next() < 0.3) {
+    const use = randomUse(view, me, rng);
+    if (use) return { type: 'usePower', playerId, use };
+  }
+
   switch (view.phase) {
     case 'bidding':
       return me.hasBid ? null : { type: 'bid', playerId, value: pickOne(me.meowLeft) };
@@ -26,7 +45,10 @@ export function chooseRandomAction(view: PlayerView, rng: Rng): Action | null {
 
     case 'trash':
       if (!myTurn) return null;
-      if (view.pendingDog) return { type: 'resolveDog', playerId, useBone: rng.next() < 0.7 };
+      if (view.pendingDog) {
+        const hasBone = view.hand.some((c) => c.kind === 'bone');
+        return { type: 'resolveDog', playerId, useBone: hasBone && rng.next() < 0.7 };
+      }
       return view.trashDiggable && rng.next() < 0.6
         ? { type: 'dig', playerId }
         : { type: 'stop', playerId };
@@ -51,6 +73,45 @@ export function chooseRandomAction(view: PlayerView, rng: Rng): Action | null {
       };
 
     case 'gameOver':
+      return null;
+  }
+}
+
+/** A random use of the viewer's power that is legal right now (null if it needs no target and none fits). */
+function randomUse(view: PlayerView, me: PlayerView['players'][number], rng: Rng): PowerUse | null {
+  const one = <T>(items: readonly T[]): T | undefined =>
+    items.length > 0 ? items[rng.int(items.length)] : undefined;
+  switch (me.power) {
+    case 'keenNose':
+    case 'goodLuck':
+    case 'extraOrder':
+      return { power: me.power };
+    case 'secondThought': {
+      const bid = me.revealedBid;
+      const value = one(
+        bid === null ? [] : [bid - 1, bid + 1].filter((v) => me.meowLeft.includes(v)),
+      );
+      return value === undefined ? null : { power: 'secondThought', value };
+    }
+    case 'luckySwap': {
+      const card = one(view.market);
+      return card ? { power: 'luckySwap', cardId: card.id } : null;
+    }
+    case 'scavenger': {
+      const pile =
+        view.config.scavengerTiming === 'afterPick' ? view.market : scavengeable(view.discard);
+      const card = one(pile);
+      return card ? { power: 'scavenger', cardId: card.id } : null;
+    }
+    case 'haggle': {
+      const food = one(FOOD_TYPES.filter((f) => view.prices[f] < view.config.startPrice));
+      return food ? { power: 'haggle', food } : null;
+    }
+    case 'bigAppetite': {
+      const pair = one(pairOptions(view.hand));
+      return pair ? { power: 'bigAppetite', cardIds: pair.cardIds } : null;
+    }
+    default:
       return null;
   }
 }

@@ -1,4 +1,4 @@
-import type { GameState, PlayerId } from '@meow/engine';
+import type { GameConfig, GameState, PlayerId } from '@meow/engine';
 import { CAT_COLORS, type SeatInfo } from './types';
 
 // Local games (solo and pass-and-play) are saved to localStorage after every action
@@ -57,6 +57,15 @@ function isSeat(value: unknown): value is SeatInfo {
   );
 }
 
+/** State fields added after v1 saves were first written, with their classic-game values. */
+const CLASSIC_DEFAULTS: Partial<GameState> = {
+  powers: null,
+  powerWindow: null,
+  peek: null,
+  digCount: 0,
+  extraOrder: null,
+};
+
 /** Returns a save only if it looks like one this version wrote; anything else is ignored. */
 export function readSave(storage: SaveStorage | null): GameSave | null {
   try {
@@ -70,7 +79,19 @@ export function readSave(storage: SaveStorage | null): GameSave | null {
     if (!Array.isArray(players)) return null;
     const ids = (players as { id?: unknown }[]).map((p) => p.id);
     const playersOk = ids.length === data.seats.length && ids.includes(data.viewerId);
-    return seatsOk && playersOk ? (data as GameSave) : null;
+    if (!seatsOk || !playersOk) return null;
+    // Saves written before cat powers existed (GAME_RULES §14) are classic games.
+    const state = {
+      ...CLASSIC_DEFAULTS,
+      ...data.state,
+      // Older configs lack newer fields.
+      config: {
+        scavengerTiming: 'eat',
+        goodLuckEffect: 'keepDigging',
+        ...(data.state.config as Partial<GameConfig>),
+      },
+    } as GameState;
+    return { ...(data as GameSave), state };
   } catch {
     return null;
   }

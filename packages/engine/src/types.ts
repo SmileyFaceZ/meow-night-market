@@ -1,4 +1,5 @@
 import type { FoodType, GameConfig } from './config.ts';
+import type { Peek, PowerId, PowerState, PowerUse, PowerWindow } from './powers.ts';
 
 export type { FoodType } from './config.ts';
 
@@ -94,6 +95,18 @@ export interface GameState {
   readonly pendingDiscards: Readonly<Record<PlayerId, readonly CardId[] | null>>;
 
   readonly result: GameResult | null;
+
+  // ── Cat powers (GAME_RULES §14) — null / empty in classic games ──
+  /** Each player's cat and whether its power is spent. null = classic game (no powers). */
+  readonly powers: Readonly<Record<PlayerId, PowerState>> | null;
+  /** The game waits for one player to use a power or let it pass. */
+  readonly powerWindow: PowerWindow | null;
+  /** Keen Nose: what the sniffer knows about the top of the bin (secret). */
+  readonly peek: Peek | null;
+  /** Cards drawn so far in the current Trash Dig turn. */
+  readonly digCount: number;
+  /** Extra Order: this player gets the stall's leftover card after everyone has picked. */
+  readonly extraOrder: PlayerId | null;
 }
 
 export type Action =
@@ -104,7 +117,13 @@ export type Action =
   | { readonly type: 'stop'; readonly playerId: PlayerId }
   | { readonly type: 'eat'; readonly playerId: PlayerId; readonly cardIds: readonly CardId[] }
   | { readonly type: 'finishEating'; readonly playerId: PlayerId }
-  | { readonly type: 'discard'; readonly playerId: PlayerId; readonly cardIds: readonly CardId[] };
+  | { readonly type: 'discard'; readonly playerId: PlayerId; readonly cardIds: readonly CardId[] }
+  /** Use your cat's power (GAME_RULES §14); the payload depends on the power. */
+  | { readonly type: 'usePower'; readonly playerId: PlayerId; readonly use: PowerUse }
+  /** Let an open power window pass without using the power. */
+  | { readonly type: 'passPower'; readonly playerId: PlayerId }
+  /** Keen Nose: send one of the two sniffed cards to the bottom of the bin (or neither). */
+  | { readonly type: 'sniff'; readonly playerId: PlayerId; readonly bottomCardId: CardId | null };
 
 export type ActionType = Action['type'];
 
@@ -156,7 +175,33 @@ export type GameEvent =
       readonly playerId: PlayerId;
       readonly cards: readonly Card[];
     }
-  | { readonly type: 'GAME_OVER'; readonly result: GameResult };
+  | { readonly type: 'GAME_OVER'; readonly result: GameResult }
+  // ── Cat powers ──
+  /** Someone used their power (everyone sees the sparkle and the power's name). */
+  | { readonly type: 'POWER_USED'; readonly playerId: PlayerId; readonly power: PowerId }
+  /** A power window opened: the game waits for this player to decide. */
+  | { readonly type: 'POWER_WINDOW'; readonly playerId: PlayerId; readonly power: PowerId }
+  /** Keen Nose done. Which card moved stays secret; only whether one did. */
+  | { readonly type: 'SNIFFED'; readonly playerId: PlayerId; readonly movedToBottom: boolean }
+  | {
+      readonly type: 'BID_CHANGED';
+      readonly playerId: PlayerId;
+      readonly from: number;
+      readonly to: number;
+    }
+  | { readonly type: 'CARD_SCAVENGED'; readonly playerId: PlayerId; readonly card: Card }
+  | {
+      readonly type: 'MARKET_SWAPPED';
+      readonly playerId: PlayerId;
+      readonly out: Card;
+      readonly in: Card;
+    }
+  | {
+      readonly type: 'PRICE_CHANGED';
+      readonly food: FoodType;
+      readonly from: number;
+      readonly to: number;
+    };
 
 /** Error keys double as i18n keys (apps/web/src/i18n). */
 export const ERROR_KEYS = [
@@ -177,6 +222,10 @@ export const ERROR_KEYS = [
   'error.noDiscardNeeded',
   'error.alreadyDiscarded',
   'error.wrongDiscardCount',
+  'error.noPower',
+  'error.powerNotNow',
+  'error.powerPending',
+  'error.invalidPowerTarget',
 ] as const;
 export type ErrorKey = (typeof ERROR_KEYS)[number];
 

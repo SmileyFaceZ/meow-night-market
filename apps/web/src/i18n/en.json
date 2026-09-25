@@ -306,7 +306,11 @@
     "invalidMeal": "That's not a meal",
     "noDiscardNeeded": "No need to discard",
     "alreadyDiscarded": "You already chose",
-    "wrongDiscardCount": "Wrong number of cards"
+    "wrongDiscardCount": "Wrong number of cards",
+    "noPower": "You have no cat power left",
+    "powerNotNow": "You can’t use that power right now",
+    "powerPending": "Wait — someone is deciding on their cat power",
+    "invalidPowerTarget": "That power can’t be used on that"
   },
   "stage": {
     "reveal": "Meows revealed!",

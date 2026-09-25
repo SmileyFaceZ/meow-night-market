@@ -1,5 +1,6 @@
 import {
   applyAction,
+  CAT_IDS,
   chooseRandomAction,
   createGame,
   createRng,
@@ -19,30 +20,46 @@ import {
 } from '../src/index.ts';
 
 describe('server messages', () => {
-  it('accept every view and event of real games, for players and spectators', () => {
-    for (const players of [2, 3, 4]) {
-      let state = createGame({
-        playerIds: Array.from({ length: players }, (_, i) => `p${i}`),
-        seed: `schema-${players}`,
-      });
-      const rng = createRng(players);
-      let events: readonly GameEvent[] = [];
-      for (let step = 0; step < 2_000 && state.phase !== 'gameOver'; step++) {
-        for (const viewer of [...state.players.map((p) => p.id), null]) {
-          const message = { type: 'view', view: getPlayerView(state, viewer), events, clocks: [] };
-          const parsed = parseMessage(serverMessageSchema, JSON.stringify(message));
-          expect(parsed, `step ${step}`).toEqual(message);
+  it.each(['classic', 'powers'] as const)(
+    'accept every view, event and action of real games (%s), for players and spectators',
+    (mode) => {
+      for (const players of [2, 3, 4]) {
+        const playerIds = Array.from({ length: players }, (_, i) => `p${i}`);
+        // Powers mode: spread the 8 cats over seats and seeds so every power turns up.
+        const cats = Object.fromEntries(
+          playerIds.map((id, i) => [id, CAT_IDS[(i * 3 + players) % CAT_IDS.length]!]),
+        );
+        let state = createGame({
+          playerIds,
+          seed: `schema-${players}`,
+          ...(mode === 'powers' ? { cats } : {}),
+        });
+        const rng = createRng(players);
+        let events: readonly GameEvent[] = [];
+        for (let step = 0; step < 2_000 && state.phase !== 'gameOver'; step++) {
+          for (const viewer of [...state.players.map((p) => p.id), null]) {
+            const message = {
+              type: 'view',
+              view: getPlayerView(state, viewer),
+              events,
+              clocks: [],
+            };
+            const parsed = parseMessage(serverMessageSchema, JSON.stringify(message));
+            expect(parsed, `step ${step}`).toEqual(message);
+          }
+          const actor = pendingActors(state)[0]!;
+          const action = chooseRandomAction(getPlayerView(state, actor), rng)!;
+          const sent = { type: 'action', action };
+          expect(parseMessage(clientMessageSchema, JSON.stringify(sent))).toEqual(sent);
+          const result = applyAction(state, action);
+          if (!result.ok) throw new Error(result.error);
+          state = result.state;
+          events = result.events;
         }
-        const actor = pendingActors(state)[0]!;
-        const action = chooseRandomAction(getPlayerView(state, actor), rng)!;
-        const result = applyAction(state, action);
-        if (!result.ok) throw new Error(result.error);
-        state = result.state;
-        events = result.events;
+        expect(state.phase).toBe('gameOver');
       }
-      expect(state.phase).toBe('gameOver');
-    }
-  });
+    },
+  );
 
   it('reject malformed messages', () => {
     for (const raw of ['nope', '{}', '{"type":"error","key":"hack"}', 42]) {

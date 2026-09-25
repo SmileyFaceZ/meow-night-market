@@ -5,6 +5,7 @@ import { FOOD_TYPES, type FoodType } from '../config.ts';
 import type { Rng } from '../rng.ts';
 import type { Action, Card, CardId } from '../types.ts';
 import type { PlayerView, PublicPlayer } from '../view.ts';
+import { knownNextCard, powerMove } from './powers.ts';
 
 export interface BotCtx {
   readonly view: PlayerView;
@@ -29,6 +30,10 @@ export function runPolicy(policy: BotPolicy, view: PlayerView, rng: Rng): Action
   if (playerId === null || !me) return null;
   const ctx: BotCtx = { view, me, rng };
   const myTurn = view.currentPlayer === playerId;
+  // Someone else's power window: wait.
+  if (view.powerWindow && view.powerWindow.playerId !== playerId) return null;
+  const power = powerMove(policy, ctx);
+  if (power) return power;
 
   switch (view.phase) {
     case 'bidding':
@@ -37,10 +42,16 @@ export function runPolicy(policy: BotPolicy, view: PlayerView, rng: Rng): Action
       return myTurn ? { type: 'pick', playerId, cardId: policy.pick(ctx) } : null;
     case 'trash':
       if (!myTurn) return null;
-      if (view.pendingDog) return { type: 'resolveDog', playerId, useBone: policy.throwBone(ctx) };
-      return view.trashDiggable && policy.keepDigging(ctx)
-        ? { type: 'dig', playerId }
-        : { type: 'stop', playerId };
+      if (view.pendingDog) {
+        const hasBone = view.hand.some((c) => c.kind === 'bone');
+        return { type: 'resolveDog', playerId, useBone: hasBone && policy.throwBone(ctx) };
+      }
+      {
+        // Sniffed the bin: we know whether the next card is a dog.
+        const next = knownNextCard(view);
+        const dig = next ? next.kind !== 'dog' : policy.keepDigging(ctx);
+        return view.trashDiggable && dig ? { type: 'dig', playerId } : { type: 'stop', playerId };
+      }
     case 'eat': {
       if (!myTurn) return null;
       const meal = policy.meal(ctx);

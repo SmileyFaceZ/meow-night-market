@@ -1,4 +1,5 @@
 import type { FoodType, GameConfig } from './config.ts';
+import { CAT_POWER, type CatId, canUsePowerNow, type PowerId, type PowerWindow } from './powers.ts';
 import { canDigTrash, currentPlayer } from './rules.ts';
 import type { Card, CardId, GameResult, GameState, Meal, Phase, PlayerId } from './types.ts';
 
@@ -20,6 +21,11 @@ export interface PublicPlayer {
   readonly mustDiscard: number;
   /** Discard phase: has chosen (the cards stay secret until everyone has). */
   readonly hasDiscarded: boolean;
+  /** Cat powers mode: this player's cat and power (null in classic games). */
+  readonly cat: CatId | null;
+  readonly power: PowerId | null;
+  /** Spent powers are public (the icon turns grey). */
+  readonly powerUsed: boolean;
 }
 
 /**
@@ -51,8 +57,23 @@ export interface PlayerView {
   readonly bag: readonly Card[];
   readonly pendingDog: Card | null;
 
+  /** Cat powers (GAME_RULES §14). */
+  readonly powersOn: boolean;
+  /** The game waits for this player to use a power or let it pass. */
+  readonly powerWindow: PowerWindow | null;
+  /** Someone is sniffing the bin with Keen Nose (what they see is theirs alone). */
+  readonly sniffing: PlayerId | null;
+  /** Extra Order: this player also gets the stall's leftover card. */
+  readonly extraOrder: PlayerId | null;
+  /** Cards drawn so far in the current Trash Dig turn. */
+  readonly digCount: number;
+
   /** The viewer's own secrets. */
   readonly hand: readonly Card[];
+  /** Keen Nose: the top of the bin as the viewer knows it (only for the sniffer). */
+  readonly peek: { readonly cards: readonly Card[]; readonly decided: boolean } | null;
+  /** The viewer may use their power right now (the button glows). */
+  readonly canUsePower: boolean;
   readonly yourBid: number | null;
   readonly yourDiscard: readonly CardId[] | null;
 
@@ -84,6 +105,9 @@ export function getPlayerView(state: GameState, viewer: PlayerId | null): Player
           ? Math.max(0, p.hand.length - state.config.handLimit)
           : 0,
       hasDiscarded: discardPhase && pendingDiscard !== undefined && pendingDiscard !== null,
+      cat: state.powers?.[p.id]?.cat ?? null,
+      power: state.powers?.[p.id] ? CAT_POWER[state.powers[p.id]!.cat] : null,
+      powerUsed: state.powers?.[p.id]?.used ?? false,
     };
   });
 
@@ -106,7 +130,17 @@ export function getPlayerView(state: GameState, viewer: PlayerId | null): Player
     currentPlayer: currentPlayer(state),
     bag: copyCards(state.bag),
     pendingDog: state.pendingDog ? { ...state.pendingDog } : null,
+    powersOn: state.powers !== null,
+    powerWindow: state.powerWindow ? { ...state.powerWindow } : null,
+    sniffing: state.peek?.playerId ?? null,
+    extraOrder: state.extraOrder,
+    digCount: state.digCount,
     hand: me ? copyCards(me.hand) : [],
+    peek:
+      me && state.peek?.playerId === me.id
+        ? { cards: copyCards(state.peek.cards), decided: state.peek.decided }
+        : null,
+    canUsePower: me ? canUsePowerNow(state, me.id) : false,
     yourBid: me && state.phase === 'bidding' ? (state.bids[me.id] ?? null) : null,
     yourDiscard: me ? (state.pendingDiscards[me.id]?.slice() ?? null) : null,
     result: state.result,

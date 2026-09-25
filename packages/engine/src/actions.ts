@@ -7,12 +7,23 @@ import {
   endEatTurn,
   endPicking,
   endTrashTurn,
+  finishPicking,
   playerById,
+  resolveClashes,
   revealBids,
   returnDog,
   revealDiscards,
   takeFromHand,
 } from './flow.ts';
+import {
+  canUsePowerNow,
+  isAppetitePair,
+  type PowerUse,
+  scavengeable,
+  secondThoughtValues,
+  topFoodInBin,
+  unusedPower,
+} from './powers.ts';
 import { createRng } from './rng.ts';
 import { currentPlayer } from './rules.ts';
 import type { Action, ActionResult, Card, ErrorKey, GameState } from './types.ts';
@@ -28,15 +39,32 @@ export function applyAction(state: GameState, action: Action): ActionResult {
   }
 
   const ctx: Ctx = { s: cloneState(state), rng: createRng(state.rng), events: [] };
-  const error = handle(ctx, action);
+  const error = blockedByPower(ctx, action) ?? handle(ctx, action);
   if (error) return { ok: false, error };
 
   ctx.s.rng = ctx.rng.state;
   return { ok: true, state: ctx.s, events: ctx.events };
 }
 
+/** While a power window or an undecided sniff is open, nothing else can happen. */
+function blockedByPower(ctx: Ctx, action: Action): ErrorKey | null {
+  const { powerWindow, peek } = ctx.s;
+  if (powerWindow) {
+    const decides = action.type === 'usePower' || action.type === 'passPower';
+    return decides && action.playerId === powerWindow.playerId ? null : 'error.powerPending';
+  }
+  if (peek && !peek.decided && action.type !== 'sniff') return 'error.powerPending';
+  return null;
+}
+
 function handle(ctx: Ctx, action: Action): ErrorKey | null {
   switch (action.type) {
+    case 'usePower':
+      return usePower(ctx, action.playerId, action.use);
+    case 'passPower':
+      return passPower(ctx, action.playerId);
+    case 'sniff':
+      return sniff(ctx, action.playerId, action.bottomCardId);
     case 'bid':
       return bid(ctx, action.playerId, action.value);
     case 'pick':
@@ -119,7 +147,8 @@ function dig(ctx: Ctx, playerId: string): ErrorKey | null {
     ctx.events.push({ type: 'CARD_DUG', playerId, card: { ...card }, to: 'dog' });
     const canThrowBone = player.hand.some((c) => c.kind === 'bone');
     ctx.events.push({ type: 'DOG_APPEARED', playerId, canThrowBone });
-    if (canThrowBone) s.pendingDog = card;
+    // A choice to make: throw a bone, or (korat cat) use Good-Luck Cat.
+    if (canThrowBone || unusedPower(s, playerId) === 'goodLuck') s.pendingDog = card;
     else caught(ctx, playerId, card);
   } else {
     s.bag.push(card);
@@ -230,5 +259,168 @@ function discard(ctx: Ctx, playerId: string, cardIds: readonly number[]): ErrorK
   s.pendingDiscards[playerId] = [...cardIds];
   ctx.events.push({ type: 'DISCARD_CHOSEN', playerId });
   if (Object.values(s.pendingDiscards).every((ids) => ids !== null)) revealDiscards(ctx);
+  return null;
+}
+
+// ── §14 Cat powers ───────────────────────────────────────────────────────────
+
+function usePower(ctx: Ctx, playerId: string, use: PowerUse): ErrorKey | null {
+  const { s } = ctx;
+  const power = unusedPower(s, playerId);
+  if (!power) return 'error.noPower';
+  if (power !== use.power || !canUsePowerNow(s, playerId)) return 'error.powerNotNow';
+  return applyPower(ctx, playerId, use);
+}
+
+/** Checks the target, then spends the power and applies its effect. */
+function applyPower(ctx: Ctx, playerId: string, use: PowerUse): ErrorKey | null {
+  const { s } = ctx;
+  const player = playerById(s, playerId);
+  const spend = () => {
+    s.powers![playerId]!.used = true;
+    ctx.events.push({ type: 'POWER_USED', playerId, power: use.power });
+  };
+
+  switch (use.power) {
+    case 'keenNose': {
+      // Same rule as a dig: with only dogs left, the discard pile is shuffled in first.
+      if (!s.trashDeck.some((c) => c.kind !== 'dog') && s.discard.length > 0) {
+        s.trashDeck = ctx.rng.shuffle([...s.trashDeck, ...s.discard.splice(0)]);
+        ctx.events.push({ type: 'TRASH_RESHUFFLED', count: s.trashDeck.length });
+      }
+      spend();
+      s.peek = { playerId, cards: s.trashDeck.slice(0, 2).map((c) => ({ ...c })), decided: false };
+      return null;
+    }
+    case 'secondThought': {
+      if (!secondThoughtValues(s, playerId).includes(use.value)) return 'error.invalidPowerTarget';
+      const from = s.revealedBids![playerId]!;
+      spend();
+      s.revealedBids![playerId] = use.value;
+      player.meowLeft = [...player.meowLeft.filter((v) => v !== use.value), from].sort(
+        (a, b) => a - b,
+      );
+      ctx.events.push({ type: 'BID_CHANGED', playerId, from, to: use.value });
+      s.powerWindow = null;
+      resolveClashes(ctx);
+      return null;
+    }
+    case 'scavenger': {
+      const fromStall = s.config.scavengerTiming === 'afterPick';
+      const pile = fromStall ? s.market : s.discard;
+      const index = pile.findIndex((c) => c.id === use.cardId);
+      if (index === -1 || (!fromStall && !scavengeable(pile).some((c) => c.id === use.cardId))) {
+        return 'error.invalidPowerTarget';
+      }
+      spend();
+      const [card] = pile.splice(index, 1) as [Card];
+      player.hand.push(card);
+      ctx.events.push({ type: 'CARD_SCAVENGED', playerId, card: { ...card } });
+      if (fromStall) {
+        s.powerWindow = null;
+        finishPicking(ctx);
+      } else if (!canEatAnything(s, playerId)) {
+        endEatTurn(ctx);
+      }
+      return null;
+    }
+    case 'luckySwap': {
+      const index = s.market.findIndex((c) => c.id === use.cardId);
+      const fresh = topFoodInBin(s.trashDeck);
+      if (index === -1 || !fresh) return 'error.invalidPowerTarget';
+      spend();
+      s.trashDeck.splice(
+        s.trashDeck.findIndex((c) => c.id === fresh.id),
+        1,
+      );
+      const out = s.market[index]!;
+      s.market[index] = fresh;
+      s.discard.push(out);
+      ctx.events.push({ type: 'MARKET_SWAPPED', playerId, out: { ...out }, in: { ...fresh } });
+      s.powerWindow = null;
+      return null;
+    }
+    case 'goodLuck': {
+      const dog = s.pendingDog!;
+      spend();
+      s.pendingDog = null;
+      const effect = s.config.goodLuckEffect;
+      if (effect === 'halfBag' || effect === 'halfBagEndTurn') {
+        const lost = s.bag.splice(0, Math.ceil(s.bag.length / 2));
+        s.discard.push(...lost);
+        ctx.events.push({ type: 'DOG_CAUGHT', playerId, lost: lost.map((c) => ({ ...c })) });
+      }
+      returnDog(ctx, dog);
+      if (effect === 'endTurn' || effect === 'halfBagEndTurn') {
+        const kept = s.bag.splice(0);
+        player.hand.push(...kept);
+        ctx.events.push({ type: 'BAG_KEPT', playerId, cards: kept.map((c) => ({ ...c })) });
+        endTrashTurn(ctx);
+      }
+      return null;
+    }
+    case 'extraOrder':
+      spend();
+      s.extraOrder = playerId;
+      return null;
+    case 'haggle': {
+      const from = s.prices[use.food];
+      if (from >= s.config.startPrice) return 'error.invalidPowerTarget';
+      spend();
+      s.prices[use.food] = from + 1;
+      ctx.events.push({ type: 'PRICE_CHANGED', food: use.food, from, to: from + 1 });
+      return null;
+    }
+    case 'bigAppetite': {
+      if (hasDuplicates(use.cardIds)) return 'error.duplicateCard';
+      const cards = use.cardIds.map((id) => player.hand.find((c) => c.id === id));
+      if (cards.some((c) => c === undefined)) return 'error.cardNotInHand';
+      const food = isAppetitePair(cards as Card[]);
+      if (!food) return 'error.invalidPowerTarget';
+      spend();
+      const price = s.prices[food];
+      const points = Math.max(1, price - 1);
+      const newPrice = Math.max(s.config.minPrice, price - s.config.priceDropPerMeal);
+      const eaten = takeFromHand(player.hand, use.cardIds);
+      const record = { round: s.round, food, cards: eaten, big: false, price, points };
+      player.meals.push(record);
+      s.prices[food] = newPrice;
+      ctx.events.push({
+        type: 'MEAL_EATEN',
+        playerId,
+        meal: JSON.parse(JSON.stringify(record)) as typeof record,
+        newPrice,
+      });
+      if (!canEatAnything(s, playerId)) endEatTurn(ctx);
+      return null;
+    }
+  }
+}
+
+/** Let an open window pass: the game carries on as if the power did not exist. */
+function passPower(ctx: Ctx, playerId: string): ErrorKey | null {
+  const { s } = ctx;
+  const window = s.powerWindow;
+  if (!window || window.playerId !== playerId) return 'error.powerNotNow';
+  s.powerWindow = null;
+  if (window.power === 'secondThought') resolveClashes(ctx);
+  else if (window.power === 'scavenger') finishPicking(ctx);
+  return null;
+}
+
+/** Keen Nose: send one of the two sniffed cards to the bottom of the bin, or neither. */
+function sniff(ctx: Ctx, playerId: string, bottomCardId: number | null): ErrorKey | null {
+  const { s } = ctx;
+  const peek = s.peek;
+  if (!peek || peek.decided || peek.playerId !== playerId) return 'error.powerNotNow';
+  if (bottomCardId !== null) {
+    if (!peek.cards.some((c) => c.id === bottomCardId)) return 'error.invalidPowerTarget';
+    const index = s.trashDeck.findIndex((c) => c.id === bottomCardId);
+    const [card] = s.trashDeck.splice(index, 1) as [Card];
+    s.trashDeck.push(card);
+    peek.cards = peek.cards.filter((c) => c.id !== bottomCardId);
+  }
+  peek.decided = true;
+  ctx.events.push({ type: 'SNIFFED', playerId, movedToBottom: bottomCardId !== null });
   return null;
 }

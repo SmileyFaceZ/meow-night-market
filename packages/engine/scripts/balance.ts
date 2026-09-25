@@ -8,6 +8,10 @@ import { parseArgs } from 'node:util';
 import {
   applyAction,
   BOT_PERSONALITIES,
+  CAT_IDS,
+  CAT_POWER,
+  type CatId,
+  canUsePowerNow,
   type BotDifficulty,
   type BotPersonality,
   chooseBotAction,
@@ -37,10 +41,31 @@ const GAMES = Number(values.games);
 const PLAYER_COUNTS = values.players.split(',').map(Number);
 const DIFFICULTY = values.difficulty as BotDifficulty;
 
-/** Rule sets to compare. `base` = GAME_RULES.md. */
+/** Rule sets to compare. `base` = GAME_RULES.md (classic). `powers` = cat powers (§14). */
 const D = DEFAULT_CONFIG;
-const VARIANTS: Record<string, { label: string; config: GameConfig }> = {
-  base: { label: 'กติกาปัจจุบัน', config: D },
+const VARIANTS: Record<string, { label: string; config: GameConfig; powers?: boolean }> = {
+  base: { label: 'คลาสสิก', config: D },
+  powers: { label: 'พลังแมว', config: D, powers: true },
+  powersAlt: {
+    label: 'พลังแมว — เก็บของเก่งแบบหยิบของเหลือบนแผง',
+    config: { ...D, scavengerTiming: 'afterPick' },
+    powers: true,
+  },
+  koratEnd: {
+    label: 'พลังแมว — แมวนำโชค: รอดแต่จบตา (เก็บถุง)',
+    config: { ...D, goodLuckEffect: 'endTurn' },
+    powers: true,
+  },
+  koratHalf: {
+    label: 'พลังแมว — แมวนำโชค: รอดแต่เสียครึ่งถุง',
+    config: { ...D, goodLuckEffect: 'halfBag' },
+    powers: true,
+  },
+  koratHalfEnd: {
+    label: 'พลังแมว — แมวนำโชค: รอด เสียครึ่งถุง และจบตา',
+    config: { ...D, goodLuckEffect: 'halfBagEndTurn' },
+    powers: true,
+  },
   // Add experiments here, e.g. dogs3: { label: 'หมา 3 ตัว', config: { ...D, dogCopies: 3 } },
 };
 const variantNames = values.variants.split(',');
@@ -94,13 +119,29 @@ interface GameRecord {
   startTrashFood: number;
   /** Sum of the dog chance at the moment of every dig (divide by digs). */
   riskSum: number;
+  /** Cat powers (by seat; empty in classic games). */
+  cats: CatId[];
+  powerUsed: boolean[];
+  /** The power was usable at some moment (a bot that never used it had no chance at all). */
+  powerChance: boolean[];
 }
 
-function playGame(config: GameConfig, lineup: BotPersonality[], seed: string): GameRecord {
+function playGame(
+  config: GameConfig,
+  lineup: BotPersonality[],
+  seed: string,
+  powers = false,
+): GameRecord {
   const seatRng = createRng(`seats:${seed}`);
   const personalities = seatRng.shuffle(lineup);
   const ids = personalities.map((_, i) => `p${i}`);
-  let state = createGame({ playerIds: ids, seed, config });
+  const cats = powers ? seatRng.shuffle([...CAT_IDS]).slice(0, ids.length) : [];
+  let state = createGame({
+    playerIds: ids,
+    seed,
+    config,
+    ...(powers ? { cats: Object.fromEntries(ids.map((id, i) => [id, cats[i]!])) } : {}),
+  });
   const botRng = createRng(`bots:${seed}`);
 
   const rec: GameRecord = {
@@ -128,6 +169,9 @@ function playGame(config: GameConfig, lineup: BotPersonality[], seed: string): G
     cleanEaten: 0,
     startTrashFood: state.trashDeck.filter((c) => c.kind !== 'dog' && c.kind !== 'bone').length,
     riskSum: 0,
+    cats,
+    powerUsed: ids.map(() => false),
+    powerChance: ids.map(() => false),
   };
 
   // Per-round tally of cards gained, keyed by player id.
@@ -198,12 +242,20 @@ function playGame(config: GameConfig, lineup: BotPersonality[], seed: string): G
       case 'GAME_OVER':
         closeRound();
         return;
+      case 'POWER_USED':
+        rec.powerUsed[ids.indexOf(e.playerId)] = true;
+        return;
       default:
         return;
     }
   };
 
   while (state.phase !== 'gameOver') {
+    if (powers) {
+      ids.forEach((id, seat) => {
+        if (!rec.powerChance[seat] && canUsePowerNow(state, id)) rec.powerChance[seat] = true;
+      });
+    }
     const actors = pendingActors(state);
     const actor = actors[botRng.int(actors.length)]!;
     const seat = ids.indexOf(actor);
@@ -267,6 +319,7 @@ interface Summary {
   startTrashFood: number;
   avgRisk: number;
   byBot: Record<string, { seats: number; wins: number; score: number; meals: number }>;
+  byCat: Record<string, { seats: number; wins: number; used: number; chance: number }>;
 }
 
 function summarize(records: GameRecord[]): Summary {
@@ -279,6 +332,7 @@ function summarize(records: GameRecord[]): Summary {
   let firstTieWins = 0;
   const seatWin = Array<number>(n).fill(0);
   const byBot: Summary['byBot'] = {};
+  const byCat: Summary['byCat'] = {};
   const sum = (key: keyof GameRecord) => records.reduce((acc, r) => acc + (r[key] as number), 0);
 
   for (const r of records) {
@@ -295,6 +349,14 @@ function summarize(records: GameRecord[]): Summary {
       bot.wins += r.winShare[seat]!;
       bot.score += r.scores[seat]!;
       bot.meals += r.meals[seat]!;
+      const cat = r.cats[seat];
+      if (cat) {
+        const c = (byCat[cat] ??= { seats: 0, wins: 0, used: 0, chance: 0 });
+        c.seats++;
+        c.wins += r.winShare[seat]!;
+        if (r.powerUsed[seat]) c.used++;
+        if (r.powerChance[seat]) c.chance++;
+      }
     }
   }
   const digs = sum('digs');
@@ -325,6 +387,7 @@ function summarize(records: GameRecord[]): Summary {
     avgRisk: sum('riskSum') / digs,
     cleanEaten: sum('cleanEaten') / cleanRounds,
     byBot,
+    byCat,
   };
 }
 
@@ -352,7 +415,7 @@ out('เป้าหมาย: มื้อ/คน/เกม 2–4 · จบด�
 
 const comparison: [string, [number, Summary][]][] = [];
 for (const variant of variantNames) {
-  const { label, config } = VARIANTS[variant]!;
+  const { label, config, powers = false } = VARIANTS[variant]!;
   out();
   out(`## ${label} (\`${variant}\`)`);
   const perCount: [number, Summary][] = [];
@@ -370,7 +433,7 @@ for (const variant of variantNames) {
     for (const lineup of lineups(n)) {
       const recs: GameRecord[] = [];
       for (let i = 0; i < GAMES; i++) {
-        recs.push(playGame(config, lineup, `${values.seed}:${n}:${lineup.join('-')}:${i}`));
+        recs.push(playGame(config, lineup, `${values.seed}:${n}:${lineup.join('-')}:${i}`, powers));
       }
       all.push(...recs);
       detail.push(summaryRow(lineupName(lineup), summarize(recs)));
@@ -409,6 +472,39 @@ for (const variant of variantNames) {
     out(
       `| ${n} คน | ${rates.map(pct).join(' | ')} | ${(spread * 100).toFixed(1)} จุด ${mark(spread <= 0.1)} | ${pct(1 / n)} |`,
     );
+  }
+  if (powers) {
+    out();
+    out('### พลังแมว — อัตราชนะตามแมว (เป้า: ห่างจากค่ายุติธรรมไม่เกิน ±4 จุด)');
+    out();
+    out(`| แมว (พลัง) | ${perCount.map(([n]) => `${n} คน`).join(' | ')} |`);
+    out(`|---|${perCount.map(() => '---').join('|')}|`);
+    for (const cat of CAT_IDS) {
+      const cells = perCount.map(([n, s]) => {
+        const c = s.byCat[cat];
+        if (!c) return '—';
+        const rate = c.wins / c.seats;
+        const diff = (rate - 1 / n) * 100;
+        return `${pct(rate)} (${diff >= 0 ? '+' : ''}${diff.toFixed(1)}) ${mark(Math.abs(diff) <= 4)}`;
+      });
+      out(`| ${cat} (${CAT_POWER[cat]}) | ${cells.join(' | ')} |`);
+    }
+    out();
+    out(
+      '### พลังแมว — ได้ใช้กี่เกม (เป้า ≥ 80%) · ไม่ได้ใช้: มีจังหวะแต่บอทไม่ใช้ / ไม่มีจังหวะเลย',
+    );
+    out();
+    out('| แมว (พลัง) | ผู้เล่น | ได้ใช้ | มีจังหวะแต่ไม่ใช้ | ไม่มีจังหวะเลย |');
+    out('|---|---|---|---|---|');
+    for (const cat of CAT_IDS) {
+      for (const [n, s] of perCount) {
+        const c = s.byCat[cat];
+        if (!c) continue;
+        out(
+          `| ${cat} (${CAT_POWER[cat]}) | ${n} | ${pct(c.used / c.seats)} ${mark(c.used / c.seats >= 0.8)} | ${pct((c.chance - c.used) / c.seats)} | ${pct((c.seats - c.chance) / c.seats)} |`,
+        );
+      }
+    }
   }
   if (!values.brief) for (const l of detail) out(l);
 }

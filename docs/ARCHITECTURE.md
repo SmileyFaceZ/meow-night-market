@@ -16,17 +16,19 @@
 ├─ packages/
 │  └─ engine/
 │     ├─ src/
-│     │  ├─ config.ts        # ค่าสมดุลทั้งหมด: กติกา (DEFAULT_CONFIG) + บอท (BOT_TUNING) — ไฟล์เดียว
+│     │  ├─ config.ts        # ค่าสมดุลทั้งหมด: กติกา (DEFAULT_CONFIG) + บอท (BOT_TUNING, POWER_TUNING) — ไฟล์เดียว
 │     │  ├─ types.ts         # GameState, Action, GameEvent, Card, ERROR_KEYS
 │     │  ├─ rng.ts           # seeded RNG (mulberry32) — ห้ามใช้ Math.random
-│     │  ├─ setup.ts         # createGame({ playerIds, seed, config? })
+│     │  ├─ setup.ts         # createGame({ playerIds, seed, config?, cats? })  (cats = โหมดพลังแมว)
 │     │  ├─ actions.ts       # applyAction(state, action) → { ok, state, events } | { ok: false, error }
 │     │  ├─ flow.ts          # การเปลี่ยนช่วง/รอบ (ภายใน)
 │     │  ├─ rules.ts         # ลำดับตา (ตามเลข + ลำดับตัดสินเสมอ) ใครต้องเล่นตอนนี้ (pendingActors)
 │     │  ├─ cards.ts         # สร้างสำรับ ตรวจมื้อ (checkMeal) หามื้อที่กินได้ (findMealOptions)
 │     │  ├─ view.ts          # getPlayerView(state, playerId | null)  (null = ผู้ชม)
 │     │  ├─ scoring.ts
-│     │  └─ bots/            # index.ts (chooseBotAction), common.ts, greedy/sly/careful.ts, random.ts (ใช้ทดสอบ)
+│     │  ├─ powers.ts        # พลังแมว §14: แมว→พลัง, ใช้ได้ตอนนี้ไหม (canUsePowerNow), ตากินข้ามได้ไหม
+│     │  └─ bots/            # index.ts (chooseBotAction), common.ts, greedy/sly/careful.ts,
+│     │                      #   powers.ts (กฎใช้พลังของบอท), random.ts (ใช้ทดสอบ)
 │     ├─ scripts/simulate.ts # npm run simulate — log เกมภาษาไทยในเทอร์มินัล
 │     ├─ scripts/balance.ts  # npm run balance — รายงานสถิติสมดุล (docs/BALANCE.md)
 │     └─ test/

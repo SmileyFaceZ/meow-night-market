@@ -306,7 +306,11 @@
     "invalidMeal": "ชุดนี้กินไม่ได้",
     "noDiscardNeeded": "ไม่ต้องทิ้งการ์ด",
     "alreadyDiscarded": "เลือกทิ้งไปแล้ว",
-    "wrongDiscardCount": "จำนวนการ์ดที่ทิ้งไม่ถูก"
+    "wrongDiscardCount": "จำนวนการ์ดที่ทิ้งไม่ถูก",
+    "noPower": "เธอไม่มีพลังแมวให้ใช้แล้ว",
+    "powerNotNow": "ตอนนี้ยังใช้พลังนี้ไม่ได้",
+    "powerPending": "รอคนที่กำลังตัดสินใจใช้พลังแมวก่อนนะ",
+    "invalidPowerTarget": "ใช้พลังกับอันนี้ไม่ได้"
   },
   "stage": {
     "reveal": "เปิดเสียงเหมียวพร้อมกัน!",

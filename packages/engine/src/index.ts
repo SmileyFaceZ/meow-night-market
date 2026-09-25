@@ -19,6 +19,20 @@ export {
   marketSize,
   pendingActors,
 } from './rules.ts';
+export {
+  CAT_IDS,
+  CAT_POWER,
+  canUsePowerNow,
+  hasEatingChoice,
+  pairOptions,
+  POWER_IDS,
+  scavengeable,
+  secondThoughtValues,
+  topFoodInBin,
+  unusedPower,
+} from './powers.ts';
+export type { CatId, Peek, PowerId, PowerState, PowerUse, PowerWindow } from './powers.ts';
+export { POWER_TUNING } from './config.ts';
 export { chooseRandomAction } from './bots/random.ts';
 export {
   BOT_DIFFICULTIES,

@@ -117,6 +117,33 @@ describe('save & resume', () => {
     expect(readSave(storage)).toBeNull();
   });
 
+  it('resumes a save written before cat powers existed, as a classic game', () => {
+    const storage = memoryStorage();
+    const controller = LocalController.newGame(seats, 'old', storage, manualScheduler().scheduler);
+    controller.dispose();
+    // Strip what older versions did not write.
+    const raw = JSON.parse(storage.getItem('mnm.solo.v1')!) as {
+      state: Record<string, unknown> & { config: Record<string, unknown> };
+    };
+    for (const key of ['powers', 'powerWindow', 'peek', 'digCount', 'extraOrder']) {
+      delete raw.state[key];
+    }
+    delete raw.state.config.scavengerTiming;
+    delete raw.state.config.goodLuckEffect;
+    storage.setItem('mnm.solo.v1', JSON.stringify(raw));
+
+    const save = readSave(storage)!;
+    expect(save.state).toMatchObject({ powers: null, digCount: 0 });
+    expect(save.state.config).toMatchObject({
+      scavengerTiming: 'eat',
+      goodLuckEffect: 'keepDigging',
+    });
+    const second = manualScheduler();
+    const resumed = LocalController.fromSave(save, storage, second.scheduler);
+    playToEnd(resumed, second.flush, 3);
+    expect(resumed.getSnapshot().view.result).not.toBeNull();
+  });
+
   it('ignores missing, corrupt or foreign saves', () => {
     const storage = memoryStorage();
     expect(readSave(storage)).toBeNull();

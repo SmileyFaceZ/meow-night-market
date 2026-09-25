@@ -2,6 +2,7 @@ import { buildDeck } from './cards.ts';
 import { DEFAULT_CONFIG, type GameConfig, validateConfig } from './config.ts';
 import { cloneState, type Ctx, initialPrices, startRound } from './flow.ts';
 import { marketSize } from './rules.ts';
+import { CAT_IDS, type CatId } from './powers.ts';
 import { createRng } from './rng.ts';
 import type { Card, CardKind, GameState, PlayerId } from './types.ts';
 
@@ -15,6 +16,11 @@ export interface CreateGameOptions {
    * of the market deck, in order. Everything else is shuffled as usual. Card counts never change.
    */
   readonly marketTop?: readonly CardKind[];
+  /**
+   * Cat powers mode (GAME_RULES §14): each player's cat, all different. Omit for a
+   * classic game (cats are then only looks and live outside the engine).
+   */
+  readonly cats?: Readonly<Record<PlayerId, CatId>>;
 }
 
 /** GAME_RULES §3 — returns a game already in round 1's bidding phase. */
@@ -27,6 +33,14 @@ export function createGame(options: CreateGameOptions): GameState {
     throw new Error(`need ${config.minPlayers}–${config.maxPlayers} players`);
   }
   if (new Set(playerIds).size !== playerIds.length) throw new Error('player ids must be unique');
+  const { cats } = options;
+  if (cats) {
+    const chosen = playerIds.map((id) => cats[id]);
+    if (chosen.some((c) => c === undefined || !CAT_IDS.includes(c))) {
+      throw new Error('every player needs a cat');
+    }
+    if (new Set(chosen).size !== chosen.length) throw new Error('cats must all be different');
+  }
 
   const rng = createRng(options.seed);
   const { food, hazards } = buildDeck(config, playerIds.length);
@@ -65,6 +79,13 @@ export function createGame(options: CreateGameOptions): GameState {
     pendingDog: null,
     pendingDiscards: {},
     result: null,
+    powers: cats
+      ? Object.fromEntries(playerIds.map((id) => [id, { cat: cats[id]!, used: false }]))
+      : null,
+    powerWindow: null,
+    peek: null,
+    digCount: 0,
+    extraOrder: null,
   };
   if (marketSize(base) * config.rounds !== marketDeck.length) {
     throw new Error('not enough food cards for the market deck');

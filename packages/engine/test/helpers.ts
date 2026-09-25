@@ -4,6 +4,7 @@ import { chooseRandomAction } from '../src/bots/random.ts';
 import { createRng } from '../src/rng.ts';
 import { pendingActors } from '../src/rules.ts';
 import type { GameConfig } from '../src/config.ts';
+import type { CatId } from '../src/powers.ts';
 import { createGame } from '../src/setup.ts';
 import { getPlayerView } from '../src/view.ts';
 import type {
@@ -87,7 +88,7 @@ export function bidAll(state: GameState, bids: Record<string, number>) {
 /** Everyone takes the first stall card in pick order until the stall phase ends. */
 export function pickAll(state: GameState) {
   const events: GameEvent[] = [];
-  while (state.phase === 'pick') {
+  while (state.phase === 'pick' && !state.powerWindow) {
     const r = act(state, {
       type: 'pick',
       playerId: state.pickQueue[0]!,
@@ -183,10 +184,14 @@ export function playRandomGame(
   players = 3,
   onStep?: (state: GameState, action: Action, events: readonly GameEvent[]) => void,
   config?: GameConfig,
+  cats?: Readonly<Record<string, CatId>>,
 ): { final: GameState; actions: Action[] } {
-  let state = config
-    ? createGame({ playerIds: P.slice(0, players), seed, config })
-    : newGame(players, seed);
+  let state = createGame({
+    playerIds: P.slice(0, players),
+    seed,
+    ...(config ? { config } : {}),
+    ...(cats ? { cats } : {}),
+  });
   const botRng = createRng(`bots:${String(seed)}`);
   const actions: Action[] = [];
   for (let step = 0; state.phase !== 'gameOver'; step++) {

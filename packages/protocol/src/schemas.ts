@@ -1,6 +1,8 @@
 import {
   BOT_DIFFICULTIES,
   BOT_PERSONALITIES,
+  CAT_IDS,
+  POWER_IDS,
   ERROR_KEYS,
   FOOD_TYPES,
   type Action,
@@ -84,6 +86,15 @@ const gameConfig = z.object({
   varietyMinTypes: count,
   minPlayers: count,
   maxPlayers: count,
+  scavengerTiming: z.enum(['eat', 'afterPick']),
+  goodLuckEffect: z.enum(['keepDigging', 'endTurn', 'halfBag', 'halfBagEndTurn']),
+});
+
+const catId = z.enum(CAT_IDS);
+const powerId = z.enum(POWER_IDS);
+const powerWindow = z.object({
+  playerId: id,
+  power: z.enum(['luckySwap', 'secondThought', 'scavenger']),
 });
 
 const publicPlayer = z.object({
@@ -99,6 +110,9 @@ const publicPlayer = z.object({
   clashed: z.boolean(),
   mustDiscard: count,
   hasDiscarded: z.boolean(),
+  cat: catId.nullable(),
+  power: powerId.nullable(),
+  powerUsed: z.boolean(),
 });
 
 export const playerViewSchema = z.object({
@@ -120,7 +134,14 @@ export const playerViewSchema = z.object({
   currentPlayer: id.nullable(),
   bag: cards,
   pendingDog: card.nullable(),
+  powersOn: z.boolean(),
+  powerWindow: powerWindow.nullable(),
+  sniffing: id.nullable(),
+  extraOrder: id.nullable(),
+  digCount: count,
   hand: cards,
+  peek: z.object({ cards, decided: z.boolean() }).nullable(),
+  canUsePower: z.boolean(),
   yourBid: z.number().int().nullable(),
   yourDiscard: z.array(cardId).nullable(),
   result: gameResult.nullable(),
@@ -157,6 +178,34 @@ export const gameEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('DISCARD_CHOSEN'), playerId: id }),
   z.object({ type: z.literal('CARDS_DISCARDED'), playerId: id, cards }),
   z.object({ type: z.literal('GAME_OVER'), result: gameResult }),
+  z.object({ type: z.literal('POWER_USED'), playerId: id, power: powerId }),
+  z.object({ type: z.literal('POWER_WINDOW'), playerId: id, power: powerId }),
+  z.object({ type: z.literal('SNIFFED'), playerId: id, movedToBottom: z.boolean() }),
+  z.object({
+    type: z.literal('BID_CHANGED'),
+    playerId: id,
+    from: z.number().int(),
+    to: z.number().int(),
+  }),
+  z.object({ type: z.literal('CARD_SCAVENGED'), playerId: id, card }),
+  z.object({ type: z.literal('MARKET_SWAPPED'), playerId: id, out: card, in: card }),
+  z.object({
+    type: z.literal('PRICE_CHANGED'),
+    food: foodType,
+    from: z.number().int(),
+    to: z.number().int(),
+  }),
+]);
+
+const powerUse = z.discriminatedUnion('power', [
+  z.object({ power: z.literal('keenNose') }),
+  z.object({ power: z.literal('secondThought'), value: z.number().int() }),
+  z.object({ power: z.literal('scavenger'), cardId }),
+  z.object({ power: z.literal('luckySwap'), cardId }),
+  z.object({ power: z.literal('goodLuck') }),
+  z.object({ power: z.literal('extraOrder') }),
+  z.object({ power: z.literal('haggle'), food: foodType }),
+  z.object({ power: z.literal('bigAppetite'), cardIds: z.array(cardId).length(2) }),
 ]);
 
 const cardIds = z.array(cardId).max(20);
@@ -169,6 +218,9 @@ export const actionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('eat'), playerId: id, cardIds }),
   z.object({ type: z.literal('finishEating'), playerId: id }),
   z.object({ type: z.literal('discard'), playerId: id, cardIds }),
+  z.object({ type: z.literal('usePower'), playerId: id, use: powerUse }),
+  z.object({ type: z.literal('passPower'), playerId: id }),
+  z.object({ type: z.literal('sniff'), playerId: id, bottomCardId: cardId.nullable() }),
 ]);
 
 export const catSchema = z.enum(CAT_COLORS);

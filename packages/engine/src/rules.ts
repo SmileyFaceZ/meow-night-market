@@ -34,6 +34,8 @@ export function currentPlayer(state: GameState): PlayerId | null {
 
 /** Players the game is waiting on right now (several at once in the simultaneous phases). */
 export function pendingActors(state: GameState): PlayerId[] {
+  // A power window (GAME_RULES §14) holds everything until its owner decides.
+  if (state.powerWindow) return [state.powerWindow.playerId];
   switch (state.phase) {
     case 'bidding':
       return state.players.filter((p) => state.bids[p.id] === null).map((p) => p.id);
