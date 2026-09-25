@@ -354,5 +354,18 @@
     "home": "Back to home",
     "start": "Play the tutorial",
     "firstTime": "First time? Try the tutorial"
+  },
+  "sound": {
+    "title": "Sound settings",
+    "short": "Sound",
+    "master": "Sound",
+    "volume": "Volume",
+    "clicks": "Tap sounds",
+    "clicksHint": "Buttons, cards and meow cards",
+    "effects": "Game sounds",
+    "effectsHint": "Reveals, barking dogs, meals, your turn",
+    "on": "On",
+    "off": "Off",
+    "note": "Everything works without sound · Can’t hear anything? Check your device’s silent switch"
   }
 }

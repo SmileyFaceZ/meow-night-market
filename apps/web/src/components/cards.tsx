@@ -78,6 +78,7 @@ export function GameCard({
     <button
       type="button"
       className={`${frame} min-h-tap cursor-pointer hover:-translate-y-1 focus-visible:-translate-y-1`}
+      data-sound="card"
       aria-label={name}
       aria-pressed={selected}
       onClick={onSelect}
@@ -134,6 +135,9 @@ export function MeowCard({
     <button
       type="button"
       className={`${cls} min-h-tap hover:-translate-y-1`}
+      // each meow card mews at its own pitch
+      data-sound="meow"
+      data-sound-value={value}
       aria-label={label}
       aria-pressed={selected}
       onClick={onSelect}

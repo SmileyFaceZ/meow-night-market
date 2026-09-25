@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { soundForBeat } from '../audio/cues';
+import { playSound } from '../audio/sound';
 import { useSnapshot } from './hooks';
 import {
   type Beat,
@@ -86,6 +88,15 @@ export function useStage(controller: GameController, held = false) {
 
   const current = state.queue[0] ?? null;
   const advance = useCallback(() => dispatch({ type: 'advance' }), []);
+
+  // Each beat makes its sound as it appears (not while the pass-and-play cover is up).
+  const sounded = useRef(-1);
+  useEffect(() => {
+    if (!current || held || sounded.current === current.id) return;
+    sounded.current = current.id;
+    const sound = soundForBeat(current.beat, viewer);
+    if (sound) playSound(sound);
+  }, [current, held, viewer]);
 
   useEffect(() => {
     if (!current || held) return;

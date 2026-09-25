@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CatArt } from '../art/CatArt';
+import { SoundButton } from '../components/SoundSettings';
 import { Button } from '../components/ui';
 import type { GameSave } from '../game/save';
 import { hasSeenTutorial } from '../game/tutorial';
@@ -42,7 +43,8 @@ export function HomeScreen({
         </div>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <SoundButton withLabel />
         <Button
           variant="secondary"
           onClick={() => setLanguage(nextLang)}

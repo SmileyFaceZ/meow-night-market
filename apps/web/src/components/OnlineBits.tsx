@@ -1,7 +1,8 @@
 import type { PlayerId } from '@meow/engine';
 import { EMOTES, type EmoteId } from '@meow/protocol';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { playSound } from '../audio/sound';
 import { useTranslation } from 'react-i18next';
 import { CatArt, type CatMood } from '../art/CatArt';
 import type { OnlineExtras, SeatInfo } from '../game/types';
@@ -29,7 +30,6 @@ export function TurnTimer({
   viewer: PlayerId | null;
   name: (id: PlayerId) => string;
 }) {
-  const { t } = useTranslation();
   const [now, setNow] = useState(() => Date.now());
   const timed = clocks.filter((c) => c.deadline !== null);
   const clock = timed.find((c) => c.playerId === viewer) ?? timed[0];
@@ -42,14 +42,34 @@ export function TurnTimer({
   const seconds = Math.max(0, Math.ceil((clock.deadline - now) / 1000));
   const mine = clock.playerId === viewer;
   const urgent = seconds <= 10;
+  return <TimerText seconds={seconds} mine={mine} urgent={urgent} name={name(clock.playerId)} />;
+}
+
+/** Ticks once a second through your own last 5 seconds. */
+function TimerText({
+  seconds,
+  mine,
+  urgent,
+  name,
+}: {
+  seconds: number;
+  mine: boolean;
+  urgent: boolean;
+  name: string;
+}) {
+  const { t } = useTranslation();
+  const ticked = useRef<number | null>(null);
+  useEffect(() => {
+    if (!mine || seconds > 5 || seconds === 0 || ticked.current === seconds) return;
+    ticked.current = seconds;
+    playSound('tick');
+  }, [mine, seconds]);
   return (
     <p
       className={`text-center text-xs ${urgent ? 'font-display text-alert' : 'text-card/75'}`}
       aria-live={urgent && mine ? 'assertive' : 'off'}
     >
-      {mine
-        ? t('online.timeLeft', { seconds })
-        : t('online.timeLeftOf', { name: name(clock.playerId), seconds })}
+      {mine ? t('online.timeLeft', { seconds }) : t('online.timeLeftOf', { name, seconds })}
     </p>
   );
 }
@@ -101,6 +121,13 @@ export function EmoteToasts({
 }) {
   const { t } = useTranslation();
   const reduced = useReducedMotion() ?? false;
+  // A pop for each sticker as it arrives.
+  const lastKey = useRef(emotes.at(-1)?.key ?? 0);
+  useEffect(() => {
+    const newest = emotes.at(-1)?.key ?? 0;
+    if (newest > lastKey.current) playSound('pop');
+    lastKey.current = Math.max(lastKey.current, newest);
+  }, [emotes]);
   return (
     <div
       className="pointer-events-none fixed inset-x-0 top-16 z-40 flex flex-col items-center gap-1.5 px-4"

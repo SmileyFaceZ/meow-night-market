@@ -36,15 +36,17 @@
 │  │  │  ├─ art/            # SVG: CardArt (ทุกการ์ด), CatArt (4 สี × 4 อารมณ์), BinArt (ถัง 4 อารมณ์), BackArt, style.ts
 │  │  │  ├─ components/     # cards (GameCard, MeowCard, CardBack), board (PlayerBadge, PriceTags, MarketStall,
 │  │  │  │                  #   TrashArea, HandView, EventFeed, EventLog), Stage (แอนิเมชันเหตุการณ์), Coach, Handoff,
-│  │  │  │                  #   OnlineBits (ตัวจับเวลา สติกเกอร์), ui
+│  │  │  │                  #   OnlineBits (ตัวจับเวลา สติกเกอร์), SoundSettings (ปุ่มลำโพง + แผงตั้งค่าเสียง), ui
 │  │  │  ├─ screens/        # Home, Setup, LocalSetup, Game, Result, HowTo, Tutorial, Online, Lobby, Room
 │  │  │  ├─ game/           # types (GameController), LocalController, save, setup, hooks,
 │  │  │  │                  #   stage + useStage (สีหน้าแมว), tutorial (บทสอน), handoff (ส่งเครื่อง),
 │  │  │  │                  #   online (RemoteController — เล่นออนไลน์)
+│  │  │  ├─ audio/          # sound (Web Audio สังเคราะห์ + listener เสียงกดปุ่ม), cues (เสียงไหนตอนไหน),
+│  │  │  │                  #   settings (เปิด/ปิด ความดัง บันทึกในเครื่อง), useSoundSettings
 │  │  │  ├─ i18n/           # th.json, en.json, index.ts
 │  │  │  └─ styles/
 │  │  ├─ scripts/           # find-tutorial-seed.ts (หา seed ของบทสอน)
-│  │  └─ test/              # i18n, controller + save/resume, stage, tutorial, handoff, online
+│  │  └─ test/              # i18n, controller + save/resume, stage, tutorial, handoff, online, sound
 │  └─ server/               # @meow/server — Worker ตัวเดียวของทั้งเกม (docs/DEPLOY.md)
 │     ├─ wrangler.jsonc     # assets ← ../web/dist (SPA, run_worker_first /api/*), binding ROOMS → GameRoom (SQLite)
 │     ├─ worker-configuration.d.ts  # สร้างด้วย `wrangler types` (typecheck ใช้ --check)

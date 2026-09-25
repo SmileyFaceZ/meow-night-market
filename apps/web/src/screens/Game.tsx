@@ -1,5 +1,5 @@
 import { type Card, findMealOptions, type MealOption, type PlayerView } from '@meow/engine';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import {
@@ -22,6 +22,8 @@ import type { TutorialState, TutorialTarget } from '../game/tutorial';
 import type { GameController, SeatInfo } from '../game/types';
 import { CoachBubble } from '../components/Coach';
 import { HandoffCover } from '../components/Handoff';
+import { SoundPanel } from '../components/SoundSettings';
+import { playSound } from '../audio/sound';
 import { EmotePicker, EmoteToasts, TurnTimer } from '../components/OnlineBits';
 
 /** Tutorial coaching, when the game runs inside the tutorial. */
@@ -124,6 +126,13 @@ export function GameScreen({
     : view.phase === 'gameOver'
       ? t('hint.gameOver')
       : t('online.watching');
+  // A chime when the game starts waiting for you (once the screen has caught up).
+  const yourMove = needsMe && !stage.current && !covered;
+  const wasYourMove = useRef(false);
+  useEffect(() => {
+    if (yourMove && !wasYourMove.current) playSound('turn');
+    wasYourMove.current = yourMove;
+  }, [yourMove]);
   const presenceOf = (id: string) => online?.presence[id] ?? null;
   const canEmote = online !== undefined && !online.spectating && me !== null;
   const opponents = view.players.filter((p) => p.id !== view.viewer);
@@ -369,6 +378,8 @@ export function GameScreen({
                 {t('action.quit')}
               </Button>
             </div>
+            <h3 className="mt-4 mb-2 font-display text-lantern">{t('sound.title')}</h3>
+            <SoundPanel />
           </Modal>
         )}
         {opened && (
