@@ -125,7 +125,19 @@ describe('save & resume', () => {
     const raw = JSON.parse(storage.getItem('mnm.solo.v1')!) as {
       state: Record<string, unknown> & { config: Record<string, unknown> };
     };
-    for (const key of ['powers', 'powerWindow', 'peek', 'digCount', 'extraOrder']) {
+    delete raw.state.config.events;
+    for (const key of [
+      'powers',
+      'powerWindow',
+      'peek',
+      'digCount',
+      'extraOrder',
+      'events',
+      'setAsideDogs',
+      'faceDown',
+      'dogsSlept',
+      'passes',
+    ]) {
       delete raw.state[key];
     }
     storage.setItem('mnm.solo.v1', JSON.stringify(raw));

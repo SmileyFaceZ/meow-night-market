@@ -1,4 +1,5 @@
 import type { FoodType, GameConfig } from './config.ts';
+import type { EventId, EventState } from './events.ts';
 import type { Peek, PowerId, PowerState, PowerUse, PowerWindow } from './powers.ts';
 
 export type { FoodType } from './config.ts';
@@ -15,10 +16,11 @@ export interface Card {
 
 /**
  * Phase machine (docs/ARCHITECTURE.md):
- * bidding → pick → trash → eat → discard → next round … → gameOver
- * `pick` and `discard` are skipped when nobody has anything to do in them.
+ * bidding → pick → trash → (pass) → eat → discard → next round … → gameOver
+ * `pick` and `discard` are skipped when nobody has anything to do in them;
+ * `pass` only happens under the Gusty Wind event (GAME_RULES §15).
  */
-export type Phase = 'bidding' | 'pick' | 'trash' | 'eat' | 'discard' | 'gameOver';
+export type Phase = 'bidding' | 'pick' | 'trash' | 'pass' | 'eat' | 'discard' | 'gameOver';
 
 export interface Meal {
   readonly round: number;
@@ -107,6 +109,17 @@ export interface GameState {
   readonly digCount: number;
   /** Extra Order: this player gets the stall's leftover card after everyone has picked. */
   readonly extraOrder: PlayerId | null;
+
+  // ── Market events (GAME_RULES §15) — null / empty without events ──
+  readonly events: EventState | null;
+  /** Downpour: dogs out of the bin until the round ends. */
+  readonly setAsideDogs: readonly Card[];
+  /** Blackout: stall cards lying face down (their kind is secret). */
+  readonly faceDown: readonly CardId[];
+  /** Sleepy Dogs: players whose first dog of the round already slept. */
+  readonly dogsSlept: readonly PlayerId[];
+  /** Gusty Wind: the card each player passes on — secret until everyone has chosen. */
+  readonly passes: Readonly<Record<PlayerId, CardId | null>>;
 }
 
 export type Action =
@@ -123,7 +136,9 @@ export type Action =
   /** Let an open power window pass without using the power. */
   | { readonly type: 'passPower'; readonly playerId: PlayerId }
   /** Keen Nose: send one of the two sniffed cards to the bottom of the bin (or neither). */
-  | { readonly type: 'sniff'; readonly playerId: PlayerId; readonly bottomCardId: CardId | null };
+  | { readonly type: 'sniff'; readonly playerId: PlayerId; readonly bottomCardId: CardId | null }
+  /** Gusty Wind: the card to pass to the next seat (chosen in secret). */
+  | { readonly type: 'passCard'; readonly playerId: PlayerId; readonly cardId: CardId };
 
 export type ActionType = Action['type'];
 
@@ -136,7 +151,10 @@ export type GameEvent =
       readonly type: 'ROUND_STARTED';
       readonly round: number;
       readonly tieOrder: readonly PlayerId[];
+      /** Face-up stall cards. */
       readonly market: readonly Card[];
+      /** Blackout: how many more lie face down. */
+      readonly faceDown: number;
     }
   | { readonly type: 'BID_PLACED'; readonly playerId: PlayerId }
   | { readonly type: 'BIDS_REVEALED'; readonly bids: Readonly<Record<PlayerId, number>> }
@@ -201,6 +219,28 @@ export type GameEvent =
       readonly food: FoodType;
       readonly from: number;
       readonly to: number;
+    }
+  // ── Market events ──
+  /** This round's market event, shown before the stall is laid out. */
+  | { readonly type: 'EVENT_REVEALED'; readonly round: number; readonly event: EventId }
+  /** Downpour: dogs leave the bin for the round (and come back at its end). */
+  | { readonly type: 'DOGS_SET_ASIDE'; readonly count: number }
+  | { readonly type: 'DOGS_BACK'; readonly count: number }
+  /** Kind Vendor: a free card from the bin. */
+  | { readonly type: 'VENDOR_GIFT'; readonly playerId: PlayerId; readonly card: Card }
+  /** Sleepy Dogs: this dog was asleep — back into the bin, no harm done. */
+  | { readonly type: 'DOG_SLEPT'; readonly playerId: PlayerId }
+  /** Full Moon: spent powers are back. */
+  | { readonly type: 'POWERS_RESTORED'; readonly playerIds: readonly PlayerId[] }
+  /** Gusty Wind: someone has chosen what to pass (which card stays secret for now). */
+  | { readonly type: 'PASS_CHOSEN'; readonly playerId: PlayerId }
+  | {
+      readonly type: 'CARDS_PASSED';
+      readonly passes: readonly {
+        readonly from: PlayerId;
+        readonly to: PlayerId;
+        readonly card: Card;
+      }[];
     };
 
 /** Error keys double as i18n keys (apps/web/src/i18n). */
@@ -226,6 +266,9 @@ export const ERROR_KEYS = [
   'error.powerNotNow',
   'error.powerPending',
   'error.invalidPowerTarget',
+  'error.digLimit',
+  'error.noPassNeeded',
+  'error.alreadyPassed',
 ] as const;
 export type ErrorKey = (typeof ERROR_KEYS)[number];
 

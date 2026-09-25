@@ -9,7 +9,8 @@
     "eat": "Feast Time",
     "pick": "Stall Picks",
     "discard": "Too Many Cards",
-    "gameOver": "Market Closed"
+    "gameOver": "Market Closed",
+    "pass": "Gusty Wind! Pass a card"
   },
   "card": {
     "fish": "Fish",
@@ -218,7 +219,9 @@
     "eatWaiting": "{{name}} is eating…",
     "discardYours": "Too many cards! Discard {{count}}",
     "discardWaiting": "Waiting for the others to discard…",
-    "gameOver": "The market has closed! Let's see the scores"
+    "gameOver": "The market has closed! Let's see the scores",
+    "passYours": "Gusty Wind! Secretly pick 1 card to pass to the next player",
+    "passWaiting": "Waiting for the others to pick a card to pass…"
   },
   "action": {
     "bid": "Bid",
@@ -310,7 +313,10 @@
     "noPower": "You have no cat power left",
     "powerNotNow": "You can’t use that power right now",
     "powerPending": "Wait — someone is deciding on their cat power",
-    "invalidPowerTarget": "That power can’t be used on that"
+    "invalidPowerTarget": "That power can’t be used on that",
+    "digLimit": "The garbage truck came by — at most 3 draws per turn this round",
+    "noPassNeeded": "You have nothing to pass this round",
+    "alreadyPassed": "You already chose a card to pass"
   },
   "stage": {
     "reveal": "Meows revealed!",

@@ -12,6 +12,8 @@ import {
   CAT_POWER,
   type CatId,
   canUsePowerNow,
+  eventDeckFor,
+  type EventId,
   type BotDifficulty,
   type BotPersonality,
   chooseBotAction,
@@ -43,12 +45,47 @@ const DIFFICULTY = values.difficulty as BotDifficulty;
 
 /** Rule sets to compare. `base` = GAME_RULES.md (classic). `powers` = cat powers (§14). */
 const D = DEFAULT_CONFIG;
-const VARIANTS: Record<string, { label: string; config: GameConfig; powers?: boolean }> = {
+const VARIANTS: Record<
+  string,
+  { label: string; config: GameConfig; powers?: boolean; events?: boolean; baseline?: string }
+> = {
   base: { label: 'คลาสสิก', config: D },
   powers: { label: 'พลังแมว', config: D, powers: true },
+  events: { label: 'การ์ดเหตุการณ์', config: D, events: true, baseline: 'base' },
+  chaos: {
+    label: 'ตลาดป่วน (พลังแมว + การ์ดเหตุการณ์)',
+    config: D,
+    powers: true,
+    events: true,
+    baseline: 'powers',
+  },
+  eventsTuned: {
+    label: 'การ์ดเหตุการณ์ — ปรับ: ฝนตก 1 ตัว · รถขยะ 4 ใบ · หมาขี้เซาเฉพาะตัวแรกของรอบ',
+    config: {
+      ...D,
+      events: { ...D.events, downpourDogs: 1, garbageTruckDigs: 4, sleepyDogs: 'firstOfRound' },
+    },
+    events: true,
+    baseline: 'base',
+  },
+  chaosTuned: {
+    label: 'ตลาดป่วน — ปรับเหตุการณ์แบบเดียวกัน',
+    config: {
+      ...D,
+      events: { ...D.events, downpourDogs: 1, garbageTruckDigs: 4, sleepyDogs: 'firstOfRound' },
+    },
+    powers: true,
+    events: true,
+    baseline: 'powers',
+  },
   // Add experiments here, e.g. dogs3: { label: 'หมา 3 ตัว', config: { ...D, dogCopies: 3 } },
 };
 const variantNames = values.variants.split(',');
+// Event reports compare with the same rules without events: run those first.
+for (const name of [...variantNames]) {
+  const baseline = VARIANTS[name]?.baseline;
+  if (baseline && !variantNames.includes(baseline)) variantNames.unshift(baseline);
+}
 for (const name of variantNames) {
   if (!VARIANTS[name]) {
     throw new Error(`unknown variant "${name}" (${Object.keys(VARIANTS).join(', ')})`);
@@ -104,6 +141,10 @@ interface GameRecord {
   powerUsed: boolean[];
   /** The power was usable at some moment (a bot that never used it had no chance at all). */
   powerChance: boolean[];
+  /** Points scored in each round, by seat (for the event report). */
+  roundPoints: number[][];
+  /** Each round's market event (null without events). */
+  roundEvents: (EventId | null)[];
 }
 
 function playGame(
@@ -111,6 +152,7 @@ function playGame(
   lineup: BotPersonality[],
   seed: string,
   powers = false,
+  events = false,
 ): GameRecord {
   const seatRng = createRng(`seats:${seed}`);
   const personalities = seatRng.shuffle(lineup);
@@ -121,6 +163,7 @@ function playGame(
     seed,
     config,
     ...(powers ? { cats: Object.fromEntries(ids.map((id, i) => [id, cats[i]!])) } : {}),
+    events,
   });
   const botRng = createRng(`bots:${seed}`);
 
@@ -152,6 +195,11 @@ function playGame(
     cats,
     powerUsed: ids.map(() => false),
     powerChance: ids.map(() => false),
+    roundPoints: Array.from({ length: config.rounds }, () => ids.map(() => 0)),
+    // Round 1's event is revealed inside createGame, before any action.
+    roundEvents: Array.from({ length: config.rounds }, (_, i) =>
+      i === 0 ? (state.events?.current ?? null) : null,
+    ),
   };
 
   // Per-round tally of cards gained, keyed by player id.
@@ -224,6 +272,12 @@ function playGame(
         return;
       case 'POWER_USED':
         rec.powerUsed[ids.indexOf(e.playerId)] = true;
+        return;
+      case 'EVENT_REVEALED':
+        rec.roundEvents[e.round - 1] = e.event;
+        return;
+      case 'MEAL_EATEN':
+        rec.roundPoints[e.meal.round - 1]![ids.indexOf(e.playerId)]! += e.meal.points;
         return;
       default:
         return;
@@ -300,6 +354,11 @@ interface Summary {
   avgRisk: number;
   byBot: Record<string, { seats: number; wins: number; score: number; meals: number }>;
   byCat: Record<string, { seats: number; wins: number; used: number; chance: number }>;
+  /** Per round number: average points per player, and the share of players scoring nothing. */
+  roundAvg: number[];
+  roundZero: number[];
+  /** Per event: player-rounds by round number, points and zero-point player-rounds. */
+  byEvent: Record<string, { perRound: number[]; points: number; zero: number }>;
 }
 
 function summarize(records: GameRecord[]): Summary {
@@ -339,6 +398,30 @@ function summarize(records: GameRecord[]): Summary {
       }
     }
   }
+  const rounds = records[0]!.roundPoints.length;
+  const roundAvg: number[] = [];
+  const roundZero: number[] = [];
+  for (let r = 0; r < rounds; r++) {
+    const pts = records.flatMap((rec) => rec.roundPoints[r]!);
+    roundAvg.push(pts.reduce((a, b) => a + b, 0) / pts.length);
+    roundZero.push(pts.filter((p) => p === 0).length / pts.length);
+  }
+  const byEvent: Summary['byEvent'] = {};
+  for (const rec of records) {
+    rec.roundEvents.forEach((event, r) => {
+      if (!event) return;
+      const e = (byEvent[event] ??= {
+        perRound: Array<number>(rounds).fill(0),
+        points: 0,
+        zero: 0,
+      });
+      for (const p of rec.roundPoints[r]!) {
+        e.perRound[r]!++;
+        e.points += p;
+        if (p === 0) e.zero++;
+      }
+    });
+  }
   const digs = sum('digs');
   const turns = sum('trashTurns');
   const clashRounds = sum('clashRounds');
@@ -368,6 +451,9 @@ function summarize(records: GameRecord[]): Summary {
     cleanEaten: sum('cleanEaten') / cleanRounds,
     byBot,
     byCat,
+    roundAvg,
+    roundZero,
+    byEvent,
   };
 }
 
@@ -394,8 +480,39 @@ out('ย่อชื่อบอท: ส้ม = greedy · ดำ = sly · ข�
 out('เป้าหมาย: มื้อ/คน/เกม 2–4 · จบด้วย 0 แต้มไม่เกิน 10% · คนไม่ชนได้การ์ดต่อรอบมากกว่าคนชน');
 
 const comparison: [string, [number, Summary][]][] = [];
+/** Results so far by variant (event variants compare with their no-event baseline). */
+const results: Record<string, [number, Summary][]> = {};
+
+/**
+ * GAME_RULES §15: points in rounds with each event vs the same round numbers without events
+ * (beyond ±30% → suggest a change), and whether it leaves unusually many players on 0 that round.
+ */
+function eventReport(rows: [number, Summary][], base: [number, Summary][], powers: boolean) {
+  out();
+  out('### การ์ดเหตุการณ์ — แต้มในรอบที่เจอ เทียบรอบเดียวกันของเกมไม่มีเหตุการณ์ (เป้า ±30%)');
+  out(
+    '· ได้ 0 แต้มในรอบนั้น: สัดส่วนผู้เล่น (ในวงเล็บ = เกมไม่มีเหตุการณ์ รอบเดียวกัน) ติดธงเมื่อสูงกว่าเกิน 10 จุด',
+  );
+  out();
+  out(`| เหตุการณ์ | ${rows.map(([n]) => `${n} คน`).join(' | ')} |`);
+  out(`|---|${rows.map(() => '---').join('|')}|`);
+  for (const event of eventDeckFor(powers)) {
+    const cells = rows.map(([n, s]) => {
+      const b = base.find(([m]) => m === n)?.[1];
+      const e = s.byEvent[event];
+      if (!b || !e) return '—';
+      const seen = e.perRound.reduce((a, c) => a + c, 0);
+      const expected = e.perRound.reduce((a, c, r) => a + c * b.roundAvg[r]!, 0);
+      const expectedZero = e.perRound.reduce((a, c, r) => a + c * b.roundZero[r]!, 0) / seen;
+      const dev = e.points / expected - 1;
+      const zero = e.zero / seen;
+      return `${dev >= 0 ? '+' : ''}${(dev * 100).toFixed(0)}% ${mark(Math.abs(dev) <= 0.3)} · 0 แต้ม ${pct(zero)} (${pct(expectedZero)}) ${mark(zero - expectedZero <= 0.1)}`;
+    });
+    out(`| ${event} | ${cells.join(' | ')} |`);
+  }
+}
 for (const variant of variantNames) {
-  const { label, config, powers = false } = VARIANTS[variant]!;
+  const { label, config, powers = false, events = false, baseline } = VARIANTS[variant]!;
   out();
   out(`## ${label} (\`${variant}\`)`);
   const perCount: [number, Summary][] = [];
@@ -413,7 +530,9 @@ for (const variant of variantNames) {
     for (const lineup of lineups(n)) {
       const recs: GameRecord[] = [];
       for (let i = 0; i < GAMES; i++) {
-        recs.push(playGame(config, lineup, `${values.seed}:${n}:${lineup.join('-')}:${i}`, powers));
+        recs.push(
+          playGame(config, lineup, `${values.seed}:${n}:${lineup.join('-')}:${i}`, powers, events),
+        );
       }
       all.push(...recs);
       detail.push(summaryRow(lineupName(lineup), summarize(recs)));
@@ -486,6 +605,8 @@ for (const variant of variantNames) {
       }
     }
   }
+  if (events && baseline) eventReport(perCount, results[baseline]!, powers);
+  results[variant] = perCount;
   if (!values.brief) for (const l of detail) out(l);
 }
 

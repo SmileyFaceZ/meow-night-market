@@ -1,4 +1,5 @@
 import { checkMeal } from './cards.ts';
+import { currentEvent, digLimit } from './events.ts';
 import {
   canEatAnything,
   cloneState,
@@ -10,6 +11,7 @@ import {
   playerById,
   resolveClashes,
   revealBids,
+  revealPasses,
   returnDog,
   revealDiscards,
   takeFromHand,
@@ -64,6 +66,8 @@ function handle(ctx: Ctx, action: Action): ErrorKey | null {
       return passPower(ctx, action.playerId);
     case 'sniff':
       return sniff(ctx, action.playerId, action.bottomCardId);
+    case 'passCard':
+      return passCard(ctx, action.playerId, action.cardId);
     case 'bid':
       return bid(ctx, action.playerId, action.value);
     case 'pick':
@@ -115,6 +119,7 @@ function pick(ctx: Ctx, playerId: string, cardId: number): ErrorKey | null {
   if (index === -1) return 'error.cardNotInMarket';
 
   const [card] = s.market.splice(index, 1) as [Card];
+  s.faceDown = s.faceDown.filter((id) => id !== card.id); // Blackout: turned up as it is taken
   const player = playerById(s, playerId);
   player.hand.push(card);
   s.pickQueue.shift();
@@ -135,6 +140,8 @@ function dig(ctx: Ctx, playerId: string): ErrorKey | null {
   const error = requireTurn(ctx, 'trash', playerId);
   if (error) return error;
   if (s.pendingDog) return 'error.dogPending';
+  const limit = digLimit(s);
+  if (limit !== null && s.digCount >= limit) return 'error.digLimit';
   const card = drawFromTrash(ctx);
   if (!card) return 'error.trashEmpty';
   const player = playerById(s, playerId);
@@ -142,6 +149,18 @@ function dig(ctx: Ctx, playerId: string): ErrorKey | null {
   if (card.kind === 'bone') {
     player.hand.push(card);
     ctx.events.push({ type: 'CARD_DUG', playerId, card: { ...card }, to: 'hand' });
+  } else if (
+    card.kind === 'dog' &&
+    currentEvent(s) === 'sleepyDogs' &&
+    (s.config.events.sleepyDogs === 'perPlayer'
+      ? !s.dogsSlept.includes(playerId)
+      : s.dogsSlept.length === 0)
+  ) {
+    // §15 Sleepy Dogs: the first dog each player meets this round is asleep.
+    ctx.events.push({ type: 'CARD_DUG', playerId, card: { ...card }, to: 'dog' });
+    ctx.events.push({ type: 'DOG_SLEPT', playerId });
+    s.dogsSlept.push(playerId);
+    returnDog(ctx, card);
   } else if (card.kind === 'dog') {
     ctx.events.push({ type: 'CARD_DUG', playerId, card: { ...card }, to: 'dog' });
     const canThrowBone = player.hand.some((c) => c.kind === 'bone');
@@ -227,8 +246,8 @@ function eat(ctx: Ctx, playerId: string, cardIds: readonly number[]): ErrorKey |
   if (!meal) return 'error.invalidMeal';
 
   const price = s.prices[meal.food];
-  const points = meal.big ? price * s.config.bigMealMultiplier : price;
-  const newPrice = Math.max(s.config.minPrice, price - s.config.priceDropPerMeal);
+  const points = (meal.big ? price * s.config.bigMealMultiplier : price) + eventBonus(s, meal.food);
+  const newPrice = priceAfterMeal(s, meal.food);
   const eaten = takeFromHand(player.hand, cardIds);
   const record = { round: s.round, food: meal.food, cards: eaten, big: meal.big, price, points };
   player.meals.push(record);
@@ -336,6 +355,7 @@ function applyPower(ctx: Ctx, playerId: string, use: PowerUse): ErrorKey | null 
       );
       const out = s.market[index]!;
       s.market[index] = fresh;
+      s.faceDown = s.faceDown.filter((id) => id !== out.id);
       s.discard.push(out);
       ctx.events.push({ type: 'MARKET_SWAPPED', playerId, out: { ...out }, in: { ...fresh } });
       s.powerWindow = null;
@@ -374,8 +394,8 @@ function applyPower(ctx: Ctx, playerId: string, use: PowerUse): ErrorKey | null 
       if (!food) return 'error.invalidPowerTarget';
       spend();
       const price = s.prices[food];
-      const points = Math.max(1, price - 1);
-      const newPrice = Math.max(s.config.minPrice, price - s.config.priceDropPerMeal);
+      const points = Math.max(1, price - 1) + eventBonus(s, food);
+      const newPrice = priceAfterMeal(s, food);
       const eaten = takeFromHand(player.hand, use.cardIds);
       const record = { round: s.round, food, cards: eaten, big: false, price, points };
       player.meals.push(record);
@@ -416,5 +436,34 @@ function sniff(ctx: Ctx, playerId: string, bottomCardId: number | null): ErrorKe
   }
   peek.decided = true;
   ctx.events.push({ type: 'SNIFFED', playerId, movedToBottom: bottomCardId !== null });
+  return null;
+}
+
+// ── §15 Market events ────────────────────────────────────────────────────────
+
+/** Seafood Fest: fish and shrimp meals score extra this round. */
+function eventBonus(s: Ctx['s'], food: string): number {
+  return currentEvent(s) === 'seafoodFest' && (food === 'fish' || food === 'shrimp')
+    ? s.config.events.seafoodBonus
+    : 0;
+}
+
+/** The price after a meal: one lower, except snacks during a Snack Sale. */
+function priceAfterMeal(s: Ctx['s'], food: keyof Ctx['s']['prices']): number {
+  const price = s.prices[food];
+  if (currentEvent(s) === 'snackSale' && food === 'snack') return price;
+  return Math.max(s.config.minPrice, price - s.config.priceDropPerMeal);
+}
+
+/** Gusty Wind: choose (in secret) the card to pass to the next seat. */
+function passCard(ctx: Ctx, playerId: string, cardId: number): ErrorKey | null {
+  const { s } = ctx;
+  if (s.phase !== 'pass') return 'error.wrongPhase';
+  if (!(playerId in s.passes)) return 'error.noPassNeeded';
+  if (s.passes[playerId] !== null) return 'error.alreadyPassed';
+  if (!playerById(s, playerId).hand.some((c) => c.id === cardId)) return 'error.cardNotInHand';
+  s.passes[playerId] = cardId;
+  ctx.events.push({ type: 'PASS_CHOSEN', playerId });
+  if (Object.values(s.passes).every((id) => id !== null)) revealPasses(ctx);
   return null;
 }

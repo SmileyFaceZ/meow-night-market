@@ -1,6 +1,6 @@
 // Public API of the game engine (pure TypeScript — see CLAUDE.md hard rules 1–3).
 export { DEFAULT_CONFIG, FOOD_TYPES, validateConfig } from './config.ts';
-export type { GameConfig } from './config.ts';
+export type { EventConfig, GameConfig } from './config.ts';
 export * from './types.ts';
 export { createRng, hashSeed, normalizeSeed } from './rng.ts';
 export type { Rng } from './rng.ts';
@@ -33,6 +33,8 @@ export {
 } from './powers.ts';
 export type { CatId, Peek, PowerId, PowerState, PowerUse, PowerWindow } from './powers.ts';
 export { POWER_TUNING } from './config.ts';
+export { digLimit, EVENT_IDS, eventDeckFor } from './events.ts';
+export type { EventId, EventState } from './events.ts';
 export { chooseRandomAction } from './bots/random.ts';
 export {
   BOT_DIFFICULTIES,

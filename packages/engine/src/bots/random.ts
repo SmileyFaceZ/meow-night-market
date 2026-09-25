@@ -41,7 +41,13 @@ export function chooseRandomAction(view: PlayerView, rng: Rng): Action | null {
       return me.hasBid ? null : { type: 'bid', playerId, value: pickOne(me.meowLeft) };
 
     case 'pick':
-      return myTurn ? { type: 'pick', playerId, cardId: pickOne(view.market).id } : null;
+      return myTurn
+        ? {
+            type: 'pick',
+            playerId,
+            cardId: pickOne([...view.market.map((c) => c.id), ...view.faceDownMarket]),
+          }
+        : null;
 
     case 'trash':
       if (!myTurn) return null;
@@ -71,6 +77,11 @@ export function chooseRandomAction(view: PlayerView, rng: Rng): Action | null {
           .slice(0, me.mustDiscard)
           .map((c) => c.id),
       };
+
+    case 'pass':
+      return me.mustPass && !me.hasPassed
+        ? { type: 'passCard', playerId, cardId: pickOne(view.hand).id }
+        : null;
 
     case 'gameOver':
       return null;

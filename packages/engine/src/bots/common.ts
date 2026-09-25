@@ -62,6 +62,24 @@ export function runPolicy(policy: BotPolicy, view: PlayerView, rng: Rng): Action
     case 'discard':
       if (me.mustDiscard === 0 || me.hasDiscarded) return null;
       return { type: 'discard', playerId, cardIds: policy.discard(ctx) };
+    case 'pass': {
+      // Gusty Wind: give away the card I would miss least.
+      if (!me.mustPass || me.hasPassed) return null;
+      const worst = [...view.hand].sort(
+        (a, b) =>
+          cardValue(
+            view,
+            view.hand.filter((c) => c.id !== a.id),
+            a,
+          ) -
+          cardValue(
+            view,
+            view.hand.filter((c) => c.id !== b.id),
+            b,
+          ),
+      )[0]!;
+      return { type: 'passCard', playerId, cardId: worst.id };
+    }
     case 'gameOver':
       return null;
   }
@@ -113,7 +131,10 @@ export function cardValue(view: PlayerView, hand: readonly Card[], card: Card): 
   return 0;
 }
 
-/** Highest-value market card (ties broken randomly). */
+/** A face-down stall card (Blackout) is worth about this much, unseen. */
+const FACE_DOWN_VALUE = 1.2;
+
+/** Highest-value market card (ties broken randomly); a face-down one if nothing beats a guess. */
 export function bestPick(ctx: BotCtx, bonus: (card: Card) => number = () => 0): CardId {
   const { view, rng } = ctx;
   const scored = view.market.map((card) => ({
@@ -121,6 +142,8 @@ export function bestPick(ctx: BotCtx, bonus: (card: Card) => number = () => 0): 
     score: cardValue(view, view.hand, card) + bonus(card) + rng.next() * 0.01,
   }));
   scored.sort((a, b) => b.score - a.score);
+  const blind = view.faceDownMarket[0];
+  if (blind !== undefined && (scored[0]?.score ?? 0) < FACE_DOWN_VALUE) return blind;
   return scored[0]!.card.id;
 }
 

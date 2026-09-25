@@ -2,6 +2,7 @@ import { buildDeck } from './cards.ts';
 import { DEFAULT_CONFIG, type GameConfig, validateConfig } from './config.ts';
 import { cloneState, type Ctx, initialPrices, startRound } from './flow.ts';
 import { marketSize } from './rules.ts';
+import { eventDeckFor, type EventId } from './events.ts';
 import { CAT_IDS, type CatId } from './powers.ts';
 import { createRng } from './rng.ts';
 import type { Card, CardKind, GameState, PlayerId } from './types.ts';
@@ -21,6 +22,10 @@ export interface CreateGameOptions {
    * classic game (cats are then only looks and live outside the engine).
    */
   readonly cats?: Readonly<Record<PlayerId, CatId>>;
+  /** Market events (GAME_RULES §15): one per round from a shuffled deck. */
+  readonly events?: boolean;
+  /** Scripted games (tutorial, tests): these events come first, in order. */
+  readonly eventTop?: readonly EventId[];
 }
 
 /** GAME_RULES §3 — returns a game already in round 1's bidding phase. */
@@ -86,6 +91,17 @@ export function createGame(options: CreateGameOptions): GameState {
     peek: null,
     digCount: 0,
     extraOrder: null,
+    events: options.events
+      ? {
+          deck: eventsOnTop(rng.shuffle(eventDeckFor(Boolean(cats))), options.eventTop ?? []),
+          current: null,
+          past: [],
+        }
+      : null,
+    setAsideDogs: [],
+    faceDown: [],
+    dogsSlept: [],
+    passes: {},
   };
   if (marketSize(base) * config.rounds !== marketDeck.length) {
     throw new Error('not enough food cards for the market deck');
@@ -107,4 +123,10 @@ function stackOnTop(pile: readonly Card[], kinds: readonly CardKind[]): Card[] {
     top.push(...rest.splice(index, 1));
   }
   return [...top, ...rest];
+}
+
+/** Moves the listed events (in order) to the top of the event deck. */
+function eventsOnTop(deck: readonly EventId[], top: readonly EventId[]): EventId[] {
+  for (const e of top) if (!deck.includes(e)) throw new Error(`event ${e} is not in this deck`);
+  return [...top, ...deck.filter((e) => !top.includes(e))];
 }

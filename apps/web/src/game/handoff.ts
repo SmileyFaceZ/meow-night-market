@@ -16,7 +16,7 @@ export interface Handoff {
 }
 
 export function isSecretPhase(phase: GameState['phase']): boolean {
-  return phase === 'bidding' || phase === 'discard';
+  return phase === 'bidding' || phase === 'discard' || phase === 'pass';
 }
 
 /** The last meow card is the only legal bid: the app plays it, nobody needs the device. */

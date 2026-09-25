@@ -30,6 +30,21 @@ export interface GameConfig {
   readonly varietyMinTypes: number;
   readonly minPlayers: number;
   readonly maxPlayers: number;
+  /** Market events (GAME_RULES §15). */
+  readonly events: EventConfig;
+}
+
+export interface EventConfig {
+  /** Downpour: dogs taken out of the bin for the round. */
+  readonly downpourDogs: number;
+  /** Seafood Fest: extra points per fish or shrimp meal. */
+  readonly seafoodBonus: number;
+  /** Garbage Truck: most cards one player may draw in a Trash Dig turn. */
+  readonly garbageTruckDigs: number;
+  /** Blackout: stall cards laid face down. */
+  readonly blackoutCards: number;
+  /** Sleepy Dogs: the first dog EACH player meets sleeps ('perPlayer'), or only the round's first dog ('firstOfRound'). */
+  readonly sleepyDogs: 'perPlayer' | 'firstOfRound';
 }
 
 export const DEFAULT_CONFIG: GameConfig = {
@@ -54,6 +69,13 @@ export const DEFAULT_CONFIG: GameConfig = {
   varietyMinTypes: 2,
   minPlayers: 2,
   maxPlayers: 4,
+  events: {
+    downpourDogs: 2,
+    seafoodBonus: 2,
+    garbageTruckDigs: 3,
+    blackoutCards: 2,
+    sleepyDogs: 'perPlayer',
+  },
 };
 
 export function validateConfig(config: GameConfig): void {

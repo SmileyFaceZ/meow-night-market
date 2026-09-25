@@ -482,6 +482,8 @@ function hintFor(
     case 'trash':
       if (!myTurn) return t('hint.trashWaiting', { name: current });
       return view.pendingDog ? t('hint.trashDog') : t('hint.trashYours');
+    case 'pass':
+      return me.mustPass && !me.hasPassed ? t('hint.passYours') : t('hint.passWaiting');
     case 'eat':
       return myTurn ? t('hint.eatYours') : t('hint.eatWaiting', { name: current });
     case 'discard':

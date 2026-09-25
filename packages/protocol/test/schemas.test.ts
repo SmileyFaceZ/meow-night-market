@@ -20,7 +20,7 @@ import {
 } from '../src/index.ts';
 
 describe('server messages', () => {
-  it.each(['classic', 'powers'] as const)(
+  it.each(['classic', 'powers', 'events', 'chaos'] as const)(
     'accept every view, event and action of real games (%s), for players and spectators',
     (mode) => {
       for (const players of [2, 3, 4]) {
@@ -32,7 +32,8 @@ describe('server messages', () => {
         let state = createGame({
           playerIds,
           seed: `schema-${players}`,
-          ...(mode === 'powers' ? { cats } : {}),
+          ...(mode === 'powers' || mode === 'chaos' ? { cats } : {}),
+          events: mode === 'events' || mode === 'chaos',
         });
         const rng = createRng(players);
         let events: readonly GameEvent[] = [];
@@ -111,7 +112,13 @@ describe('pacing', () => {
   it('adds up how long the screen shows a batch of events', () => {
     expect(showTimeMs([])).toBe(0);
     expect(showTimeMs([{ type: 'BID_PLACED', playerId: 'p0' }])).toBe(0);
-    const round: GameEvent = { type: 'ROUND_STARTED', round: 2, tieOrder: ['p0'], market: [] };
+    const round: GameEvent = {
+      type: 'ROUND_STARTED',
+      round: 2,
+      tieOrder: ['p0'],
+      market: [],
+      faceDown: 0,
+    };
     const skipped: GameEvent = { type: 'TURN_SKIPPED', playerId: 'p0' };
     expect(showTimeMs([round, skipped])).toBe(BEAT_MS.round + BEAT_MS.skipped);
   });

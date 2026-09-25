@@ -2,6 +2,7 @@ import {
   BOT_DIFFICULTIES,
   BOT_PERSONALITIES,
   CAT_IDS,
+  EVENT_IDS,
   POWER_IDS,
   ERROR_KEYS,
   FOOD_TYPES,
@@ -34,7 +35,8 @@ const foodType = z.enum(FOOD_TYPES);
 const cardKind = z.enum([...FOOD_TYPES, 'goldfish', 'bone', 'dog']);
 const card = z.object({ id: cardId, kind: cardKind });
 const cards = z.array(card).max(200);
-const phase = z.enum(['bidding', 'pick', 'trash', 'eat', 'discard', 'gameOver']);
+const phase = z.enum(['bidding', 'pick', 'trash', 'pass', 'eat', 'discard', 'gameOver']);
+const eventId = z.enum(EVENT_IDS);
 const prices = z.object(
   Object.fromEntries(FOOD_TYPES.map((f) => [f, z.number().int()])) as Record<
     (typeof FOOD_TYPES)[number],
@@ -86,6 +88,13 @@ const gameConfig = z.object({
   varietyMinTypes: count,
   minPlayers: count,
   maxPlayers: count,
+  events: z.object({
+    downpourDogs: count,
+    seafoodBonus: count,
+    garbageTruckDigs: count,
+    blackoutCards: count,
+    sleepyDogs: z.enum(['perPlayer', 'firstOfRound']),
+  }),
 });
 
 const catId = z.enum(CAT_IDS);
@@ -111,6 +120,8 @@ const publicPlayer = z.object({
   cat: catId.nullable(),
   power: powerId.nullable(),
   powerUsed: z.boolean(),
+  mustPass: z.boolean(),
+  hasPassed: z.boolean(),
 });
 
 export const playerViewSchema = z.object({
@@ -122,11 +133,19 @@ export const playerViewSchema = z.object({
   players: z.array(publicPlayer),
   prices,
   market: cards,
+  faceDownMarket: z.array(cardId).max(20),
   marketDeckCount: count,
   trashCount: count,
   trashDogCount: count,
   discard: cards,
   trashDiggable: z.boolean(),
+  digLimit: count.nullable(),
+  eventsOn: z.boolean(),
+  event: eventId.nullable(),
+  pastEvents: z.array(eventId).max(20),
+  eventsLeft: count,
+  dogsSheltering: count,
+  dogsSlept: z.array(id),
   pickQueue: z.array(id),
   turnOrder: z.array(id),
   currentPlayer: id.nullable(),
@@ -142,6 +161,7 @@ export const playerViewSchema = z.object({
   canUsePower: z.boolean(),
   yourBid: z.number().int().nullable(),
   yourDiscard: z.array(cardId).nullable(),
+  yourPass: cardId.nullable(),
   result: gameResult.nullable(),
 });
 
@@ -151,6 +171,7 @@ export const gameEventSchema = z.discriminatedUnion('type', [
     round: count,
     tieOrder: z.array(id),
     market: cards,
+    faceDown: count,
   }),
   z.object({ type: z.literal('BID_PLACED'), playerId: id }),
   z.object({ type: z.literal('BIDS_REVEALED'), bids: z.record(z.string(), z.number().int()) }),
@@ -193,6 +214,17 @@ export const gameEventSchema = z.discriminatedUnion('type', [
     from: z.number().int(),
     to: z.number().int(),
   }),
+  z.object({ type: z.literal('EVENT_REVEALED'), round: count, event: eventId }),
+  z.object({ type: z.literal('DOGS_SET_ASIDE'), count }),
+  z.object({ type: z.literal('DOGS_BACK'), count }),
+  z.object({ type: z.literal('VENDOR_GIFT'), playerId: id, card }),
+  z.object({ type: z.literal('DOG_SLEPT'), playerId: id }),
+  z.object({ type: z.literal('POWERS_RESTORED'), playerIds: z.array(id) }),
+  z.object({ type: z.literal('PASS_CHOSEN'), playerId: id }),
+  z.object({
+    type: z.literal('CARDS_PASSED'),
+    passes: z.array(z.object({ from: id, to: id, card })).max(4),
+  }),
 ]);
 
 const powerUse = z.discriminatedUnion('power', [
@@ -219,6 +251,7 @@ export const actionSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('usePower'), playerId: id, use: powerUse }),
   z.object({ type: z.literal('passPower'), playerId: id }),
   z.object({ type: z.literal('sniff'), playerId: id, bottomCardId: cardId.nullable() }),
+  z.object({ type: z.literal('passCard'), playerId: id, cardId }),
 ]);
 
 export const catSchema = z.enum(CAT_COLORS);

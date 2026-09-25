@@ -159,6 +159,7 @@ export function allCardIds(s: GameState): number[] {
     ...s.discard,
     ...s.bag,
     ...(s.pendingDog ? [s.pendingDog] : []),
+    ...s.setAsideDogs,
     ...s.players.flatMap((p) => [...p.hand, ...p.meals.flatMap((m) => m.cards)]),
   ].map((c) => c.id);
 }
@@ -185,12 +186,14 @@ export function playRandomGame(
   onStep?: (state: GameState, action: Action, events: readonly GameEvent[]) => void,
   config?: GameConfig,
   cats?: Readonly<Record<string, CatId>>,
+  events = false,
 ): { final: GameState; actions: Action[] } {
   let state = createGame({
     playerIds: P.slice(0, players),
     seed,
     ...(config ? { config } : {}),
     ...(cats ? { cats } : {}),
+    events,
   });
   const botRng = createRng(`bots:${String(seed)}`);
   const actions: Action[] = [];

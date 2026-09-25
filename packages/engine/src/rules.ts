@@ -41,6 +41,8 @@ export function pendingActors(state: GameState): PlayerId[] {
       return state.players.filter((p) => state.bids[p.id] === null).map((p) => p.id);
     case 'discard':
       return state.players.filter((p) => state.pendingDiscards[p.id] === null).map((p) => p.id);
+    case 'pass':
+      return state.players.filter((p) => state.passes[p.id] === null).map((p) => p.id);
     case 'gameOver':
       return [];
     default: {

@@ -19,7 +19,7 @@
 │     │  ├─ config.ts        # ค่าสมดุลทั้งหมด: กติกา (DEFAULT_CONFIG) + บอท (BOT_TUNING, POWER_TUNING) — ไฟล์เดียว
 │     │  ├─ types.ts         # GameState, Action, GameEvent, Card, ERROR_KEYS
 │     │  ├─ rng.ts           # seeded RNG (mulberry32) — ห้ามใช้ Math.random
-│     │  ├─ setup.ts         # createGame({ playerIds, seed, config?, cats? })  (cats = โหมดพลังแมว)
+│     │  ├─ setup.ts         # createGame({ playerIds, seed, config?, cats?, events? })  (cats = พลังแมว, events = การ์ดเหตุการณ์)
 │     │  ├─ actions.ts       # applyAction(state, action) → { ok, state, events } | { ok: false, error }
 │     │  ├─ flow.ts          # การเปลี่ยนช่วง/รอบ (ภายใน)
 │     │  ├─ rules.ts         # ลำดับตา (ตามเลข + ลำดับตัดสินเสมอ) ใครต้องเล่นตอนนี้ (pendingActors)
@@ -27,6 +27,7 @@
 │     │  ├─ view.ts          # getPlayerView(state, playerId | null)  (null = ผู้ชม)
 │     │  ├─ scoring.ts
 │     │  ├─ powers.ts        # พลังแมว §14: แมว→พลัง, ใช้ได้ตอนนี้ไหม (canUsePowerNow), ตากินข้ามได้ไหม
+│     │  ├─ events.ts        # การ์ดเหตุการณ์ §15: รายการ, กองตามโหมด, ขีดจำกัดคุ้ย (ตัวเลขอยู่ใน config.ts)
 │     │  └─ bots/            # index.ts (chooseBotAction), common.ts, greedy/sly/careful.ts,
 │     │                      #   powers.ts (กฎใช้พลังของบอท), random.ts (ใช้ทดสอบ)
 │     ├─ scripts/simulate.ts # npm run simulate — log เกมภาษาไทยในเทอร์มินัล
