@@ -1,7 +1,9 @@
 import { MIN_SEATS_TO_START, type RoomInfo, type RoomSeat } from '@meow/protocol';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { CAT_POWER } from '@meow/engine';
 import { CatArt } from '../art/CatArt';
+import { PowerInfo } from './Mayhem';
 import { useSeatName } from '../game/hooks';
 import type { Profile, RemoteController } from '../game/online';
 import { CAT_COLORS } from '../game/types';
@@ -177,6 +179,7 @@ export function RematchPanel({
                   );
                 })}
               </div>
+              {room.mode.powers && <PowerInfo power={CAT_POWER[me.cat]} compact />}
             </section>
             {isHost && (
               <section className="grid gap-1.5">

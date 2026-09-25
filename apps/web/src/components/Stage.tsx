@@ -1,9 +1,12 @@
-import type { Card, PlayerId } from '@meow/engine';
+import type { Card, GameConfig, PlayerId } from '@meow/engine';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BinArt } from '../art/BinArt';
 import { CatArt, type CatMood } from '../art/CatArt';
+import { EventIcon } from '../art/EventIcon';
+import { PowerIcon } from '../art/PowerIcon';
+import { eventDescParams } from '../game/mayhem';
 import type { Beat } from '../game/stage';
 import type { SeatInfo } from '../game/types';
 import type { StagedBeat } from '../game/useStage';
@@ -20,12 +23,14 @@ export function Stage({
   seats,
   viewer,
   name,
+  config,
   onSkip,
 }: {
   staged: StagedBeat | null;
   seats: readonly SeatInfo[];
   viewer: PlayerId | null;
   name: NameOf;
+  config: GameConfig;
   onSkip: () => void;
 }) {
   const { t } = useTranslation();
@@ -72,7 +77,13 @@ export function Stage({
             }
             transition={{ duration: 0.35, x: { delay: 0.25, duration: 0.5 } }}
           >
-            <BeatContent beat={staged.beat} who={who} seatOf={seatOf} reduced={reduced} />
+            <BeatContent
+              beat={staged.beat}
+              who={who}
+              seatOf={seatOf}
+              config={config}
+              reduced={reduced}
+            />
             {staged.blocking && (
               <p className="mt-3 text-xs text-card/50" aria-hidden>
                 {t('stage.tapToSkip')}
@@ -114,11 +125,13 @@ function BeatContent({
   beat,
   who,
   seatOf,
+  config,
   reduced,
 }: {
   beat: Beat;
   who: (id: PlayerId) => string;
   seatOf: (id: PlayerId) => SeatInfo | undefined;
+  config: GameConfig;
   reduced: boolean;
 }) {
   const { t } = useTranslation();
@@ -428,7 +441,268 @@ function BeatContent({
           {!reduced && <Confetti />}
         </>
       );
+
+    // ── cat powers ──
+    case 'power': {
+      const power = t(`powerName.${beat.power}`);
+      return (
+        <>
+          <div className="relative mx-auto flex w-fit items-end justify-center gap-1">
+            <Cat seat={seatOf(beat.playerId)} mood="happy" size="size-16" />
+            <motion.span
+              className="inline-block size-12"
+              initial={reduced ? false : { scale: 0, rotate: -40 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{
+                delay: reduced ? 0 : 0.15,
+                type: 'spring',
+                stiffness: 420,
+                damping: 12,
+              }}
+            >
+              <PowerIcon power={beat.power} />
+            </motion.span>
+            {!reduced && <Sparkles />}
+          </div>
+          <motion.p
+            className="mt-1 font-display text-3xl text-lantern"
+            initial={reduced ? false : { scale: 0.4, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: reduced ? 0 : 0.3, type: 'spring', stiffness: 380, damping: 11 }}
+          >
+            {t('stage.powerUsed', { power })}
+          </motion.p>
+          {line(t('feed.power', { name: who(beat.playerId), power }))}
+        </>
+      );
+    }
+
+    case 'bidChanged':
+      return (
+        <>
+          <div className="flex items-center justify-center gap-2">
+            <Cat seat={seatOf(beat.playerId)} mood="happy" size="size-12" />
+            <motion.span
+              initial={{ opacity: 1 }}
+              animate={reduced ? { opacity: 0.5 } : { opacity: 0.4, scale: 0.8 }}
+              transition={{ delay: 0.3 }}
+            >
+              <MeowCard value={beat.from} label={String(beat.from)} />
+            </motion.span>
+            <span className="font-display text-2xl" aria-hidden>
+              →
+            </span>
+            <motion.span
+              initial={reduced ? false : { scale: 0, rotate: 30 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{
+                delay: reduced ? 0 : 0.45,
+                type: 'spring',
+                stiffness: 420,
+                damping: 13,
+              }}
+            >
+              <MeowCard value={beat.to} label={String(beat.to)} />
+            </motion.span>
+          </div>
+          {line(
+            t('feed.bidChanged', { name: who(beat.playerId), from: beat.from, to: beat.to }),
+            'good',
+          )}
+        </>
+      );
+
+    case 'swapped':
+      return (
+        <>
+          <div className="flex items-center justify-center gap-3">
+            <motion.span
+              initial={{ opacity: 1, y: 0 }}
+              animate={reduced ? { opacity: 0.4 } : { opacity: 0.3, y: 16, rotate: -12 }}
+              transition={{ delay: 0.35, duration: 0.5 }}
+            >
+              <MiniCard card={beat.out} />
+            </motion.span>
+            <span className="font-display text-2xl" aria-hidden>
+              →
+            </span>
+            <motion.span
+              initial={reduced ? false : { y: -20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: reduced ? 0 : 0.6, type: 'spring', stiffness: 380, damping: 16 }}
+            >
+              <MiniCard card={beat.in} />
+            </motion.span>
+          </div>
+          {line(
+            t('feed.swapped', {
+              name: who(beat.playerId),
+              out: t(`card.${beat.out.kind}`),
+              in: t(`card.${beat.in.kind}`),
+            }),
+            'good',
+          )}
+        </>
+      );
+
+    case 'scavenged':
+    case 'gift':
+      return (
+        <div className="flex items-center justify-center gap-3">
+          <Cat seat={seatOf(beat.playerId)} mood="happy" size="size-10" />
+          <motion.span
+            initial={reduced ? false : { y: 16, scale: 0.6 }}
+            animate={{ y: 0, scale: 1 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 16 }}
+          >
+            <MiniCard card={beat.card} className="w-10" />
+          </motion.span>
+          <p className="text-left font-display text-base">
+            {t(beat.kind === 'gift' ? 'feed.gift' : 'feed.scavenged', {
+              name: who(beat.playerId),
+              card: t(`card.${beat.card.kind}`),
+            })}
+          </p>
+        </div>
+      );
+
+    case 'price':
+      return (
+        <div className="flex items-center justify-center gap-3">
+          <span className="inline-block w-9">
+            <GameCard kind={beat.food} size="fill" />
+          </span>
+          <p className="font-display text-base">
+            {t('feed.price', { food: t(`card.${beat.food}`), from: beat.from, to: beat.to })}
+          </p>
+        </div>
+      );
+
+    case 'restored':
+      return (
+        <>
+          <motion.span
+            className="mx-auto block size-16"
+            initial={reduced ? false : { scale: 0.3, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 14 }}
+          >
+            <EventIcon event="fullMoon" />
+          </motion.span>
+          <div className="mt-2 flex justify-center gap-2">
+            {beat.playerIds.map((id) => (
+              <Cat key={id} seat={seatOf(id)} mood="happy" size="size-10" />
+            ))}
+          </div>
+          {line(t('stage.restored'), 'good')}
+        </>
+      );
+
+    // ── market events ──
+    case 'event':
+      return (
+        <>
+          <p className="text-sm text-card/80">{t('stage.eventTitle', { round: beat.round })}</p>
+          <motion.span
+            className="mx-auto mt-2 block size-20"
+            initial={reduced ? false : { rotateY: 180, scale: 0.6 }}
+            animate={{ rotateY: 0, scale: 1 }}
+            transition={{ duration: 0.6, type: 'spring', stiffness: 200, damping: 15 }}
+          >
+            <EventIcon event={beat.event} />
+          </motion.span>
+          <p className="mt-2 font-display text-2xl text-lantern">{t(`eventName.${beat.event}`)}</p>
+          <p className="mt-1 text-base leading-snug text-card">
+            {t(`eventDesc.${beat.event}`, eventDescParams(beat.event, config))}
+          </p>
+        </>
+      );
+
+    case 'slept':
+      return (
+        <>
+          <div className="relative mx-auto w-20">
+            <motion.span
+              className="block"
+              initial={false}
+              animate={reduced ? {} : { rotate: [0, -3, 0, 3, 0] }}
+              transition={{ duration: 1.2, repeat: Infinity }}
+            >
+              <GameCard kind="dog" size="fill" />
+            </motion.span>
+            <motion.span
+              className="absolute -top-3 -right-6 font-display text-2xl text-lantern"
+              initial={reduced ? false : { y: 6, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: reduced ? 0 : 0.2 }}
+              aria-hidden
+            >
+              {t('stage.snore')}
+            </motion.span>
+          </div>
+          {line(t('feed.slept', { name: who(beat.playerId) }), 'good')}
+        </>
+      );
+
+    case 'passed':
+      return (
+        <>
+          <p className="font-display text-xl text-lantern">{t('eventName.gustyWind')}</p>
+          <ul className="mt-2 space-y-1.5">
+            {beat.passes.map((p, i) => (
+              <motion.li
+                key={p.card.id}
+                className="flex items-center justify-center gap-2 text-sm"
+                initial={reduced ? false : { x: -24, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                transition={{ delay: reduced ? 0 : 0.15 + i * 0.12 }}
+              >
+                <span className="flex w-20 flex-col items-center">
+                  <Cat seat={seatOf(p.from)} size="size-8" />
+                  <span className="w-full truncate text-xs">{who(p.from)}</span>
+                </span>
+                <MiniCard card={p.card} className="w-9" />
+                <span className="font-display text-xl" aria-hidden>
+                  →
+                </span>
+                <span className="flex w-20 flex-col items-center">
+                  <Cat seat={seatOf(p.to)} size="size-8" />
+                  <span className="w-full truncate text-xs">{who(p.to)}</span>
+                </span>
+              </motion.li>
+            ))}
+          </ul>
+          {line(t('feed.passed'))}
+        </>
+      );
   }
+}
+
+/** Star sparkles bursting around a power. */
+function Sparkles() {
+  return (
+    <span className="pointer-events-none absolute top-1/2 left-1/2" aria-hidden>
+      {Array.from({ length: 8 }, (_, i) => {
+        const angle = (i / 8) * Math.PI * 2;
+        return (
+          <motion.span
+            key={i}
+            className="absolute text-lg text-lantern"
+            initial={{ x: 0, y: 0, scale: 0, opacity: 0 }}
+            animate={{
+              x: Math.cos(angle) * 58,
+              y: Math.sin(angle) * 44,
+              scale: [0, 1.2, 0.6],
+              opacity: [0, 1, 0],
+            }}
+            transition={{ delay: 0.2 + (i % 2) * 0.08, duration: 0.9 }}
+          >
+            ✦
+          </motion.span>
+        );
+      })}
+    </span>
+  );
 }
 
 /** Little dust puffs when two meows collide. */

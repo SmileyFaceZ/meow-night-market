@@ -1,4 +1,4 @@
-import type { Card, GameEvent, Meal, PlayerId } from '@meow/engine';
+import type { Card, EventId, FoodType, GameEvent, Meal, PlayerId, PowerId } from '@meow/engine';
 
 // Event pacing, shared by the web client (which plays the beats) and the online server
 // (which waits for them before bots move). docs/ART_DIRECTION.md › แอนิเมชัน
@@ -32,7 +32,31 @@ export type Beat =
     }
   | { readonly kind: 'skipped'; readonly playerId: PlayerId }
   | { readonly kind: 'discarded'; readonly playerId: PlayerId; readonly cards: readonly Card[] }
-  | { readonly kind: 'gameOver' };
+  | { readonly kind: 'gameOver' }
+  // ── cat powers (GAME_RULES §14) ──
+  | { readonly kind: 'power'; readonly playerId: PlayerId; readonly power: PowerId }
+  | {
+      readonly kind: 'bidChanged';
+      readonly playerId: PlayerId;
+      readonly from: number;
+      readonly to: number;
+    }
+  | { readonly kind: 'swapped'; readonly playerId: PlayerId; readonly out: Card; readonly in: Card }
+  | { readonly kind: 'scavenged'; readonly playerId: PlayerId; readonly card: Card }
+  | { readonly kind: 'price'; readonly food: FoodType; readonly from: number; readonly to: number }
+  | { readonly kind: 'restored'; readonly playerIds: readonly PlayerId[] }
+  // ── market events (GAME_RULES §15) ──
+  | { readonly kind: 'event'; readonly round: number; readonly event: EventId }
+  | { readonly kind: 'gift'; readonly playerId: PlayerId; readonly card: Card }
+  | { readonly kind: 'slept'; readonly playerId: PlayerId }
+  | {
+      readonly kind: 'passed';
+      readonly passes: readonly {
+        readonly from: PlayerId;
+        readonly to: PlayerId;
+        readonly card: Card;
+      }[];
+    };
 
 export type BeatKind = Beat['kind'];
 
@@ -50,6 +74,16 @@ export const BEAT_MS: Record<BeatKind, number> = {
   skipped: 1200,
   discarded: 1000,
   gameOver: 1200,
+  power: 1400,
+  bidChanged: 1300,
+  swapped: 1300,
+  scavenged: 850,
+  price: 900,
+  restored: 1300,
+  event: 2200,
+  gift: 850,
+  slept: 1200,
+  passed: 1600,
 };
 
 /** Extra time on the reveal when numbers clashed, so the clash can land. */
@@ -58,9 +92,17 @@ export const CLASH_EXTRA_MS = 900;
 /** Your own small moves (digging, picking…) flash briefly and never block the next tap. */
 export const OWN_MOVE_MS = 450;
 /** Small moves anyone makes: shown as a toast that does not cover the board. */
-const TOAST_KINDS: readonly BeatKind[] = ['pick', 'dug', 'kept'];
+const TOAST_KINDS: readonly BeatKind[] = ['pick', 'dug', 'kept', 'scavenged', 'price', 'gift'];
 /** Your own moves that need no announcement to yourself. */
-const OWN_LIGHT_KINDS: readonly BeatKind[] = ['pick', 'dug', 'kept', 'bone', 'discarded'];
+const OWN_LIGHT_KINDS: readonly BeatKind[] = [
+  'pick',
+  'dug',
+  'kept',
+  'bone',
+  'discarded',
+  'scavenged',
+  'gift',
+];
 
 export function isOwnLightBeat(beat: Beat, viewer: PlayerId | null): boolean {
   return 'playerId' in beat && beat.playerId === viewer && OWN_LIGHT_KINDS.includes(beat.kind);
@@ -137,6 +179,41 @@ export function toBeats(events: readonly GameEvent[]): Beat[] {
         break;
       case 'GAME_OVER':
         beats.push({ kind: 'gameOver' });
+        break;
+      case 'POWER_USED':
+        beats.push({ kind: 'power', playerId: event.playerId, power: event.power });
+        break;
+      case 'BID_CHANGED':
+        beats.push({
+          kind: 'bidChanged',
+          playerId: event.playerId,
+          from: event.from,
+          to: event.to,
+        });
+        break;
+      case 'MARKET_SWAPPED':
+        beats.push({ kind: 'swapped', playerId: event.playerId, out: event.out, in: event.in });
+        break;
+      case 'CARD_SCAVENGED':
+        beats.push({ kind: 'scavenged', playerId: event.playerId, card: event.card });
+        break;
+      case 'PRICE_CHANGED':
+        beats.push({ kind: 'price', food: event.food, from: event.from, to: event.to });
+        break;
+      case 'POWERS_RESTORED':
+        beats.push({ kind: 'restored', playerIds: event.playerIds });
+        break;
+      case 'EVENT_REVEALED':
+        beats.push({ kind: 'event', round: event.round, event: event.event });
+        break;
+      case 'VENDOR_GIFT':
+        beats.push({ kind: 'gift', playerId: event.playerId, card: event.card });
+        break;
+      case 'DOG_SLEPT':
+        beats.push({ kind: 'slept', playerId: event.playerId });
+        break;
+      case 'CARDS_PASSED':
+        beats.push({ kind: 'passed', passes: event.passes });
         break;
       default:
         break;

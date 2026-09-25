@@ -103,4 +103,34 @@ describe('what plays', () => {
     ]);
     expect(soundForBeat({ kind: 'pick', playerId: 'p0', card }, 'p0')).toBeNull();
   });
+
+  it('Market Mayhem: a sparkle for powers, a drum roll for events', () => {
+    const card = { id: 1, kind: 'fish' } as const;
+    const beats: Beat[] = [
+      { kind: 'power', playerId: 'p1', power: 'keenNose' },
+      { kind: 'bidChanged', playerId: 'p1', from: 2, to: 3 },
+      { kind: 'swapped', playerId: 'p1', out: card, in: { id: 2, kind: 'milk' } },
+      { kind: 'scavenged', playerId: 'p1', card },
+      { kind: 'scavenged', playerId: 'p0', card },
+      { kind: 'price', food: 'fish', from: 3, to: 4 },
+      { kind: 'restored', playerIds: ['p0'] },
+      { kind: 'event', round: 1, event: 'downpour' },
+      { kind: 'gift', playerId: 'p1', card },
+      { kind: 'slept', playerId: 'p0' },
+      { kind: 'passed', passes: [] },
+    ];
+    expect(beats.map((b) => soundForBeat(b, 'p0'))).toEqual([
+      'power',
+      'card',
+      'card',
+      'kept',
+      null,
+      'pop',
+      'power',
+      'event',
+      'kept',
+      'skip',
+      'discard',
+    ]);
+  });
 });

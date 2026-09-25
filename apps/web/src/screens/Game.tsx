@@ -1,4 +1,12 @@
-import { type Card, findMealOptions, type MealOption, type PlayerView } from '@meow/engine';
+import {
+  type CardId,
+  findMealOptions,
+  type FoodType,
+  type MealOption,
+  pairOptions,
+  type PlayerView,
+  scavengeable,
+} from '@meow/engine';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
@@ -25,6 +33,16 @@ import { HandoffCover } from '../components/Handoff';
 import { SoundPanel } from '../components/SoundSettings';
 import { playSound } from '../audio/sound';
 import { EmotePicker, EmoteToasts, TurnTimer } from '../components/OnlineBits';
+import {
+  EventChip,
+  EventDetails,
+  HaggleChooser,
+  MayhemScene,
+  PeekStrip,
+  PowerButton,
+  PowerInfo,
+  ScavengeChooser,
+} from '../components/Mayhem';
 
 /** Tutorial coaching, when the game runs inside the tutorial. */
 export interface CoachProps {
@@ -33,6 +51,9 @@ export interface CoachProps {
   readonly onKeepPlaying: () => void;
   readonly onHome: () => void;
 }
+
+type GameModal =
+  'discard' | 'menu' | 'emote' | 'event' | 'scavenge' | 'haggle' | { player: string };
 
 const HIGHLIGHT =
   'rounded-2xl ring-4 ring-lantern ring-offset-2 ring-offset-night animate-pulse relative z-20';
@@ -68,15 +89,16 @@ export function GameScreen({
   const [bid, setBid] = useState<number | null>(null);
   const [toDiscard, setToDiscard] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [modal, setModal] = useState<'discard' | 'menu' | 'emote' | { player: string } | null>(
-    null,
-  );
+  const [modal, setModal] = useState<GameModal | null>(null);
+  /** Gusty Wind: the card chosen to pass on. */
+  const [toPass, setToPass] = useState<CardId | null>(null);
   // A new holder starts with a clean slate: never inherit the last player's picks.
   const [shownViewer, setShownViewer] = useState(view.viewer);
   if (shownViewer !== view.viewer) {
     setShownViewer(view.viewer);
     setBid(null);
     setToDiscard([]);
+    setToPass(null);
     setError(null);
     setModal(null);
   }
@@ -93,7 +115,7 @@ export function GameScreen({
   const feed = useMemo(
     () =>
       recentEvents
-        .map((e) => describeEvent(e, seatName, (kind) => t(`card.${kind}`)))
+        .map((e) => describeEvent(e, seatName, (key) => t(key)))
         .filter((line) => line !== null),
     [recentEvents, seatName, t],
   );
@@ -106,6 +128,11 @@ export function GameScreen({
 
   const statusOf = (id: string): PlayerStatus => {
     const p = view.players.find((x) => x.id === id)!;
+    if (view.powerWindow) return view.powerWindow.playerId === id ? 'turn' : null;
+    if (view.phase === 'pass') {
+      if (!p.mustPass) return null;
+      return p.hasPassed ? 'ready' : id === view.viewer ? null : 'thinking';
+    }
     if (view.phase === 'bidding')
       return p.hasBid ? 'ready' : id === view.viewer ? null : 'thinking';
     if (view.phase === 'discard') {
@@ -118,9 +145,12 @@ export function GameScreen({
   const phaseTitle = t(`phase.${view.phase}`);
   const needsMe =
     me !== null &&
-    (myTurn ||
-      (view.phase === 'bidding' && !me.hasBid) ||
-      (view.phase === 'discard' && me.mustDiscard > 0 && !me.hasDiscarded));
+    (view.powerWindow
+      ? view.powerWindow.playerId === me.id
+      : myTurn ||
+        (view.phase === 'pass' && me.mustPass && !me.hasPassed) ||
+        (view.phase === 'bidding' && !me.hasBid) ||
+        (view.phase === 'discard' && me.mustDiscard > 0 && !me.hasDiscarded));
   const hint = me
     ? hintFor(view, myTurn, me.mustDiscard, seatName, t)
     : view.phase === 'gameOver'
@@ -139,13 +169,24 @@ export function GameScreen({
   const seatOf = (id: string) => seats.find((s) => s.id === id)!;
   const opened =
     modal && typeof modal === 'object' ? view.players.find((p) => p.id === modal.player) : null;
+  const myWindow =
+    view.powerWindow && me && view.powerWindow.playerId === me.id ? view.powerWindow : null;
+  const castPower = (use: Parameters<typeof powerAction>[1]) =>
+    me ? act(powerAction(me.id, use)) : false;
+  const onMarketPick =
+    myWindow?.power === 'luckySwap'
+      ? (cardId: CardId) => castPower({ power: 'luckySwap', cardId })
+      : view.phase === 'pick' && myTurn && me && !view.powerWindow
+        ? (cardId: CardId) => act({ type: 'pick', playerId: me.id, cardId })
+        : undefined;
 
   return (
     <>
+      {view.eventsOn && <MayhemScene event={view.event} />}
       <main
         inert={covered}
         aria-hidden={covered || undefined}
-        className="mx-auto min-h-dvh max-w-xl px-3 pt-2 lg:grid lg:max-w-7xl lg:grid-cols-[16rem_minmax(0,1fr)_17rem] lg:items-start lg:gap-5 lg:px-6 lg:pt-4"
+        className="relative z-[1] mx-auto min-h-dvh max-w-xl px-3 pt-2 lg:grid lg:max-w-7xl lg:grid-cols-[16rem_minmax(0,1fr)_17rem] lg:items-start lg:gap-5 lg:px-6 lg:pt-4"
       >
         {/* desktop: opponents sit down the left side of the table, hands open */}
         <aside
@@ -245,8 +286,11 @@ export function GameScreen({
           </p>
           {online && <TurnTimer clocks={online.clocks} viewer={view.viewer} name={seatName} />}
 
-          <div className={hl('tieOrder')}>
-            <TieOrder view={view} you={you} seats={seats} name={seatName} />
+          <div className="flex items-center justify-between gap-2">
+            <div className={`min-w-0 ${hl('tieOrder')}`}>
+              <TieOrder view={view} you={you} seats={seats} name={seatName} />
+            </div>
+            {view.eventsOn && <EventChip event={view.event} onOpen={() => setModal('event')} />}
           </div>
           <div className={hl('prices')}>
             <PriceTags prices={view.prices} />
@@ -255,17 +299,15 @@ export function GameScreen({
           <div className={hl('market')}>
             <MarketStall
               cards={view.market}
+              faceDown={view.faceDownMarket}
               deckCount={view.marketDeckCount}
-              onPick={
-                view.phase === 'pick' && myTurn && me
-                  ? (card: Card) => act({ type: 'pick', playerId: me.id, cardId: card.id })
-                  : undefined
-              }
+              onPick={onMarketPick}
             />
           </div>
           <div className={hl('bin')}>
             <TrashArea view={view} />
           </div>
+          {view.peek && <PeekStrip cards={view.peek.cards} />}
           <div className="lg:hidden">
             <EventFeed lines={feed} />
           </div>
@@ -281,16 +323,27 @@ export function GameScreen({
                 status={statusOf(me.id)}
                 isYou
               />
-              <HandView
-                cards={view.hand}
-                selectable={view.phase === 'discard' && me.mustDiscard > 0 && !me.hasDiscarded}
-                selected={toDiscard}
-                onToggle={(card) =>
-                  setToDiscard((ids) =>
-                    ids.includes(card.id) ? ids.filter((x) => x !== card.id) : [...ids, card.id],
-                  )
-                }
-              />
+              {view.phase === 'pass' && me.mustPass && !me.hasPassed ? (
+                <HandView
+                  cards={view.hand}
+                  selectable
+                  selected={toPass === null ? [] : [toPass]}
+                  onToggle={(card) => setToPass((id) => (id === card.id ? null : card.id))}
+                />
+              ) : (
+                <HandView
+                  cards={view.hand}
+                  selectable={view.phase === 'discard' && me.mustDiscard > 0 && !me.hasDiscarded}
+                  selected={
+                    view.phase === 'pass' && view.yourPass !== null ? [view.yourPass] : toDiscard
+                  }
+                  onToggle={(card) =>
+                    setToDiscard((ids) =>
+                      ids.includes(card.id) ? ids.filter((x) => x !== card.id) : [...ids, card.id],
+                    )
+                  }
+                />
+              )}
               <div className="mt-3 space-y-2">
                 <Actions
                   view={view}
@@ -299,6 +352,10 @@ export function GameScreen({
                   setBid={setBid}
                   toDiscard={toDiscard}
                   clearDiscard={() => setToDiscard([])}
+                  toPass={toPass}
+                  clearPass={() => setToPass(null)}
+                  openModal={setModal}
+                  castPower={castPower}
                   act={act}
                   onShowResult={onShowResult}
                   hl={hl}
@@ -346,6 +403,7 @@ export function GameScreen({
           seats={seats}
           viewer={you}
           name={seatName}
+          config={view.config}
           onSkip={stage.skip}
         />
 
@@ -356,6 +414,43 @@ export function GameScreen({
             closeLabel={t('action.close')}
           >
             <HandView cards={view.discard} />
+          </Modal>
+        )}
+        {modal === 'event' && (
+          <Modal
+            title={t('events.thisRound')}
+            onClose={() => setModal(null)}
+            closeLabel={t('action.close')}
+          >
+            <EventDetails view={view} />
+          </Modal>
+        )}
+        {modal === 'scavenge' && (
+          <Modal
+            title={t('power.scavengeTitle')}
+            onClose={() => setModal(null)}
+            closeLabel={t('action.close')}
+          >
+            <ScavengeChooser
+              cards={scavengeable(view.discard)}
+              onPick={(card) => {
+                if (castPower({ power: 'scavenger', cardId: card.id })) setModal(null);
+              }}
+            />
+          </Modal>
+        )}
+        {modal === 'haggle' && (
+          <Modal
+            title={t('power.haggleTitle')}
+            onClose={() => setModal(null)}
+            closeLabel={t('action.close')}
+          >
+            <HaggleChooser
+              view={view}
+              onPick={(food: FoodType) => {
+                if (castPower({ power: 'haggle', food })) setModal(null);
+              }}
+            />
           </Modal>
         )}
         {online && <EmoteToasts emotes={online.emotes} seats={seats} name={seatName} />}
@@ -388,6 +483,11 @@ export function GameScreen({
             onClose={() => setModal(null)}
             closeLabel={t('action.close')}
           >
+            {opened.power && (
+              <div className="mb-3 rounded-2xl bg-night p-2">
+                <PowerInfo power={opened.power} used={opened.powerUsed} />
+              </div>
+            )}
             <p className="mb-1 text-sm text-card/80">
               {t('player.meowLeft')}: {opened.meowLeft.join(' · ') || '—'}
             </p>
@@ -470,6 +570,13 @@ function hintFor(
 ): string {
   const me = view.players.find((p) => p.id === view.viewer)!;
   const current = name(view.currentPlayer);
+  if (view.powerWindow) {
+    const { playerId, power } = view.powerWindow;
+    if (playerId !== me.id) {
+      return t('hint.powerWaiting', { name: name(playerId), power: t(`powerName.${power}`) });
+    }
+    return t(power === 'luckySwap' ? 'hint.luckySwapYours' : 'hint.secondThoughtYours');
+  }
   switch (view.phase) {
     case 'bidding': {
       const done = view.players.filter((p) => p.hasBid).length;
@@ -483,7 +590,8 @@ function hintFor(
       if (!myTurn) return t('hint.trashWaiting', { name: current });
       return view.pendingDog ? t('hint.trashDog') : t('hint.trashYours');
     case 'pass':
-      return me.mustPass && !me.hasPassed ? t('hint.passYours') : t('hint.passWaiting');
+      if (me.mustPass && !me.hasPassed) return t('hint.passYours');
+      return me.hasPassed ? t('hint.passChosen') : t('hint.passWaiting');
     case 'eat':
       return myTurn ? t('hint.eatYours') : t('hint.eatWaiting', { name: current });
     case 'discard':
@@ -502,6 +610,10 @@ function Actions({
   setBid,
   toDiscard,
   clearDiscard,
+  toPass,
+  clearPass,
+  openModal,
+  castPower,
   act,
   onShowResult,
   hl,
@@ -512,6 +624,10 @@ function Actions({
   setBid: (v: number | null) => void;
   toDiscard: number[];
   clearDiscard: () => void;
+  toPass: CardId | null;
+  clearPass: () => void;
+  openModal: (modal: 'scavenge' | 'haggle') => void;
+  castPower: (use: PowerUseInput) => boolean;
   act: (action: Parameters<GameController['dispatch']>[0]) => boolean;
   onShowResult: () => void;
   hl: (target: TutorialTarget) => string;
@@ -519,6 +635,52 @@ function Actions({
   const { t } = useTranslation();
   const me = view.players.find((p) => p.id === view.viewer)!;
   const playerId = me.id;
+  /** The player's power, when it can be used right now. */
+  const ready = view.canUsePower ? me.power : null;
+
+  if (view.powerWindow) {
+    if (view.powerWindow.playerId !== playerId) return null;
+    const skip = (
+      <Button variant="secondary" onClick={() => act({ type: 'passPower', playerId })}>
+        {t('power.skip')}
+      </Button>
+    );
+    if (view.powerWindow.power === 'secondThought') {
+      const bid = me.revealedBid ?? 0;
+      const values = [bid - 1, bid + 1].filter((v) => me.meowLeft.includes(v));
+      return (
+        <div className="grid gap-2">
+          <div className="grid grid-cols-2 gap-2">
+            {values.map((value) => (
+              <PowerButton
+                key={value}
+                power="secondThought"
+                onClick={() => castPower({ power: 'secondThought', value })}
+              >
+                {t('power.changeTo', { value })}
+              </PowerButton>
+            ))}
+          </div>
+          {skip}
+        </div>
+      );
+    }
+    return <div className="grid">{skip}</div>;
+  }
+
+  if (view.phase === 'pass' && me.mustPass && !me.hasPassed) {
+    return (
+      <Button
+        className="w-full"
+        disabledReason={toPass === null ? t('pass.choose') : null}
+        onClick={() => {
+          if (toPass !== null && act({ type: 'passCard', playerId, cardId: toPass })) clearPass();
+        }}
+      >
+        {t('pass.confirm')}
+      </Button>
+    );
+  }
 
   if (view.phase === 'bidding' && !me.hasBid) {
     return (
@@ -566,6 +728,11 @@ function Actions({
           >
             {t('action.acceptDog')}
           </Button>
+          {ready === 'goodLuck' && (
+            <div className="col-span-2">
+              <PowerButton power="goodLuck" onClick={() => castPower({ power: 'goodLuck' })} />
+            </div>
+          )}
         </div>
       );
     }
@@ -585,14 +752,45 @@ function Actions({
         >
           {t('term.stop')}
         </Button>
+        {ready === 'keenNose' && (
+          <div className="col-span-2">
+            <PowerButton power="keenNose" onClick={() => castPower({ power: 'keenNose' })} />
+          </div>
+        )}
       </div>
     );
+  }
+
+  if (view.phase === 'pick' && myTurn) {
+    if (ready === 'extraOrder') {
+      return <PowerButton power="extraOrder" onClick={() => castPower({ power: 'extraOrder' })} />;
+    }
+    return view.extraOrder === playerId ? (
+      <p className="text-center text-sm text-lantern">{t('power.extraOrderOn')}</p>
+    ) : null;
   }
 
   if (view.phase === 'eat' && myTurn) {
     const options = bestMealOptions(findMealOptions(view.hand, view.config));
     return (
       <div className="grid gap-2">
+        {ready === 'scavenger' && (
+          <PowerButton power="scavenger" onClick={() => openModal('scavenge')} />
+        )}
+        {ready === 'haggle' && <PowerButton power="haggle" onClick={() => openModal('haggle')} />}
+        {ready === 'bigAppetite' &&
+          pairOptions(view.hand).map((pair) => (
+            <PowerButton
+              key={pair.food}
+              power="bigAppetite"
+              onClick={() => castPower({ power: 'bigAppetite', cardIds: pair.cardIds })}
+            >
+              {t('power.appetiteMeal', {
+                food: t(`card.${pair.food}`),
+                points: Math.max(1, view.prices[pair.food] - 1) + seafoodBonus(view, pair.food),
+              })}
+            </PowerButton>
+          ))}
         {options.map((option) => (
           <Button
             className={hl('eat')}
@@ -642,7 +840,25 @@ function Actions({
 
 function pointsOf(view: PlayerView, option: MealOption): number {
   const price = view.prices[option.food];
-  return option.big ? price * view.config.bigMealMultiplier : price;
+  return (
+    (option.big ? price * view.config.bigMealMultiplier : price) + seafoodBonus(view, option.food)
+  );
+}
+
+/** Seafood Fest: fish and shrimp meals score extra this round (GAME_RULES §15). */
+function seafoodBonus(view: PlayerView, food: FoodType): number {
+  return view.event === 'seafoodFest' && (food === 'fish' || food === 'shrimp')
+    ? view.config.events.seafoodBonus
+    : 0;
+}
+
+type PowerUseInput = Extract<
+  Parameters<GameController['dispatch']>[0],
+  { type: 'usePower' }
+>['use'];
+
+function powerAction(playerId: string, use: PowerUseInput) {
+  return { type: 'usePower' as const, playerId, use };
 }
 
 /** One button per food and size; offer the goldfish version only when it is the only way. */

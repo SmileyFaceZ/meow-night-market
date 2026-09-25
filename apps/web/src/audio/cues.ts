@@ -26,6 +26,8 @@ export const SOUND_IDS = [
   'turn',
   'tick',
   'pop',
+  'power',
+  'event',
 ] as const;
 export type SoundId = (typeof SOUND_IDS)[number];
 
@@ -78,5 +80,22 @@ export function soundForBeat(beat: Beat, viewer: PlayerId | null): SoundId | nul
       return 'discard';
     case 'gameOver':
       return 'fanfare';
+    case 'power':
+    case 'restored':
+      return 'power';
+    case 'bidChanged':
+    case 'swapped':
+      return 'card';
+    case 'scavenged':
+    case 'gift':
+      return mine ? null : 'kept';
+    case 'price':
+      return 'pop';
+    case 'event':
+      return 'event';
+    case 'slept':
+      return 'skip';
+    case 'passed':
+      return 'discard';
   }
 }

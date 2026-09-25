@@ -257,7 +257,11 @@
     "discardWaiting": "Waiting for the others to discard…",
     "gameOver": "The market has closed! Let's see the scores",
     "passYours": "Gusty Wind! Secretly pick 1 card to pass to the next player",
-    "passWaiting": "Waiting for the others to pick a card to pass…"
+    "passWaiting": "Waiting for the others to pick a card to pass…",
+    "luckySwapYours": "Lucky Swap? Tap a stall card to swap it, or skip",
+    "secondThoughtYours": "Second Thought? Change your number, or keep it",
+    "powerWaiting": "{{name}} is thinking about {{power}}…",
+    "passChosen": "Card chosen — waiting for the others…"
   },
   "action": {
     "bid": "Bid",
@@ -311,7 +315,21 @@
     "skipped": "{{name}} has nothing to eat",
     "discarded_one": "{{name}} discarded {{count}} card",
     "discarded_other": "{{name}} discarded {{count}} cards",
-    "reshuffle": "The discard pile goes back into the bin"
+    "reshuffle": "The discard pile goes back into the bin",
+    "power": "{{name}} used {{power}}!",
+    "bidChanged": "{{name}} changed their mind: {{from}} → {{to}}",
+    "swapped": "{{name}} swapped {{out}} for {{in}}",
+    "scavenged": "{{name}} picked {{card}} out of the discards",
+    "price": "{{food}} price {{from}} → {{to}}",
+    "restored": "Full moon! Spent cat powers are back",
+    "event": "Market event: {{event}}",
+    "gift": "The kind vendor gives {{name}} a {{card}}",
+    "slept": "The dog that found {{name}} is fast asleep — phew!",
+    "passed": "The wind blows cards to the next cat",
+    "dogsAway_one": "{{count}} dog shelters from the rain",
+    "dogsAway_other": "{{count}} dogs shelter from the rain",
+    "dogsBack_one": "The sheltering dog is back in the bin",
+    "dogsBack_other": "The sheltering dogs are back in the bin"
   },
   "result": {
     "title": "Market closed! Final scores",
@@ -360,7 +378,11 @@
     "priceDrop": "{{food}} price {{from}} → {{to}}",
     "gameOver": "The market has closed!",
     "tapToSkip": "Tap to skip",
-    "noClash": "No clashes"
+    "noClash": "No clashes",
+    "powerUsed": "{{power}}!",
+    "eventTitle": "Round {{round}} event",
+    "restored": "Cat powers restored",
+    "snore": "Zzz"
   },
   "bin": {
     "calm": "All quiet",
@@ -433,5 +455,87 @@
     "on": "On",
     "off": "Off",
     "note": "Everything works without sound · Can’t hear anything? Check your device’s silent switch"
+  },
+  "powerName": {
+    "keenNose": "Keen Nose",
+    "secondThought": "Second Thought",
+    "scavenger": "Scavenger",
+    "luckySwap": "Lucky Swap",
+    "goodLuck": "Good-Luck Cat",
+    "extraOrder": "Extra Order",
+    "haggle": "Haggle",
+    "bigAppetite": "Big Appetite"
+  },
+  "powerDesc": {
+    "keenNose": "Your dig turn, before the first draw: peek at the top 2 cards of the bin (only you see them)",
+    "secondThought": "After the meows are revealed: move your number 1 up or down, to one you still have",
+    "scavenger": "Your feast turn: take 1 food card from the discard pile",
+    "luckySwap": "After the stall is laid out: swap 1 stall card for the top food in the bin",
+    "goodLuck": "A dog finds you: lose half your bag (rounded up), keep the rest and end your turn",
+    "extraOrder": "Your stall pick: also get the card left over after everyone picks",
+    "haggle": "Your feast turn, before your first meal: raise one food’s price by 1",
+    "bigAppetite": "Your feast turn: eat a pair of one food as a meal (price − 1 points)"
+  },
+  "eventName": {
+    "downpour": "Downpour",
+    "seafoodFest": "Seafood Fest",
+    "milkDelivery": "Milk Delivery",
+    "garbageTruck": "Garbage Truck",
+    "blackout": "Blackout",
+    "kindVendor": "Kind Vendor",
+    "bargainRush": "Bargain Rush",
+    "sleepyDogs": "Sleepy Dogs",
+    "gustyWind": "Gusty Wind",
+    "queueFlip": "Queue Flip",
+    "busyNight": "Busy Night",
+    "fullMoon": "Full Moon",
+    "snackSale": "Snack Sale"
+  },
+  "eventDesc": {
+    "downpour": "{{count}} guard dog shelters from the rain — out of the bin this round",
+    "seafoodFest": "Fish and shrimp meals score +{{bonus}} this round",
+    "milkDelivery": "One more stall card this round: a milk from the bin",
+    "garbageTruck": "At most {{count}} draws per dig turn this round",
+    "blackout": "{{count}} stall cards lie face down — pick them blind",
+    "kindVendor": "Everyone gets a free card from the bin",
+    "bargainRush": "The cheapest food goes up 1 in price",
+    "sleepyDogs": "The round’s first dog is fast asleep — no harm done",
+    "gustyWind": "Before the feast, everyone secretly passes 1 card to the next player",
+    "queueFlip": "Low numbers pick from the stall first this round",
+    "busyNight": "One more stall card this round",
+    "fullMoon": "Every spent cat power comes back",
+    "snackSale": "Snack meals don’t lower the price this round"
+  },
+  "events": {
+    "thisRound": "This round’s event",
+    "past": "Earlier rounds",
+    "left": "{{count}} event cards left",
+    "none": "No event yet"
+  },
+  "power": {
+    "use": "Use {{power}}",
+    "ready": "Power ready",
+    "used": "Power used",
+    "skip": "Don’t use it",
+    "scavengeTitle": "Scavenger: take a card from the discard pile",
+    "haggleTitle": "Haggle: raise which price?",
+    "haggleOption": "{{food}} {{from}} → {{to}}",
+    "appetiteMeal": "Big Appetite: 2 {{food}} +{{points}}",
+    "changeTo": "Change to {{value}}",
+    "peekTitle": "Keen Nose: next up in the bin",
+    "peekEmpty": "Nothing left to see",
+    "extraOrderOn": "Extra Order: the leftover card will be yours",
+    "nothing": "Nothing to take"
+  },
+  "pass": {
+    "confirm": "Pass this card",
+    "choose": "Tap a card in your hand to pass"
+  },
+  "dig": {
+    "limit": "Draws {{done}}/{{limit}}",
+    "sheltering_one": "{{count}} dog sheltering",
+    "sheltering_other": "{{count}} dogs sheltering",
+    "sleepy": "The first dog will be asleep",
+    "faceDown": "Face-down card"
   }
 }

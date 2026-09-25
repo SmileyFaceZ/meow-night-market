@@ -1,4 +1,11 @@
-import { BOT_PERSONALITIES, ERROR_KEYS, FOOD_TYPES } from '@meow/engine';
+import {
+  BOT_PERSONALITIES,
+  CAT_IDS,
+  ERROR_KEYS,
+  EVENT_IDS,
+  FOOD_TYPES,
+  POWER_IDS,
+} from '@meow/engine';
 import { EMOTES, ROOM_ERROR_KEYS } from '@meow/protocol';
 import { describe, expect, it } from 'vitest';
 import en from '../src/i18n/en.json';
@@ -53,6 +60,17 @@ describe('i18n dictionaries (docs/I18N.md)', () => {
       'bot.greedy': ['แมวส้มตะกละ', 'Greedy Ginger'],
       'bot.sly': ['แมวดำเจ้าเล่ห์', 'Sly Shadow'],
       'bot.careful': ['แมวขาวขี้ระวัง', 'Careful Snowy'],
+      'mode.chaos': ['ตลาดป่วน', 'Market Mayhem'],
+      'term.power': ['พลังแมว', 'Cat Power'],
+      'term.event': ['การ์ดเหตุการณ์', 'Market Event'],
+      'powerName.keenNose': ['จมูกไว', 'Keen Nose'],
+      'powerName.secondThought': ['เปลี่ยนใจ', 'Second Thought'],
+      'powerName.scavenger': ['เก็บของเก่ง', 'Scavenger'],
+      'powerName.luckySwap': ['โชคดี', 'Lucky Swap'],
+      'powerName.goodLuck': ['แมวนำโชค', 'Good-Luck Cat'],
+      'powerName.extraOrder': ['สั่งพิเศษ', 'Extra Order'],
+      'powerName.haggle': ['ต่อราคา', 'Haggle'],
+      'powerName.bigAppetite': ['กินจุ', 'Big Appetite'],
     };
     for (const [key, [thText, enText]] of Object.entries(glossary)) {
       expect(thKeys.get(key), key).toBe(thText);
@@ -61,12 +79,16 @@ describe('i18n dictionaries (docs/I18N.md)', () => {
   });
 
   it('translates every error key, phase, card and bot the engine and server can produce', () => {
-    const phases = ['bidding', 'pick', 'trash', 'eat', 'discard', 'gameOver'];
+    const phases = ['bidding', 'pick', 'trash', 'pass', 'eat', 'discard', 'gameOver'];
     const needed = [
       ...ERROR_KEYS,
       ...phases.map((p) => `phase.${p}`),
       ...[...FOOD_TYPES, 'goldfish', 'bone', 'dog'].map((k) => `card.${k}`),
-      ...BOT_PERSONALITIES.flatMap((b) => [`bot.${b}`, `botDesc.${b}`]),
+      ...BOT_PERSONALITIES.flatMap((b) => [`bot.${b}`, `botDesc.${b}`, `trait.${b}`]),
+      // Market Mayhem: every cat, power and event has a name (and a one-line description)
+      ...CAT_IDS.flatMap((c) => [`cat.${c}`, `catShort.${c}`]),
+      ...POWER_IDS.flatMap((p) => [`powerName.${p}`, `powerDesc.${p}`]),
+      ...EVENT_IDS.flatMap((e) => [`eventName.${e}`, `eventDesc.${e}`]),
       // online: every refusal the server can send, and every sticker
       ...ROOM_ERROR_KEYS,
       ...EMOTES.map((e) => `emote.${e}`),

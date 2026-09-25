@@ -1,7 +1,9 @@
 import { BOT_DIFFICULTIES, BOT_PERSONALITIES } from '@meow/engine';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { CAT_POWER } from '@meow/engine';
 import { CatArt } from '../art/CatArt';
+import { PowerInfo } from '../components/Mayhem';
 import { ModeSwitch } from '../components/ModeSwitch';
 import { Button } from '../components/ui';
 import { loadSetup, seatsFromSetup, type SoloSetup, storeSetup } from '../game/setup';
@@ -71,6 +73,11 @@ export function SetupScreen({
             </button>
           ))}
         </div>
+        {setup.mode.powers && (
+          <div className="mt-2 rounded-2xl bg-night-2 p-2">
+            <PowerInfo power={CAT_POWER[setup.cat]} compact />
+          </div>
+        )}
       </section>
 
       <section className="grid gap-2">

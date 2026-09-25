@@ -1,4 +1,10 @@
-import { type Card, FOOD_TYPES, type PlayerView, type PublicPlayer } from '@meow/engine';
+import {
+  type Card,
+  type CardId,
+  FOOD_TYPES,
+  type PlayerView,
+  type PublicPlayer,
+} from '@meow/engine';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -6,6 +12,7 @@ import { BinArt } from '../art/BinArt';
 import { binMoodFor } from '../art/style';
 import { CardArt } from '../art/CardArt';
 import { CatArt, type CatMood } from '../art/CatArt';
+import { PowerIcon } from '../art/PowerIcon';
 import type { FeedLine } from '../game/hooks';
 import type { Presence, SeatInfo } from '../game/types';
 import { groupCards, sortCards } from './cardGroups';
@@ -51,6 +58,15 @@ export function PlayerBadge({
       className={`relative size-9 shrink-0 ${presence === 'away' ? 'opacity-50 grayscale' : ''}`}
     >
       <CatArt color={seat.cat} mood={mood} />
+      {player.power && (
+        <span
+          className="absolute -top-1 -left-1.5 size-5"
+          role="img"
+          aria-label={`${t(`powerName.${player.power}`)} · ${t(player.powerUsed ? 'power.used' : 'power.ready')}`}
+        >
+          <PowerIcon power={player.power} used={player.powerUsed} />
+        </span>
+      )}
       {player.revealedBid !== null && (
         <span
           className={`absolute -right-1.5 -bottom-1 grid size-5 place-items-center rounded-full border-2 border-ink font-display text-[0.7rem] ${player.clashed ? 'bg-danger text-card' : 'bg-card text-ink'}`}
@@ -144,12 +160,15 @@ export function PriceTags({ prices }: { prices: PlayerView['prices'] }) {
 
 export function MarketStall({
   cards,
+  faceDown = [],
   deckCount,
   onPick,
 }: {
   cards: readonly Card[];
+  /** Blackout: cards lying face down (only their ids are known). */
+  faceDown?: readonly CardId[];
   deckCount: number;
-  onPick?: ((card: Card) => void) | undefined;
+  onPick?: ((cardId: CardId) => void) | undefined;
 }) {
   const { t } = useTranslation();
   const reduced = useReducedMotion() ?? false;
@@ -166,7 +185,7 @@ export function MarketStall({
       </div>
       <div className="mt-1 h-2.5 rounded-t-lg bg-[repeating-linear-gradient(90deg,var(--shrimp)_0_12px,var(--card)_12px_24px)]" />
       <div className="grid min-h-24 grid-cols-5 gap-1.5 rounded-b-lg bg-night/40 p-1.5">
-        {cards.length === 0 ? (
+        {cards.length + faceDown.length === 0 ? (
           <span className="col-span-5 self-center text-center text-sm text-card/60">
             {t('term.empty')}
           </span>
@@ -186,10 +205,28 @@ export function MarketStall({
               <GameCard
                 card={card}
                 size="fill"
-                onSelect={onPick ? () => onPick(card) : undefined}
+                onSelect={onPick ? () => onPick(card.id) : undefined}
               />
             </motion.div>
           ))
+        )}
+        {faceDown.map((id) =>
+          onPick ? (
+            <button
+              key={id}
+              type="button"
+              data-sound="card"
+              aria-label={t('dig.faceDown')}
+              onClick={() => onPick(id)}
+              className="min-h-tap transition hover:-translate-y-1 focus-visible:-translate-y-1"
+            >
+              <CardBack deck="market" size="fill" />
+            </button>
+          ) : (
+            <span key={id} role="img" aria-label={t('dig.faceDown')}>
+              <CardBack deck="market" size="fill" />
+            </span>
+          ),
         )}
       </div>
     </section>
@@ -205,6 +242,15 @@ export function TrashArea({ view }: { view: PlayerView }) {
   const mood = binMoodFor(risk, view.trashDiggable);
   const reduced = useReducedMotion() ?? false;
   const hasBag = view.bag.length > 0 || view.pendingDog;
+  const notes = [
+    view.phase === 'trash' && view.digLimit !== null
+      ? t('dig.limit', { done: view.digCount, limit: view.digLimit })
+      : null,
+    view.dogsSheltering > 0 ? t('dig.sheltering', { count: view.dogsSheltering }) : null,
+    view.event === 'sleepyDogs' && view.dogsSlept.length === 0 && view.phase === 'trash'
+      ? t('dig.sleepy')
+      : null,
+  ].filter((n) => n !== null);
   return (
     <section
       aria-label={t('term.trash')}
@@ -230,7 +276,15 @@ export function TrashArea({ view }: { view: PlayerView }) {
         </motion.span>
         <span className="text-xs leading-snug">
           <span className="block font-display text-sm text-card">{t(`bin.${mood}`)}</span>
-          <span className="block text-card/60">{t('bin.tapHint')}</span>
+          {notes.length > 0 ? (
+            notes.map((note) => (
+              <span key={note} className="block text-lantern">
+                {note}
+              </span>
+            ))
+          ) : (
+            <span className="block text-card/60">{t('bin.tapHint')}</span>
+          )}
         </span>
       </button>
       {open && (

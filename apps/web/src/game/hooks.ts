@@ -38,12 +38,16 @@ export interface FeedLine {
   readonly tone: 'info' | 'good' | 'bad';
 }
 
-/** Turns engine events into short feed lines (i18n key + params). Unlisted events are silent. */
+/**
+ * Turns engine events into short feed lines (i18n key + params). Unlisted events are
+ * silent. `label` translates a key (card, power and event names go into the params).
+ */
 export function describeEvent(
   event: GameEvent,
   name: (id: PlayerId) => string,
-  cardName: (kind: string) => string,
+  label: (key: string) => string,
 ): FeedLine | null {
+  const cardName = (kind: string) => label(`card.${kind}`);
   switch (event.type) {
     case 'ROUND_STARTED':
       return { key: 'feed.round', params: { round: event.round }, tone: 'info' };
@@ -103,6 +107,64 @@ export function describeEvent(
       };
     case 'TRASH_RESHUFFLED':
       return event.count > 0 ? { key: 'feed.reshuffle', params: {}, tone: 'info' } : null;
+    // ── cat powers ──
+    case 'POWER_USED':
+      return {
+        key: 'feed.power',
+        params: { name: name(event.playerId), power: label(`powerName.${event.power}`) },
+        tone: 'good',
+      };
+    case 'BID_CHANGED':
+      return {
+        key: 'feed.bidChanged',
+        params: { name: name(event.playerId), from: event.from, to: event.to },
+        tone: 'info',
+      };
+    case 'MARKET_SWAPPED':
+      return {
+        key: 'feed.swapped',
+        params: {
+          name: name(event.playerId),
+          out: cardName(event.out.kind),
+          in: cardName(event.in.kind),
+        },
+        tone: 'info',
+      };
+    case 'CARD_SCAVENGED':
+      return {
+        key: 'feed.scavenged',
+        params: { name: name(event.playerId), card: cardName(event.card.kind) },
+        tone: 'info',
+      };
+    case 'PRICE_CHANGED':
+      return {
+        key: 'feed.price',
+        params: { food: cardName(event.food), from: event.from, to: event.to },
+        tone: 'info',
+      };
+    case 'POWERS_RESTORED':
+      return { key: 'feed.restored', params: {}, tone: 'good' };
+    // ── market events ──
+    case 'EVENT_REVEALED':
+      return {
+        key: 'feed.event',
+        params: { event: label(`eventName.${event.event}`) },
+        tone: 'info',
+      };
+    case 'DOGS_SET_ASIDE':
+      return { key: 'feed.dogsAway', params: { count: event.count }, tone: 'good' };
+    case 'DOGS_BACK':
+      return { key: 'feed.dogsBack', params: { count: event.count }, tone: 'info' };
+    case 'VENDOR_GIFT':
+      return {
+        key: 'feed.gift',
+        params: { name: name(event.playerId), card: cardName(event.card.kind) },
+        tone: 'good',
+      };
+    case 'DOG_SLEPT':
+      return { key: 'feed.slept', params: { name: name(event.playerId) }, tone: 'good' };
+    case 'CARDS_PASSED':
+      return { key: 'feed.passed', params: {}, tone: 'info' };
     default:
       return null;
   }

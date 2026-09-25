@@ -89,4 +89,22 @@ describe('stage beats', () => {
     expect(moods).toEqual({ a: 'shocked', b: 'shocked' });
     expect(moodsWhenBeatStarts(moods, { kind: 'round', round: 2, tieOrder: [] })).toEqual({});
   });
+
+  it('Market Mayhem: using a power (or dodging a dog) cheers the cat up for the round', () => {
+    let moods = moodsWhenBeatStarts({}, { kind: 'power', playerId: 'a', power: 'haggle' });
+    expect(moods).toEqual({ a: 'happy' });
+    moods = moodsWhenBeatStarts(moods, { kind: 'slept', playerId: 'b' });
+    expect(moodsWhenBeatEnds(moods)).toEqual({ a: 'happy', b: 'happy' });
+  });
+
+  it('Market Mayhem: events and powers are announced; small gains are toasts', () => {
+    const [event] = toBeats([{ type: 'EVENT_REVEALED', round: 2, event: 'blackout' }]);
+    expect(event).toEqual({ kind: 'event', round: 2, event: 'blackout' });
+    expect(isBlocking(event!, null)).toBe(true);
+    const [gift] = toBeats([{ type: 'VENDOR_GIFT', playerId: 'a', card: fish }]);
+    expect(isBlocking(gift!, null)).toBe(false);
+    const [power] = toBeats([{ type: 'POWER_USED', playerId: 'a', power: 'goodLuck' }]);
+    expect(isBlocking(power!, null)).toBe(true);
+    expect(BEAT_MS.event).toBeGreaterThanOrEqual(2000);
+  });
 });

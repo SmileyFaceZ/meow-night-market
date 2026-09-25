@@ -40,6 +40,12 @@ export function moodFromBeat(beat: Beat | null, playerId: PlayerId): CatMood | n
     case 'bone':
     case 'kept':
     case 'pick':
+    case 'power':
+    case 'bidChanged':
+    case 'swapped':
+    case 'scavenged':
+    case 'gift':
+    case 'slept':
       return beat.playerId === playerId ? 'happy' : null;
     default:
       return null;

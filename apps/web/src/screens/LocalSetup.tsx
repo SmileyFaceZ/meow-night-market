@@ -1,7 +1,9 @@
 import { BOT_DIFFICULTIES, BOT_PERSONALITIES } from '@meow/engine';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { CAT_POWER } from '@meow/engine';
 import { CatArt } from '../art/CatArt';
+import { PowerInfo } from '../components/Mayhem';
 import { ModeSwitch } from '../components/ModeSwitch';
 import { Button } from '../components/ui';
 import {
@@ -174,6 +176,7 @@ export function LocalSetupScreen({
                       </button>
                     ))}
                   </div>
+                  {setup.mode.powers && <PowerInfo power={CAT_POWER[player.cat]} compact />}
                   {takenHint === index && (
                     <p role="status" className="text-xs text-alert">
                       {t('room.error.catTaken')}

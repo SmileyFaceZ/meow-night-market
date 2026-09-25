@@ -299,6 +299,18 @@ const RECIPES: Record<SoundId, (v: Voice, value: number) => void> = {
   tick: (v) => {
     v.tone({ dur: 0.03, from: 1600, wave: 'square', gain: 0.08 });
   },
+  // A cat power: a rising sparkle.
+  power: (v) => {
+    [NOTE.E6, NOTE.G6, NOTE.A6].forEach((f, i) => v.bell(i * 0.06, f, 0.35, 0.22));
+    v.noise({ at: 0.05, dur: 0.3, freq: 7000, type: 'highpass', gain: 0.08 });
+  },
+  // A market event: a drum roll and a bright call.
+  event: (v) => {
+    for (const at of [0, 0.07, 0.14, 0.21])
+      v.tone({ at, dur: 0.08, from: 160, to: 110, gain: 0.35 });
+    v.bell(0.3, NOTE.C6, 0.5, 0.3);
+    v.bell(0.42, NOTE.G6, 0.6, 0.25);
+  },
   // A sticker arrives: a bubble pop.
   pop: (v) => {
     v.tone({ dur: 0.07, from: 400, to: 1100, gain: 0.4 });
