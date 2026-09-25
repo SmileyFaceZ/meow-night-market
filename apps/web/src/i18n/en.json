@@ -75,6 +75,7 @@
   "home": {
     "continue": "Continue",
     "continueHint": "Round {{round}} · {{players}} cats",
+    "continueLocalHint": "Pass & Play · Round {{round}} · {{players}} cats",
     "howTo": "How to play",
     "comingSoon": "Coming soon",
     "newGameConfirm": "Starting a new game replaces your saved one"
@@ -92,6 +93,29 @@
     "difficulty": "Difficulty",
     "start": "Let's go!",
     "back": "Back"
+  },
+  "local": {
+    "intro": "Take turns on one phone: pass it to whoever’s turn it is. Bids and discards are secret — no peeking!",
+    "players": "Players ({{n}}/{{max}})",
+    "seat": "Seat {{n}}",
+    "human": "Person",
+    "bot": "Bot",
+    "playerN": "Player {{n}}",
+    "nameOf": "Nickname of player {{n}}",
+    "needHumans": "You need at least {{min}} people",
+    "addPlayer": "+ Add player"
+  },
+  "handoff": {
+    "title": "Pass the phone to {{name}}",
+    "bidding": "{{name}}: pick a meow card in secret",
+    "discard": "{{name}} has too many cards: choose discards in secret",
+    "pick": "{{name}}’s turn to pick from the stall",
+    "trash": "{{name}}’s turn to dig the trash",
+    "eat": "{{name}}’s turn to eat",
+    "gameOver": "The market is closed!",
+    "noPeeking": "Everyone else, look away — no peeking!",
+    "ready": "I’m {{name}} — ready",
+    "wait": "Just a moment…"
   },
   "hint": {
     "biddingChoose": "Secretly pick one meow card, then tap Bid",

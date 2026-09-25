@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, type Ref, useEffect, useState } from 'react';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
@@ -21,6 +21,7 @@ export function Button({
   disabledReason,
   className = '',
   ariaLabel,
+  ref,
 }: {
   children: ReactNode;
   onClick: () => void;
@@ -29,6 +30,7 @@ export function Button({
   disabledReason?: string | null;
   className?: string;
   ariaLabel?: string;
+  ref?: Ref<HTMLButtonElement>;
 }) {
   const [showReason, setShowReason] = useState(false);
   useEffect(() => {
@@ -41,6 +43,7 @@ export function Button({
   return (
     <span className={`relative inline-flex ${className}`}>
       <button
+        ref={ref}
         type="button"
         aria-disabled={disabled || undefined}
         aria-label={ariaLabel}

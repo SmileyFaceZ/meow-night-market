@@ -4,15 +4,20 @@ import { markTutorialSeen, TutorialController } from './game/tutorial';
 import { loadSetup } from './game/setup';
 import type { GameController } from './game/types';
 import { TutorialScreen } from './screens/Tutorial';
-import { browserStorage, clearSave, readSave, type SoloSave } from './game/save';
+import { browserStorage, clearSave, type GameSave, readSave } from './game/save';
 import { GameScreen } from './screens/Game';
 import { HomeScreen } from './screens/Home';
 import { HowToScreen } from './screens/HowTo';
 import { ResultScreen } from './screens/Result';
-import { seatsFromSetup, type SoloSetup } from './game/setup';
+import { type LocalSetup, seatsFromLocalSetup, seatsFromSetup, type SoloSetup } from './game/setup';
+import type { SeatInfo } from './game/types';
+import { LocalSetupScreen } from './screens/LocalSetup';
 import { SetupScreen } from './screens/Setup';
 
-type Screen = 'home' | 'setup' | 'game' | 'result' | 'howto' | 'tutorial';
+type Screen = 'home' | 'setup' | 'localSetup' | 'game' | 'result' | 'howto' | 'tutorial';
+
+/** What "play again" repeats. */
+type LastSetup = { mode: 'solo'; setup: SoloSetup } | { mode: 'local'; setup: LocalSetup };
 
 function newSeed(): string {
   // Seed for a fresh game (UI side — the engine itself never touches Math.random).
@@ -22,20 +27,30 @@ function newSeed(): string {
 export function App() {
   const storage = browserStorage();
   const [screen, setScreen] = useState<Screen>('home');
-  const [save, setSave] = useState<SoloSave | null>(() => readSave(storage));
+  const [save, setSave] = useState<GameSave | null>(() => readSave(storage));
   const [controller, setController] = useState<GameController | null>(null);
-  const [lastSetup, setLastSetup] = useState<SoloSetup | null>(null);
+  const [lastSetup, setLastSetup] = useState<LastSetup | null>(null);
 
   useEffect(() => () => controller?.dispose(), [controller]);
 
-  const startSolo = (setup: SoloSetup) => {
+  const startGame = (seats: readonly SeatInfo[]) => {
     clearSave(storage);
     controller?.dispose();
-    setLastSetup(setup);
-    setController(
-      LocalController.newSolo(seatsFromSetup(setup), newSeed(), storage, browserScheduler),
-    );
+    setController(LocalController.newGame(seats, newSeed(), storage, browserScheduler));
     setScreen('game');
+  };
+  const startSolo = (setup: SoloSetup) => {
+    setLastSetup({ mode: 'solo', setup });
+    startGame(seatsFromSetup(setup));
+  };
+  const startLocal = (setup: LocalSetup) => {
+    setLastSetup({ mode: 'local', setup });
+    startGame(seatsFromLocalSetup(setup));
+  };
+  const playAgain = () => {
+    if (lastSetup?.mode === 'solo') startSolo(lastSetup.setup);
+    else if (lastSetup?.mode === 'local') startLocal(lastSetup.setup);
+    else setScreen('home');
   };
 
   const startTutorial = () => {
@@ -88,13 +103,13 @@ export function App() {
 
   if (screen === 'result' && controller) {
     const snapshot = controller.getSnapshot();
-    if (snapshot.view.result && snapshot.view.viewer) {
+    if (snapshot.view.result) {
       return (
         <ResultScreen
           result={snapshot.view.result}
           seats={snapshot.seats}
-          viewerId={snapshot.view.viewer}
-          onPlayAgain={() => (lastSetup ? startSolo(lastSetup) : setScreen('setup'))}
+          viewerId={snapshot.sharedDevice ? null : snapshot.view.viewer}
+          onPlayAgain={playAgain}
           onHome={goHome}
         />
       );
@@ -109,10 +124,15 @@ export function App() {
     return <SetupScreen hasSave={save !== null} onStart={startSolo} onBack={goHome} />;
   }
 
+  if (screen === 'localSetup') {
+    return <LocalSetupScreen hasSave={save !== null} onStart={startLocal} onBack={goHome} />;
+  }
+
   return (
     <HomeScreen
       save={save}
       onSolo={() => setScreen('setup')}
+      onLocal={() => setScreen('localSetup')}
       onHowTo={() => setScreen('howto')}
       onTutorial={startTutorial}
       onContinue={() => {

@@ -1,15 +1,17 @@
 import type { GameState, PlayerId } from '@meow/engine';
 import { CAT_COLORS, type SeatInfo } from './types';
 
-// Solo games are saved to localStorage after every action (docs/ARCHITECTURE.md › บันทึกเกม)
-// so the player can close the tab and continue later.
+// Local games (solo and pass-and-play) are saved to localStorage after every action
+// (docs/ARCHITECTURE.md › บันทึกเกม) so players can close the tab and continue later.
+// One slot: starting any new local game replaces it. (The key keeps its original name.)
 
 const SAVE_KEY = 'mnm.solo.v1';
 
-export interface SoloSave {
+export interface GameSave {
   readonly v: 1;
   readonly state: GameState;
   readonly seats: readonly SeatInfo[];
+  /** Pass-and-play: whoever held the device last (the game reopens behind a cover). */
   readonly viewerId: PlayerId;
   /** RNG state for bot decisions, so a resumed game continues deterministically. */
   readonly botRng: number;
@@ -30,7 +32,7 @@ export function browserStorage(): SaveStorage | null {
   }
 }
 
-export function writeSave(storage: SaveStorage | null, save: SoloSave): void {
+export function writeSave(storage: SaveStorage | null, save: GameSave): void {
   try {
     storage?.setItem(SAVE_KEY, JSON.stringify(save));
   } catch {
@@ -56,11 +58,11 @@ function isSeat(value: unknown): value is SeatInfo {
 }
 
 /** Returns a save only if it looks like one this version wrote; anything else is ignored. */
-export function readSave(storage: SaveStorage | null): SoloSave | null {
+export function readSave(storage: SaveStorage | null): GameSave | null {
   try {
     const raw = storage?.getItem(SAVE_KEY);
     if (!raw) return null;
-    const data = JSON.parse(raw) as Partial<SoloSave>;
+    const data = JSON.parse(raw) as Partial<GameSave>;
     if (data.v !== 1 || !data.state || !Array.isArray(data.seats) || !data.viewerId) return null;
     if (typeof data.botRng !== 'number' || data.state.phase === 'gameOver') return null;
     const seatsOk = (data.seats as unknown[]).every(isSeat);
@@ -68,7 +70,7 @@ export function readSave(storage: SaveStorage | null): SoloSave | null {
     if (!Array.isArray(players)) return null;
     const ids = (players as { id?: unknown }[]).map((p) => p.id);
     const playersOk = ids.length === data.seats.length && ids.includes(data.viewerId);
-    return seatsOk && playersOk ? (data as SoloSave) : null;
+    return seatsOk && playersOk ? (data as GameSave) : null;
   } catch {
     return null;
   }

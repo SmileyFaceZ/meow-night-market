@@ -14,7 +14,8 @@ export function ResultScreen({
 }: {
   result: GameResult;
   seats: readonly SeatInfo[];
-  viewerId: string;
+  /** Null when several players shared the screen: nobody is "you". */
+  viewerId: string | null;
   onPlayAgain: () => void;
   onHome: () => void;
 }) {

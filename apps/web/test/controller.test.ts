@@ -1,45 +1,10 @@
 import { chooseRandomAction, createRng, getPlayerView } from '@meow/engine';
 import { describe, expect, it } from 'vitest';
-import { LocalController, type Scheduler } from '../src/game/LocalController';
+import { LocalController } from '../src/game/LocalController';
 import { readSave, type SaveStorage } from '../src/game/save';
 import { seatsFromSetup, DEFAULT_SETUP } from '../src/game/setup';
 import type { SeatInfo } from '../src/game/types';
-
-/** Timers that only run when the test says so. */
-function manualScheduler() {
-  const queue: { fn: () => void; handle: number }[] = [];
-  let next = 1;
-  const scheduler: Scheduler = {
-    setTimeout: (fn) => {
-      const handle = next++;
-      queue.push({ fn, handle });
-      return handle;
-    },
-    clearTimeout: (handle) => {
-      const i = queue.findIndex((q) => q.handle === handle);
-      if (i >= 0) queue.splice(i, 1);
-    },
-    random: () => 0.5,
-  };
-  const flush = () => {
-    let guard = 0;
-    while (queue.length > 0) {
-      queue.shift()!.fn();
-      if (++guard > 10_000) throw new Error('timer loop');
-    }
-  };
-  return { scheduler, flush, pending: () => queue.length };
-}
-
-function memoryStorage(): SaveStorage & { data: Map<string, string> } {
-  const data = new Map<string, string>();
-  return {
-    data,
-    getItem: (k) => data.get(k) ?? null,
-    setItem: (k, v) => void data.set(k, v),
-    removeItem: (k) => void data.delete(k),
-  };
-}
+import { manualScheduler, memoryStorage } from './helpers';
 
 const seats: SeatInfo[] = seatsFromSetup({
   ...DEFAULT_SETUP,
@@ -67,7 +32,7 @@ function playToEnd(controller: LocalController, flush: () => void, seed = 1) {
 describe('LocalController (solo)', () => {
   it('plays a full game against three bots', () => {
     const { scheduler, flush } = manualScheduler();
-    const controller = LocalController.newSolo(seats, 'full', null, scheduler);
+    const controller = LocalController.newGame(seats, 'full', null, scheduler);
     const view = playToEnd(controller, flush);
     expect(view.result?.scores).toHaveLength(4);
     controller.dispose();
@@ -75,7 +40,7 @@ describe('LocalController (solo)', () => {
 
   it('only ever exposes the human seat’s view', () => {
     const { scheduler } = manualScheduler();
-    const controller = LocalController.newSolo(seats, 'view', null, scheduler);
+    const controller = LocalController.newGame(seats, 'view', null, scheduler);
     const { view } = controller.getSnapshot();
     expect(view.viewer).toBe('p0');
     expect(view).toEqual(getPlayerView(controller.debugState, 'p0'));
@@ -84,7 +49,7 @@ describe('LocalController (solo)', () => {
 
   it('bots wait for their turn with a delay; the human is never auto-played early', () => {
     const { scheduler, pending } = manualScheduler();
-    const controller = LocalController.newSolo(seats, 'delay', null, scheduler);
+    const controller = LocalController.newGame(seats, 'delay', null, scheduler);
     // bidding: three bots scheduled, none has moved yet
     expect(pending()).toBe(3);
     expect(controller.getSnapshot().view.players.filter((p) => p.hasBid)).toHaveLength(0);
@@ -92,7 +57,7 @@ describe('LocalController (solo)', () => {
 
   it('rejected actions return an i18n error key and change nothing', () => {
     const { scheduler } = manualScheduler();
-    const controller = LocalController.newSolo(seats, 'err', null, scheduler);
+    const controller = LocalController.newGame(seats, 'err', null, scheduler);
     const before = controller.getSnapshot();
     expect(controller.dispatch({ type: 'dig', playerId: 'p0' })).toBe('error.wrongPhase');
     expect(controller.getSnapshot()).toBe(before);
@@ -100,7 +65,7 @@ describe('LocalController (solo)', () => {
 
   it('notifies subscribers on every change', () => {
     const { scheduler, flush } = manualScheduler();
-    const controller = LocalController.newSolo(seats, 'sub', null, scheduler);
+    const controller = LocalController.newGame(seats, 'sub', null, scheduler);
     let calls = 0;
     const unsubscribe = controller.subscribe(() => calls++);
     controller.dispatch({ type: 'bid', playerId: 'p0', value: 3 });
@@ -111,7 +76,7 @@ describe('LocalController (solo)', () => {
 
   it('plays the last meow card for the human automatically', () => {
     const { scheduler, flush } = manualScheduler();
-    const controller = LocalController.newSolo(seats, 'last', null, scheduler);
+    const controller = LocalController.newGame(seats, 'last', null, scheduler);
     const rng = createRng(2);
     while (controller.getSnapshot().view.round < 5) {
       flush();
@@ -128,7 +93,7 @@ describe('save & resume', () => {
   it('saves after every change and resumes exactly where it left off', () => {
     const storage = memoryStorage();
     const { scheduler, flush } = manualScheduler();
-    const controller = LocalController.newSolo(seats, 'save', storage, scheduler);
+    const controller = LocalController.newGame(seats, 'save', storage, scheduler);
     controller.dispatch({ type: 'bid', playerId: 'p0', value: 4 });
     flush();
     const save = readSave(storage);
@@ -143,7 +108,7 @@ describe('save & resume', () => {
   it('a resumed game finishes normally and the save is cleared at the end', () => {
     const storage = memoryStorage();
     const first = manualScheduler();
-    const controller = LocalController.newSolo(seats, 'resume', storage, first.scheduler);
+    const controller = LocalController.newGame(seats, 'resume', storage, first.scheduler);
     controller.dispatch({ type: 'bid', playerId: 'p0', value: 2 });
     controller.dispose();
     const second = manualScheduler();
@@ -171,7 +136,7 @@ describe('save & resume', () => {
     expect(readSave(throwing)).toBeNull();
     // a game still runs when storage throws
     const { scheduler, flush } = manualScheduler();
-    const controller = LocalController.newSolo(seats, 'blocked', throwing, scheduler);
+    const controller = LocalController.newGame(seats, 'blocked', throwing, scheduler);
     expect(controller.dispatch({ type: 'bid', playerId: 'p0', value: 1 })).toBeNull();
     flush();
   });
@@ -180,7 +145,7 @@ describe('save & resume', () => {
 describe('pausing while the UI presents events', () => {
   it('holds every bot until unpaused, then resumes', () => {
     const { scheduler, flush, pending } = manualScheduler();
-    const controller = LocalController.newSolo(seats, 'pause', null, scheduler);
+    const controller = LocalController.newGame(seats, 'pause', null, scheduler);
     expect(pending()).toBe(3);
     controller.setPaused(true);
     expect(pending()).toBe(0);
@@ -194,7 +159,7 @@ describe('pausing while the UI presents events', () => {
 
   it('counts events so the UI can find the new ones', () => {
     const { scheduler } = manualScheduler();
-    const controller = LocalController.newSolo(seats, 'count', null, scheduler);
+    const controller = LocalController.newGame(seats, 'count', null, scheduler);
     const before = controller.getSnapshot().eventCount;
     controller.dispatch({ type: 'bid', playerId: 'p0', value: 3 });
     expect(controller.getSnapshot().eventCount).toBe(before + 1);

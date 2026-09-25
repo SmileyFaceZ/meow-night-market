@@ -6,6 +6,7 @@ import type {
   PlayerId,
   PlayerView,
 } from '@meow/engine';
+import type { Handoff } from './handoff';
 
 export const CAT_COLORS = ['orange', 'black', 'white', 'calico'] as const;
 export type CatColor = (typeof CAT_COLORS)[number];
@@ -35,6 +36,10 @@ export interface ControllerSnapshot {
   readonly eventCount: number;
   /** Increases on every change, so React can cheaply tell snapshots apart. */
   readonly version: number;
+  /** Several humans share this screen (pass-and-play): say names, never "you". */
+  readonly sharedDevice: boolean;
+  /** Pass-and-play: the device should go to someone else before they can act. */
+  readonly handoff: Handoff | null;
 }
 
 /**
@@ -51,5 +56,7 @@ export interface GameController {
    * bots and automatic moves wait until it is unpaused.
    */
   readonly setPaused: (paused: boolean) => void;
+  /** Pass-and-play: the player named in `handoff` has taken the device. */
+  readonly acceptHandoff?: () => void;
   readonly dispose: () => void;
 }

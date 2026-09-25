@@ -45,8 +45,9 @@ function reducer(state: StageState, action: StageAction): StageState {
 /**
  * Plays new game events as beats, one at a time, and holds the game (bots wait)
  * until they have been shown. History from before the screen opened is not replayed.
+ * `held` freezes the current beat (pass-and-play cover is up: nobody is watching).
  */
-export function useStage(controller: GameController) {
+export function useStage(controller: GameController, held = false) {
   const snapshot = useSnapshot(controller);
   const viewer = snapshot.view.viewer;
   const seen = useRef(snapshot.eventCount);
@@ -87,10 +88,10 @@ export function useStage(controller: GameController) {
   const advance = useCallback(() => dispatch({ type: 'advance' }), []);
 
   useEffect(() => {
-    if (!current) return;
+    if (!current || held) return;
     const timer = window.setTimeout(advance, current.duration);
     return () => window.clearTimeout(timer);
-  }, [current, advance]);
+  }, [current, advance, held]);
 
   return {
     current,

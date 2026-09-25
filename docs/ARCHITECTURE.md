@@ -35,14 +35,14 @@
 │  │  ├─ src/
 │  │  │  ├─ art/            # SVG: CardArt (ทุกการ์ด), CatArt (4 สี × 4 อารมณ์), BinArt (ถัง 4 อารมณ์), BackArt, style.ts
 │  │  │  ├─ components/     # cards (GameCard, MeowCard, CardBack), board (PlayerBadge, PriceTags, MarketStall,
-│  │  │  │                  #   TrashArea, HandView, EventFeed, EventLog), Stage (แอนิเมชันเหตุการณ์), Coach, ui
-│  │  │  ├─ screens/        # Home, Setup, Game, Result, HowTo, Tutorial (Lobby เฟส 6)
+│  │  │  │                  #   TrashArea, HandView, EventFeed, EventLog), Stage (แอนิเมชันเหตุการณ์), Coach, Handoff, ui
+│  │  │  ├─ screens/        # Home, Setup, LocalSetup, Game, Result, HowTo, Tutorial (Lobby เฟส 6)
 │  │  │  ├─ game/           # types (GameController), LocalController, save, setup, hooks,
-│  │  │  │                  #   stage + useStage (จังหวะเหตุการณ์/สีหน้าแมว), tutorial (บทสอน)
+│  │  │  │                  #   stage + useStage (จังหวะเหตุการณ์/สีหน้าแมว), tutorial (บทสอน), handoff (ส่งเครื่อง)
 │  │  │  ├─ i18n/           # th.json, en.json, index.ts
 │  │  │  └─ styles/
 │  │  ├─ scripts/           # find-tutorial-seed.ts (หา seed ของบทสอน)
-│  │  └─ test/              # i18n, controller + save/resume, stage, tutorial
+│  │  └─ test/              # i18n, controller + save/resume, stage, tutorial, handoff
 │  └─ server/               # Worker + Durable Object "GameRoom"
 ```
 
@@ -56,6 +56,8 @@
 ## หลักการสำคัญ
 - **GameController interface** เดียวกันสำหรับทุกโหมด: `getView()`, `dispatch(action)`, `subscribe(cb)`
   - `LocalController` รัน engine ในเบราว์เซอร์ (โหมดเดี่ยว / เครื่องเดียว) และขับบอท
+    - เล่นเครื่องเดียว (มีคนมากกว่า 1 ที่นั่ง): จอแสดง view ของ "คนถือเครื่อง" คนเดียว · ถ้าคนที่ต้องเล่นต่อเป็นคนอื่น
+      snapshot มี `handoff` → หน้าจอบัง "ส่งเครื่องให้…" จนกว่าจะกด `acceptHandoff()` (ตรรกะอยู่ที่ `game/handoff.ts`)
   - `OnlineController` ส่ง action ไป server และรับ view กลับ
   → หน้าจอเกมไม่ต้องรู้ว่าเล่นโหมดไหน
 - **Action** ทุกตัวมี `type`, `playerId` — engine ตรวจสิทธิ์และความถูกต้องทุกครั้ง คืน error ที่อ่านได้ (เป็น i18n key)
@@ -65,7 +67,7 @@
   - `lobby` อยู่นอก engine (server/หน้าจอ) · `pendingActors(state)` บอกว่ากำลังรอใครอยู่
 - **Event log:** engine คืน events (เช่น `BID_CLASH`, `DOG_CAUGHT`, `MEAL_EATEN`) เพื่อให้ UI เล่นแอนิเมชันตามลำดับ
   - **ทุก event เป็นข้อมูลเปิด** ส่งให้ทุกคนได้ (เช่น `BID_PLACED` ไม่มีเลข, `DISCARD_CHOSEN` ไม่มีการ์ด)
-- **บันทึกเกม:** โหมดเดี่ยวบันทึก state ลง localStorage (try/catch) เล่นต่อได้หลังปิดเว็บ
+- **บันทึกเกม:** โหมดเดี่ยวและเล่นเครื่องเดียวบันทึก state ลง localStorage (try/catch, ช่องเดียวกัน `mnm.solo.v1`) เล่นต่อได้หลังปิดเว็บ
 - **PWA:** เพิ่ม manifest + service worker ในเฟสหลัง ให้ติดตั้งบนมือถือและเล่นโหมดเดี่ยวแบบออฟไลน์ได้
 
 ## Testing ที่ต้องมี

@@ -13,7 +13,8 @@ import {
   type PlayerView,
   type Rng,
 } from '@meow/engine';
-import { clearSave, type SaveStorage, type SoloSave, writeSave } from './save';
+import { type Handoff, isForcedBid, isSecretPhase, nextHandoff } from './handoff';
+import { clearSave, type GameSave, type SaveStorage, writeSave } from './save';
 import type { ControllerSnapshot, GameController, SeatInfo } from './types';
 
 /** Timers are injectable so tests can run a whole game instantly. */
@@ -39,6 +40,7 @@ const RECENT_EVENTS = 40;
 export interface LocalControllerOptions {
   readonly state: GameState;
   readonly seats: readonly SeatInfo[];
+  /** The human whose view is on screen (with several humans: whoever holds the device). */
   readonly viewerId: PlayerId;
   readonly botRng: number;
   readonly storage: SaveStorage | null;
@@ -48,13 +50,16 @@ export interface LocalControllerOptions {
 }
 
 /**
- * Runs the engine in the browser for solo play (and later pass-and-play), drives the bots
- * and saves after every change. The UI only ever sees `getPlayerView` for the human seat.
+ * Runs the engine in the browser for solo play and pass-and-play, drives the bots and
+ * saves after every change. The UI only ever sees `getPlayerView` for one human seat;
+ * with several humans that seat changes hands through a handoff cover (./handoff.ts).
  */
 export class LocalController implements GameController {
   private state: GameState;
   private readonly seats: readonly SeatInfo[];
-  private readonly viewerId: PlayerId;
+  private viewerId: PlayerId;
+  private readonly sharedDevice: boolean;
+  private handoff: Handoff | null;
   private readonly botRng: Rng;
   private readonly storage: SaveStorage | null;
   private readonly scheduler: Scheduler;
@@ -72,6 +77,15 @@ export class LocalController implements GameController {
     this.state = options.state;
     this.seats = options.seats;
     this.viewerId = options.viewerId;
+    this.sharedDevice = options.seats.filter((s) => !s.bot).length > 1;
+    // A shared game (new or resumed) always opens behind the cover, so the right player
+    // is holding the device before anything is shown.
+    this.handoff = this.sharedDevice
+      ? (nextHandoff(this.state, this.seats, this.viewerId) ?? {
+          to: this.viewerId,
+          secret: isSecretPhase(this.state.phase),
+        })
+      : null;
     this.botRng = createRng(options.botRng);
     this.storage = options.storage;
     this.scheduler = options.scheduler;
@@ -81,7 +95,8 @@ export class LocalController implements GameController {
     this.scheduleMoves();
   }
 
-  static newSolo(
+  /** A new solo (one human) or pass-and-play (several humans) game. */
+  static newGame(
     seats: readonly SeatInfo[],
     seed: number | string,
     storage: SaveStorage | null,
@@ -89,7 +104,7 @@ export class LocalController implements GameController {
   ): LocalController {
     const state = createGame({ playerIds: seats.map((s) => s.id), seed });
     const human = seats.find((s) => !s.bot);
-    if (!human) throw new Error('solo game needs one human seat');
+    if (!human) throw new Error('a local game needs a human seat');
     return new LocalController({
       state,
       seats,
@@ -100,7 +115,7 @@ export class LocalController implements GameController {
     });
   }
 
-  static fromSave(save: SoloSave, storage: SaveStorage | null, scheduler: Scheduler) {
+  static fromSave(save: GameSave, storage: SaveStorage | null, scheduler: Scheduler) {
     return new LocalController({ ...save, storage, scheduler });
   }
 
@@ -119,11 +134,22 @@ export class LocalController implements GameController {
     this.recentEvents = [...this.recentEvents, ...result.events].slice(-RECENT_EVENTS);
     this.eventCount += result.events.length;
     this.version++;
+    if (this.sharedDevice) this.handoff = nextHandoff(this.state, this.seats, this.viewerId);
     this.snapshot = this.buildSnapshot();
     this.save();
-    for (const listener of this.listeners) listener();
+    this.emit();
     this.scheduleMoves();
     return null;
+  };
+
+  acceptHandoff = (): void => {
+    if (this.disposed || !this.handoff) return;
+    this.viewerId = this.handoff.to;
+    this.handoff = null;
+    this.version++;
+    this.snapshot = this.buildSnapshot();
+    this.save();
+    this.emit();
   };
 
   setPaused = (paused: boolean): void => {
@@ -157,6 +183,8 @@ export class LocalController implements GameController {
       recentEvents: this.recentEvents,
       eventCount: this.eventCount,
       version: this.version,
+      sharedDevice: this.sharedDevice,
+      handoff: this.handoff,
     };
   }
 
@@ -172,6 +200,10 @@ export class LocalController implements GameController {
       viewerId: this.viewerId,
       botRng: this.botRng.state,
     });
+  }
+
+  private emit(): void {
+    for (const listener of this.listeners) listener();
   }
 
   /** Give every bot the game is waiting on a turn after a short "thinking" pause. */
@@ -190,17 +222,16 @@ export class LocalController implements GameController {
             min + this.scheduler.random() * (max - min),
           ),
         );
-      } else if (id === this.viewerId) {
+      } else if (seat) {
         this.scheduleForcedHumanMove(id);
       }
     }
   }
 
-  /** The last meow card is the only legal bid — play it for the player. */
+  /** The last meow card is the only legal bid — play it for the player (every human seat). */
   private scheduleForcedHumanMove(id: PlayerId): void {
-    const me = this.state.players.find((p) => p.id === id);
-    if (this.state.phase !== 'bidding' || !me || me.meowLeft.length !== 1) return;
-    const value = me.meowLeft[0]!;
+    if (!isForcedBid(this.state, id)) return;
+    const value = this.state.players.find((p) => p.id === id)!.meowLeft[0]!;
     this.timers.set(
       id,
       this.scheduler.setTimeout(() => {

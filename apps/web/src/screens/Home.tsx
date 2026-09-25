@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CatArt } from '../art/CatArt';
 import { Button } from '../components/ui';
-import type { SoloSave } from '../game/save';
+import type { GameSave } from '../game/save';
 import { hasSeenTutorial } from '../game/tutorial';
 import { setLanguage } from '../i18n';
 
@@ -12,12 +12,14 @@ export function HomeScreen({
   save,
   onContinue,
   onSolo,
+  onLocal,
   onHowTo,
   onTutorial,
 }: {
-  save: SoloSave | null;
+  save: GameSave | null;
   onContinue: () => void;
   onSolo: () => void;
+  onLocal: () => void;
   onHowTo: () => void;
   onTutorial: () => void;
 }) {
@@ -73,14 +75,19 @@ export function HomeScreen({
           <Button onClick={onContinue}>
             {t('home.continue')}
             <span className="block text-sm opacity-80">
-              {t('home.continueHint', { round: save.state.round, players: save.seats.length })}
+              {t(
+                save.seats.filter((s) => !s.bot).length > 1
+                  ? 'home.continueLocalHint'
+                  : 'home.continueHint',
+                { round: save.state.round, players: save.seats.length },
+              )}
             </span>
           </Button>
         )}
         <Button variant={save || firstTime ? 'secondary' : 'primary'} onClick={onSolo}>
           {t('mode.solo')}
         </Button>
-        <Button variant="secondary" disabledReason={t('home.comingSoon')} onClick={() => {}}>
+        <Button variant="secondary" onClick={onLocal}>
           {t('mode.local')}
         </Button>
         <Button variant="secondary" disabledReason={t('home.comingSoon')} onClick={() => {}}>

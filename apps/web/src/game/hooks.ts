@@ -21,7 +21,12 @@ export function useSeatName(seats: readonly SeatInfo[]) {
         // Two bots with the same personality get a number: "Careful Snowy 2".
         return twins.length > 1 ? `${base} ${twins.indexOf(seat) + 1}` : base;
       }
-      return seat.name?.trim() || t('setup.namePlaceholder');
+      if (seat.name?.trim()) return seat.name.trim();
+      // Pass-and-play: unnamed humans are told apart by number ("Player 2").
+      const humans = seats.filter((s) => !s.bot);
+      return humans.length > 1
+        ? t('local.playerN', { n: humans.indexOf(seat) + 1 })
+        : t('setup.namePlaceholder');
     },
     [seats, t],
   );

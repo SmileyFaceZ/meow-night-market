@@ -21,6 +21,7 @@ import { Stage } from '../components/Stage';
 import type { TutorialState, TutorialTarget } from '../game/tutorial';
 import type { GameController, SeatInfo } from '../game/types';
 import { CoachBubble } from '../components/Coach';
+import { HandoffCover } from '../components/Handoff';
 
 /** Tutorial coaching, when the game runs inside the tutorial. */
 export interface CoachProps {
@@ -45,9 +46,14 @@ export function GameScreen({
   coach?: CoachProps | undefined;
 }) {
   const { t } = useTranslation();
-  const { view, seats, recentEvents } = useSnapshot(controller);
+  const { view, seats, recentEvents, sharedDevice, handoff } = useSnapshot(controller);
   const seatName = useSeatName(seats);
-  const stage = useStage(controller);
+  // Pass-and-play: a secret move's cover goes up at once (and freezes the stage); an open
+  // move's cover waits until the events on screen have played.
+  const stage = useStage(controller, Boolean(handoff?.secret));
+  const covered = handoff !== null && (handoff.secret || !stage.current);
+  /** Who "you" is in labels — nobody, when several players share the screen. */
+  const you = sharedDevice ? null : view.viewer;
   const moodOf = (id: string) => stage.moods[id] ?? 'normal';
   // The coach speaks only when the game has caught up (stage idle) and its step applies.
   const coachStep = coach && !stage.current && coach.state.ready ? coach.state.step : null;
@@ -57,6 +63,15 @@ export function GameScreen({
   const [toDiscard, setToDiscard] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<'discard' | 'menu' | { player: string } | null>(null);
+  // A new holder starts with a clean slate: never inherit the last player's picks.
+  const [shownViewer, setShownViewer] = useState(view.viewer);
+  if (shownViewer !== view.viewer) {
+    setShownViewer(view.viewer);
+    setBid(null);
+    setToDiscard([]);
+    setError(null);
+    setModal(null);
+  }
 
   const me = view.players.find((p) => p.id === view.viewer)!;
   const myTurn = view.currentPlayer === view.viewer;
@@ -97,249 +112,269 @@ export function GameScreen({
     modal && typeof modal === 'object' ? view.players.find((p) => p.id === modal.player) : null;
 
   return (
-    <main className="mx-auto min-h-dvh max-w-xl px-3 pt-2 lg:grid lg:max-w-7xl lg:grid-cols-[16rem_minmax(0,1fr)_17rem] lg:items-start lg:gap-5 lg:px-6 lg:pt-4">
-      {/* desktop: opponents sit down the left side of the table, hands open */}
-      <aside
-        className="hidden lg:sticky lg:top-4 lg:flex lg:flex-col lg:gap-3"
-        aria-label={t('setup.opponents', { count: opponents.length })}
+    <>
+      <main
+        inert={covered}
+        aria-hidden={covered || undefined}
+        className="mx-auto min-h-dvh max-w-xl px-3 pt-2 lg:grid lg:max-w-7xl lg:grid-cols-[16rem_minmax(0,1fr)_17rem] lg:items-start lg:gap-5 lg:px-6 lg:pt-4"
       >
-        {opponents.map((p) => (
-          <div key={p.id} className="rounded-3xl bg-night-2/70 p-2">
-            <PlayerBadge
-              player={p}
-              seat={seatOf(p.id)}
-              name={seatName(p.id)}
-              status={statusOf(p.id)}
-              mood={moodOf(p.id)}
-              onOpen={() => setModal({ player: p.id })}
+        {/* desktop: opponents sit down the left side of the table, hands open */}
+        <aside
+          className="hidden lg:sticky lg:top-4 lg:flex lg:flex-col lg:gap-3"
+          aria-label={t('setup.opponents', { count: opponents.length })}
+        >
+          {opponents.map((p) => (
+            <div key={p.id} className="rounded-3xl bg-night-2/70 p-2">
+              <PlayerBadge
+                player={p}
+                seat={seatOf(p.id)}
+                name={seatName(p.id)}
+                status={statusOf(p.id)}
+                mood={moodOf(p.id)}
+                onOpen={() => setModal({ player: p.id })}
+              />
+              <HandView cards={p.hand} />
+              {p.meals.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {p.meals.map((meal, i) => (
+                    <span
+                      key={i}
+                      className="flex items-center gap-1 rounded-xl bg-night px-1.5 py-0.5 text-xs"
+                    >
+                      <span className="w-6">
+                        <GameCard kind={meal.food} size="fill" />
+                      </span>
+                      +{meal.points}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </aside>
+
+        <div className="flex min-h-dvh flex-col gap-1.5 lg:min-h-0 lg:rounded-[2rem] lg:border-4 lg:border-night-2 lg:bg-night-2/30 lg:p-4 lg:shadow-[inset_0_0_60px_rgb(0_0_0/0.25)]">
+          {/* top bar */}
+          <header className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-xs text-card/70">
+                {t('term.round', { round: view.round, rounds: view.config.rounds })}
+              </p>
+              <h1 className="truncate text-lg leading-tight text-lantern">{phaseTitle}</h1>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <Button variant="secondary" onClick={() => setModal('discard')}>
+                {t('action.viewDiscard', { count: view.discard.length })}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setModal('menu')}
+                ariaLabel={t('action.menu')}
+              >
+                ☰
+              </Button>
+            </div>
+          </header>
+
+          {/* opponents (phone / tablet) */}
+          <section
+            className="grid gap-1.5 lg:hidden"
+            style={{ gridTemplateColumns: `repeat(${opponents.length}, minmax(0, 1fr))` }}
+          >
+            {opponents.map((p) => (
+              <PlayerBadge
+                key={p.id}
+                player={p}
+                seat={seatOf(p.id)}
+                name={seatName(p.id)}
+                status={statusOf(p.id)}
+                mood={moodOf(p.id)}
+                stacked={opponents.length >= 3}
+                onOpen={() => setModal({ player: p.id })}
+              />
+            ))}
+          </section>
+
+          {/* one-line instruction */}
+          <p
+            role="status"
+            aria-live="polite"
+            className={`rounded-2xl px-3 py-1.5 text-center font-display text-base leading-snug ${needsMe ? 'bg-lantern text-ink' : 'bg-night-2 text-card'}`}
+          >
+            {hint}
+          </p>
+
+          <div className={hl('tieOrder')}>
+            <TieOrder view={view} you={you} seats={seats} name={seatName} />
+          </div>
+          <div className={hl('prices')}>
+            <PriceTags prices={view.prices} />
+          </div>
+
+          <div className={hl('market')}>
+            <MarketStall
+              cards={view.market}
+              deckCount={view.marketDeckCount}
+              onPick={
+                view.phase === 'pick' && myTurn
+                  ? (card: Card) => act({ type: 'pick', playerId: me.id, cardId: card.id })
+                  : undefined
+              }
             />
-            <HandView cards={p.hand} />
-            {p.meals.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {p.meals.map((meal, i) => (
+          </div>
+          <div className={hl('bin')}>
+            <TrashArea view={view} />
+          </div>
+          <div className="lg:hidden">
+            <EventFeed lines={feed} />
+          </div>
+
+          {/* me */}
+          <section className="sticky bottom-0 z-10 mt-auto rounded-t-3xl bg-night-2 p-2 pb-3 shadow-[0_-8px_24px_rgb(0_0_0/0.35)] lg:static lg:mt-2 lg:rounded-3xl lg:shadow-none">
+            <PlayerBadge
+              mood={moodOf(me.id)}
+              player={me}
+              seat={seatOf(me.id)}
+              name={seatName(me.id)}
+              status={statusOf(me.id)}
+              isYou
+            />
+            <HandView
+              cards={view.hand}
+              selectable={view.phase === 'discard' && me.mustDiscard > 0 && !me.hasDiscarded}
+              selected={toDiscard}
+              onToggle={(card) =>
+                setToDiscard((ids) =>
+                  ids.includes(card.id) ? ids.filter((x) => x !== card.id) : [...ids, card.id],
+                )
+              }
+            />
+            <div className="mt-3 space-y-2">
+              <Actions
+                view={view}
+                myTurn={myTurn}
+                bid={bid}
+                setBid={setBid}
+                toDiscard={toDiscard}
+                clearDiscard={() => setToDiscard([])}
+                act={act}
+                onShowResult={onShowResult}
+                hl={hl}
+              />
+              {error && (
+                <p role="alert" className="text-center text-sm text-alert">
+                  {error}
+                </p>
+              )}
+            </div>
+          </section>
+        </div>
+
+        {/* desktop: history down the right side */}
+        <aside className="hidden lg:sticky lg:top-4 lg:block">
+          <EventLog lines={feed} />
+        </aside>
+
+        {coachStep && coach && (
+          <CoachBubble
+            stepId={coachStep.id}
+            final={coachStep.final ?? false}
+            waitsForMove={Boolean(coachStep.expect)}
+            low={
+              target === 'prices' ||
+              target === 'tieOrder' ||
+              target === 'market' ||
+              target === 'bin'
+            }
+            onNext={coach.onNext}
+            onKeepPlaying={coach.onKeepPlaying}
+            onHome={coach.onHome}
+          />
+        )}
+
+        <Stage
+          staged={covered ? null : stage.current}
+          seats={seats}
+          viewer={you}
+          name={seatName}
+          onSkip={stage.skip}
+        />
+
+        {modal === 'discard' && (
+          <Modal
+            title={t('term.discardPile')}
+            onClose={() => setModal(null)}
+            closeLabel={t('action.close')}
+          >
+            <HandView cards={view.discard} />
+          </Modal>
+        )}
+        {modal === 'menu' && (
+          <Modal
+            title={t('action.menu')}
+            onClose={() => setModal(null)}
+            closeLabel={t('action.close')}
+          >
+            <div className="grid gap-2">
+              <Button onClick={() => setModal(null)}>{t('action.keepPlaying')}</Button>
+              <Button variant="secondary" onClick={onQuit}>
+                {t('action.quit')}
+              </Button>
+            </div>
+          </Modal>
+        )}
+        {opened && (
+          <Modal
+            title={seatName(opened.id)}
+            onClose={() => setModal(null)}
+            closeLabel={t('action.close')}
+          >
+            <p className="mb-1 text-sm text-card/80">
+              {t('player.meowLeft')}: {opened.meowLeft.join(' · ') || '—'}
+            </p>
+            <HandView cards={opened.hand} />
+            {opened.meals.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {opened.meals.map((meal, i) => (
                   <span
                     key={i}
-                    className="flex items-center gap-1 rounded-xl bg-night px-1.5 py-0.5 text-xs"
+                    className="flex items-center gap-1 rounded-xl bg-night px-2 py-1 text-sm"
                   >
-                    <span className="w-6">
-                      <GameCard kind={meal.food} size="fill" />
-                    </span>
-                    +{meal.points}
+                    <GameCard kind={meal.food} size="xs" />+{meal.points}
                   </span>
                 ))}
               </div>
             )}
-          </div>
-        ))}
-      </aside>
-
-      <div className="flex min-h-dvh flex-col gap-1.5 lg:min-h-0 lg:rounded-[2rem] lg:border-4 lg:border-night-2 lg:bg-night-2/30 lg:p-4 lg:shadow-[inset_0_0_60px_rgb(0_0_0/0.25)]">
-        {/* top bar */}
-        <header className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-xs text-card/70">
-              {t('term.round', { round: view.round, rounds: view.config.rounds })}
-            </p>
-            <h1 className="truncate text-lg leading-tight text-lantern">{phaseTitle}</h1>
-          </div>
-          <div className="flex shrink-0 gap-2">
-            <Button variant="secondary" onClick={() => setModal('discard')}>
-              {t('action.viewDiscard', { count: view.discard.length })}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => setModal('menu')}
-              ariaLabel={t('action.menu')}
-            >
-              ☰
-            </Button>
-          </div>
-        </header>
-
-        {/* opponents (phone / tablet) */}
-        <section
-          className="grid gap-1.5 lg:hidden"
-          style={{ gridTemplateColumns: `repeat(${opponents.length}, minmax(0, 1fr))` }}
-        >
-          {opponents.map((p) => (
-            <PlayerBadge
-              key={p.id}
-              player={p}
-              seat={seatOf(p.id)}
-              name={seatName(p.id)}
-              status={statusOf(p.id)}
-              mood={moodOf(p.id)}
-              stacked={opponents.length >= 3}
-              onOpen={() => setModal({ player: p.id })}
-            />
-          ))}
-        </section>
-
-        {/* one-line instruction */}
-        <p
-          role="status"
-          aria-live="polite"
-          className={`rounded-2xl px-3 py-1.5 text-center font-display text-base leading-snug ${needsMe ? 'bg-lantern text-ink' : 'bg-night-2 text-card'}`}
-        >
-          {hint}
-        </p>
-
-        <div className={hl('tieOrder')}>
-          <TieOrder view={view} seats={seats} name={seatName} />
-        </div>
-        <div className={hl('prices')}>
-          <PriceTags prices={view.prices} />
-        </div>
-
-        <div className={hl('market')}>
-          <MarketStall
-            cards={view.market}
-            deckCount={view.marketDeckCount}
-            onPick={
-              view.phase === 'pick' && myTurn
-                ? (card: Card) => act({ type: 'pick', playerId: me.id, cardId: card.id })
-                : undefined
-            }
-          />
-        </div>
-        <div className={hl('bin')}>
-          <TrashArea view={view} />
-        </div>
-        <div className="lg:hidden">
-          <EventFeed lines={feed} />
-        </div>
-
-        {/* me */}
-        <section className="sticky bottom-0 z-10 mt-auto rounded-t-3xl bg-night-2 p-2 pb-3 shadow-[0_-8px_24px_rgb(0_0_0/0.35)] lg:static lg:mt-2 lg:rounded-3xl lg:shadow-none">
-          <PlayerBadge
-            mood={moodOf(me.id)}
-            player={me}
-            seat={seatOf(me.id)}
-            name={seatName(me.id)}
-            status={statusOf(me.id)}
-            isYou
-          />
-          <HandView
-            cards={view.hand}
-            selectable={view.phase === 'discard' && me.mustDiscard > 0 && !me.hasDiscarded}
-            selected={toDiscard}
-            onToggle={(card) =>
-              setToDiscard((ids) =>
-                ids.includes(card.id) ? ids.filter((x) => x !== card.id) : [...ids, card.id],
-              )
-            }
-          />
-          <div className="mt-3 space-y-2">
-            <Actions
-              view={view}
-              myTurn={myTurn}
-              bid={bid}
-              setBid={setBid}
-              toDiscard={toDiscard}
-              clearDiscard={() => setToDiscard([])}
-              act={act}
-              onShowResult={onShowResult}
-              hl={hl}
-            />
-            {error && (
-              <p role="alert" className="text-center text-sm text-alert">
-                {error}
-              </p>
-            )}
-          </div>
-        </section>
-      </div>
-
-      {/* desktop: history down the right side */}
-      <aside className="hidden lg:sticky lg:top-4 lg:block">
-        <EventLog lines={feed} />
-      </aside>
-
-      {coachStep && coach && (
-        <CoachBubble
-          stepId={coachStep.id}
-          final={coachStep.final ?? false}
-          waitsForMove={Boolean(coachStep.expect)}
-          low={
-            target === 'prices' || target === 'tieOrder' || target === 'market' || target === 'bin'
-          }
-          onNext={coach.onNext}
-          onKeepPlaying={coach.onKeepPlaying}
-          onHome={coach.onHome}
+          </Modal>
+        )}
+      </main>
+      {covered && (
+        <HandoffCover
+          seat={seatOf(handoff.to)}
+          name={seatName(handoff.to)}
+          phase={view.phase}
+          onReady={() => controller.acceptHandoff?.()}
+          onQuit={onQuit}
         />
       )}
-
-      <Stage
-        staged={stage.current}
-        seats={seats}
-        viewer={view.viewer}
-        name={seatName}
-        onSkip={stage.skip}
-      />
-
-      {modal === 'discard' && (
-        <Modal
-          title={t('term.discardPile')}
-          onClose={() => setModal(null)}
-          closeLabel={t('action.close')}
-        >
-          <HandView cards={view.discard} />
-        </Modal>
-      )}
-      {modal === 'menu' && (
-        <Modal
-          title={t('action.menu')}
-          onClose={() => setModal(null)}
-          closeLabel={t('action.close')}
-        >
-          <div className="grid gap-2">
-            <Button onClick={() => setModal(null)}>{t('action.keepPlaying')}</Button>
-            <Button variant="secondary" onClick={onQuit}>
-              {t('action.quit')}
-            </Button>
-          </div>
-        </Modal>
-      )}
-      {opened && (
-        <Modal
-          title={seatName(opened.id)}
-          onClose={() => setModal(null)}
-          closeLabel={t('action.close')}
-        >
-          <p className="mb-1 text-sm text-card/80">
-            {t('player.meowLeft')}: {opened.meowLeft.join(' · ') || '—'}
-          </p>
-          <HandView cards={opened.hand} />
-          {opened.meals.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {opened.meals.map((meal, i) => (
-                <span
-                  key={i}
-                  className="flex items-center gap-1 rounded-xl bg-night px-2 py-1 text-sm"
-                >
-                  <GameCard kind={meal.food} size="xs" />+{meal.points}
-                </span>
-              ))}
-            </div>
-          )}
-        </Modal>
-      )}
-    </main>
+    </>
   );
 }
 
 function TieOrder({
   view,
+  you,
   seats,
   name,
 }: {
   view: PlayerView;
+  you: string | null;
   seats: readonly SeatInfo[];
   name: (id: string) => string;
 }) {
   const { t } = useTranslation();
   const label = view.tieOrder
-    .map((id, i) => `${i + 1}. ${id === view.viewer ? t('term.you') : name(id)}`)
+    .map((id, i) => `${i + 1}. ${id === you ? t('term.you') : name(id)}`)
     .join(', ');
   return (
     <div
@@ -353,7 +388,7 @@ function TieOrder({
           return (
             <li
               key={id}
-              className={`flex items-center gap-0.5 rounded-full py-0.5 pr-1.5 pl-0.5 ${id === view.viewer ? 'bg-lantern text-ink' : 'bg-night-2'}`}
+              className={`flex items-center gap-0.5 rounded-full py-0.5 pr-1.5 pl-0.5 ${id === you ? 'bg-lantern text-ink' : 'bg-night-2'}`}
             >
               <span className="size-5">
                 <CatArt color={seat.cat} />
