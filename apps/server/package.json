@@ -1,0 +1,20 @@
+{
+  "name": "@meow/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8787",
+    "types": "wrangler types",
+    "deploy": "wrangler deploy",
+    "typecheck": "wrangler types --check && tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@meow/engine": "*",
+    "@meow/protocol": "*"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.2.6",
+    "wrangler": "^4.139.0"
+  }
+}

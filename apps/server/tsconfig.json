@@ -1,0 +1,9 @@
+{
+  // Worker code runs in workerd: runtime types come from `wrangler types`, no DOM, no Node.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2024"],
+    "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-plugin/types"]
+  },
+  "include": ["src", "test", "vitest.config.ts"]
+}

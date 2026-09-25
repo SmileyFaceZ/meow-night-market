@@ -1,0 +1,20 @@
+{
+  // Online rooms: one Durable Object per room (docs/MULTIPLAYER.md).
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "meow-night-market-server",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "durable_objects": {
+    "bindings": [{ "name": "ROOMS", "class_name": "GameRoom" }],
+  },
+  // New-style Durable Object declaration (replaces the legacy `migrations` array).
+  // SQLite storage is the kind the Workers Free plan supports.
+  "exports": {
+    "GameRoom": { "type": "durable-object", "storage": "sqlite" },
+  },
+  "vars": {
+    // Comma-separated origins allowed to open rooms ("*" = any). Set the real site in Phase 7.
+    "ALLOWED_ORIGINS": "*",
+  },
+  "observability": { "enabled": true },
+}

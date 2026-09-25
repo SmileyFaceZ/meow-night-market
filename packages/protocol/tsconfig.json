@@ -1,0 +1,9 @@
+{
+  // Shared by the browser and the Worker: no DOM, no Node types in src.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": []
+  },
+  "include": ["src", "test", "vitest.config.ts"]
+}

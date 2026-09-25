@@ -4,3 +4,4 @@ coverage
 package-lock.json
 # Docs are hand-written (Thai tables/prose); don't reflow them.
 *.md
+apps/server/worker-configuration.d.ts
