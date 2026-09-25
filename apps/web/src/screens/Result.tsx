@@ -10,6 +10,7 @@ export function ResultScreen({
   seats,
   viewerId,
   onPlayAgain,
+  playAgainReason = null,
   onHome,
 }: {
   result: GameResult;
@@ -17,6 +18,8 @@ export function ResultScreen({
   /** Null when several players shared the screen: nobody is "you". */
   viewerId: string | null;
   onPlayAgain: () => void;
+  /** Online: only the host can start another game; others see why. */
+  playAgainReason?: string | null;
   onHome: () => void;
 }) {
   const { t } = useTranslation();
@@ -76,7 +79,9 @@ export function ResultScreen({
       </ol>
 
       <div className="mt-auto grid gap-2">
-        <Button onClick={onPlayAgain}>{t('result.playAgain')}</Button>
+        <Button onClick={onPlayAgain} disabledReason={playAgainReason}>
+          {t('result.playAgain')}
+        </Button>
         <Button variant="secondary" onClick={onHome}>
           {t('result.home')}
         </Button>

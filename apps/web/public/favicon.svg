@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Calico cat face, drawn for this game (docs/ART_DIRECTION.md). -->
+  <path d="M10 26 L12 6 L28 17 Q32 16 36 17 L52 6 L54 26 Q58 34 55 43 Q49 58 32 58 Q15 58 9 43 Q6 34 10 26 Z"
+        fill="#FFF6E9" stroke="#3B2A4A" stroke-width="3.5" stroke-linejoin="round"/>
+  <path d="M12 9 L26 18 Q16 20 12 27 Z" fill="#F4A259"/>
+  <path d="M52 9 L38 18 Q48 20 52 27 Z" fill="#3B2A4A"/>
+  <circle cx="23" cy="36" r="3.6" fill="#3B2A4A"/>
+  <circle cx="41" cy="36" r="3.6" fill="#3B2A4A"/>
+  <ellipse cx="17" cy="44" rx="4" ry="2.5" fill="#F25F5C" opacity="0.45"/>
+  <ellipse cx="47" cy="44" rx="4" ry="2.5" fill="#F25F5C" opacity="0.45"/>
+  <path d="M29 42 L35 42 L32 45 Z" fill="#F25F5C"/>
+  <path d="M26 48 Q29 51 32 47 Q35 51 38 48" fill="none" stroke="#3B2A4A" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

@@ -117,6 +117,77 @@
     "ready": "I’m {{name}} — ready",
     "wait": "Just a moment…"
   },
+  "online": {
+    "create": "Create a room",
+    "creating": "Creating a room…",
+    "createFailed": "Couldn’t create a room. Check your connection and try again.",
+    "or": "— or —",
+    "codeLabel": "Got a room code from a friend?",
+    "codePlaceholder": "4-letter code",
+    "codeHint": "Enter all {{n}} letters of the code",
+    "join": "Join",
+    "joinRoom": "Join room {{code}}",
+    "watching": "Watching your friends play~",
+    "timeLeft": "{{seconds}}s left",
+    "timeLeftOf": "{{name}}: {{seconds}}s left"
+  },
+  "lobby": {
+    "title": "Waiting room",
+    "leave": "Leave room",
+    "connecting": "Connecting…",
+    "reconnecting": "Connection lost, reconnecting…",
+    "code": "Room code",
+    "copyLink": "Copy link",
+    "copied": "Copied!",
+    "share": "Invite friends",
+    "shareText": "Come play Meow Night Market! Room code {{code}}",
+    "seats": "Seats",
+    "seatsCount": "Seats ({{n}}/{{max}})",
+    "host": "Host",
+    "emptySeat": "Empty — waiting for a friend",
+    "addBot": "Add a bot",
+    "timer": "Turn timer",
+    "timerOff": "No timer",
+    "seconds": "{{seconds}}s",
+    "timerIs": "{{seconds}} seconds per turn",
+    "watching": "The room is full or already playing — you’re watching",
+    "takeSeat": "Take a free seat",
+    "needPlayers": "You need at least {{min}} seats (bots count)",
+    "start": "Start game!",
+    "waitHost": "Waiting for the host to start…",
+    "problem": {
+      "notFound": "Room {{code}} not found — it may have expired",
+      "full": "Room {{code}} is full"
+    }
+  },
+  "presence": {
+    "away": "Dropped out…",
+    "standIn": "Bot playing for them"
+  },
+  "emote": {
+    "title": "Send a sticker",
+    "said": "{{name}}: {{text}}",
+    "meow": "Meow~",
+    "yay": "Yay!",
+    "yum": "Yum yum",
+    "wow": "Wow!",
+    "oops": "Oh no!",
+    "hurry": "Hurry up~",
+    "thanks": "Thanks!",
+    "gg": "Well played!"
+  },
+  "room": {
+    "error": {
+      "notFound": "Room not found",
+      "full": "The room is full",
+      "notHost": "Only the host can do that",
+      "notEnoughPlayers": "You need at least 2 seats",
+      "alreadyStarted": "The game has already started",
+      "notSeated": "You don’t have a seat in this game",
+      "badMessage": "That message was not understood",
+      "tooFast": "Slow down a little~"
+    }
+  },
   "hint": {
     "biddingChoose": "Secretly pick one meow card, then tap Bid",
     "biddingWaiting": "Bid placed, waiting for the others… ({{done}}/{{total}})",
@@ -195,7 +266,8 @@
     "handLeft": "In hand",
     "foodTypes": "{{count}} kinds eaten",
     "playAgain": "Play again",
-    "home": "Home"
+    "home": "Home",
+    "waitHost": "Waiting for the host to start another game"
   },
   "error": {
     "gameOver": "The game is over",

@@ -22,6 +22,7 @@ import type { TutorialState, TutorialTarget } from '../game/tutorial';
 import type { GameController, SeatInfo } from '../game/types';
 import { CoachBubble } from '../components/Coach';
 import { HandoffCover } from '../components/Handoff';
+import { EmotePicker, EmoteToasts, TurnTimer } from '../components/OnlineBits';
 
 /** Tutorial coaching, when the game runs inside the tutorial. */
 export interface CoachProps {
@@ -39,14 +40,17 @@ export function GameScreen({
   onShowResult,
   onQuit,
   coach,
+  notice,
 }: {
   controller: GameController;
   onShowResult: () => void;
   onQuit: () => void;
   coach?: CoachProps | undefined;
+  /** Online: the server's latest refusal (an i18n key; the id changes each time). */
+  notice?: { readonly id: number; readonly key: string } | null | undefined;
 }) {
   const { t } = useTranslation();
-  const { view, seats, recentEvents, sharedDevice, handoff } = useSnapshot(controller);
+  const { view, seats, recentEvents, sharedDevice, handoff, online } = useSnapshot(controller);
   const seatName = useSeatName(seats);
   // Pass-and-play: a secret move's cover goes up at once (and freezes the stage); an open
   // move's cover waits until the events on screen have played.
@@ -62,7 +66,9 @@ export function GameScreen({
   const [bid, setBid] = useState<number | null>(null);
   const [toDiscard, setToDiscard] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [modal, setModal] = useState<'discard' | 'menu' | { player: string } | null>(null);
+  const [modal, setModal] = useState<'discard' | 'menu' | 'emote' | { player: string } | null>(
+    null,
+  );
   // A new holder starts with a clean slate: never inherit the last player's picks.
   const [shownViewer, setShownViewer] = useState(view.viewer);
   if (shownViewer !== view.viewer) {
@@ -72,8 +78,15 @@ export function GameScreen({
     setError(null);
     setModal(null);
   }
+  // Online refusals arrive after the tap; show them where local errors appear.
+  const [shownNotice, setShownNotice] = useState(notice?.id ?? 0);
+  if (notice && notice.id !== shownNotice) {
+    setShownNotice(notice.id);
+    setError(t(notice.key));
+  }
 
-  const me = view.players.find((p) => p.id === view.viewer)!;
+  // Null when watching an online game without a seat.
+  const me = view.players.find((p) => p.id === view.viewer) ?? null;
   const myTurn = view.currentPlayer === view.viewer;
   const feed = useMemo(
     () =>
@@ -102,10 +115,17 @@ export function GameScreen({
 
   const phaseTitle = t(`phase.${view.phase}`);
   const needsMe =
-    myTurn ||
-    (view.phase === 'bidding' && !me.hasBid) ||
-    (view.phase === 'discard' && me.mustDiscard > 0 && !me.hasDiscarded);
-  const hint = hintFor(view, myTurn, me.mustDiscard, seatName, t);
+    me !== null &&
+    (myTurn ||
+      (view.phase === 'bidding' && !me.hasBid) ||
+      (view.phase === 'discard' && me.mustDiscard > 0 && !me.hasDiscarded));
+  const hint = me
+    ? hintFor(view, myTurn, me.mustDiscard, seatName, t)
+    : view.phase === 'gameOver'
+      ? t('hint.gameOver')
+      : t('online.watching');
+  const presenceOf = (id: string) => online?.presence[id] ?? null;
+  const canEmote = online !== undefined && !online.spectating && me !== null;
   const opponents = view.players.filter((p) => p.id !== view.viewer);
   const seatOf = (id: string) => seats.find((s) => s.id === id)!;
   const opened =
@@ -130,6 +150,7 @@ export function GameScreen({
                 seat={seatOf(p.id)}
                 name={seatName(p.id)}
                 status={statusOf(p.id)}
+                presence={presenceOf(p.id)}
                 mood={moodOf(p.id)}
                 onOpen={() => setModal({ player: p.id })}
               />
@@ -163,6 +184,15 @@ export function GameScreen({
               <h1 className="truncate text-lg leading-tight text-lantern">{phaseTitle}</h1>
             </div>
             <div className="flex shrink-0 gap-2">
+              {canEmote && (
+                <Button
+                  variant="secondary"
+                  onClick={() => setModal('emote')}
+                  ariaLabel={t('emote.title')}
+                >
+                  😺
+                </Button>
+              )}
               <Button variant="secondary" onClick={() => setModal('discard')}>
                 {t('action.viewDiscard', { count: view.discard.length })}
               </Button>
@@ -188,6 +218,7 @@ export function GameScreen({
                 seat={seatOf(p.id)}
                 name={seatName(p.id)}
                 status={statusOf(p.id)}
+                presence={presenceOf(p.id)}
                 mood={moodOf(p.id)}
                 stacked={opponents.length >= 3}
                 onOpen={() => setModal({ player: p.id })}
@@ -203,6 +234,7 @@ export function GameScreen({
           >
             {hint}
           </p>
+          {online && <TurnTimer clocks={online.clocks} viewer={view.viewer} name={seatName} />}
 
           <div className={hl('tieOrder')}>
             <TieOrder view={view} you={you} seats={seats} name={seatName} />
@@ -216,7 +248,7 @@ export function GameScreen({
               cards={view.market}
               deckCount={view.marketDeckCount}
               onPick={
-                view.phase === 'pick' && myTurn
+                view.phase === 'pick' && myTurn && me
                   ? (card: Card) => act({ type: 'pick', playerId: me.id, cardId: card.id })
                   : undefined
               }
@@ -229,45 +261,53 @@ export function GameScreen({
             <EventFeed lines={feed} />
           </div>
 
-          {/* me */}
-          <section className="sticky bottom-0 z-10 mt-auto rounded-t-3xl bg-night-2 p-2 pb-3 shadow-[0_-8px_24px_rgb(0_0_0/0.35)] lg:static lg:mt-2 lg:rounded-3xl lg:shadow-none">
-            <PlayerBadge
-              mood={moodOf(me.id)}
-              player={me}
-              seat={seatOf(me.id)}
-              name={seatName(me.id)}
-              status={statusOf(me.id)}
-              isYou
-            />
-            <HandView
-              cards={view.hand}
-              selectable={view.phase === 'discard' && me.mustDiscard > 0 && !me.hasDiscarded}
-              selected={toDiscard}
-              onToggle={(card) =>
-                setToDiscard((ids) =>
-                  ids.includes(card.id) ? ids.filter((x) => x !== card.id) : [...ids, card.id],
-                )
-              }
-            />
-            <div className="mt-3 space-y-2">
-              <Actions
-                view={view}
-                myTurn={myTurn}
-                bid={bid}
-                setBid={setBid}
-                toDiscard={toDiscard}
-                clearDiscard={() => setToDiscard([])}
-                act={act}
-                onShowResult={onShowResult}
-                hl={hl}
+          {/* me (spectators only get the result button) */}
+          {me ? (
+            <section className="sticky bottom-0 z-10 mt-auto rounded-t-3xl bg-night-2 p-2 pb-3 shadow-[0_-8px_24px_rgb(0_0_0/0.35)] lg:static lg:mt-2 lg:rounded-3xl lg:shadow-none">
+              <PlayerBadge
+                mood={moodOf(me.id)}
+                player={me}
+                seat={seatOf(me.id)}
+                name={seatName(me.id)}
+                status={statusOf(me.id)}
+                isYou
               />
-              {error && (
-                <p role="alert" className="text-center text-sm text-alert">
-                  {error}
-                </p>
-              )}
-            </div>
-          </section>
+              <HandView
+                cards={view.hand}
+                selectable={view.phase === 'discard' && me.mustDiscard > 0 && !me.hasDiscarded}
+                selected={toDiscard}
+                onToggle={(card) =>
+                  setToDiscard((ids) =>
+                    ids.includes(card.id) ? ids.filter((x) => x !== card.id) : [...ids, card.id],
+                  )
+                }
+              />
+              <div className="mt-3 space-y-2">
+                <Actions
+                  view={view}
+                  myTurn={myTurn}
+                  bid={bid}
+                  setBid={setBid}
+                  toDiscard={toDiscard}
+                  clearDiscard={() => setToDiscard([])}
+                  act={act}
+                  onShowResult={onShowResult}
+                  hl={hl}
+                />
+                {error && (
+                  <p role="alert" className="text-center text-sm text-alert">
+                    {error}
+                  </p>
+                )}
+              </div>
+            </section>
+          ) : (
+            view.phase === 'gameOver' && (
+              <Button className="mt-auto w-full" onClick={onShowResult}>
+                {t('action.seeResult')}
+              </Button>
+            )
+          )}
         </div>
 
         {/* desktop: history down the right side */}
@@ -308,6 +348,14 @@ export function GameScreen({
           >
             <HandView cards={view.discard} />
           </Modal>
+        )}
+        {online && <EmoteToasts emotes={online.emotes} seats={seats} name={seatName} />}
+        {modal === 'emote' && me && (
+          <EmotePicker
+            cat={seatOf(me.id).cat}
+            onPick={(id) => controller.emote?.(id)}
+            onClose={() => setModal(null)}
+          />
         )}
         {modal === 'menu' && (
           <Modal

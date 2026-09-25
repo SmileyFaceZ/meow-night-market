@@ -1,4 +1,5 @@
 import { BOT_PERSONALITIES, ERROR_KEYS, FOOD_TYPES } from '@meow/engine';
+import { EMOTES, ROOM_ERROR_KEYS } from '@meow/protocol';
 import { describe, expect, it } from 'vitest';
 import en from '../src/i18n/en.json';
 import th from '../src/i18n/th.json';
@@ -59,13 +60,19 @@ describe('i18n dictionaries (docs/I18N.md)', () => {
     }
   });
 
-  it('translates every error key, phase, card and bot the engine can produce', () => {
+  it('translates every error key, phase, card and bot the engine and server can produce', () => {
     const phases = ['bidding', 'pick', 'trash', 'eat', 'discard', 'gameOver'];
     const needed = [
       ...ERROR_KEYS,
       ...phases.map((p) => `phase.${p}`),
       ...[...FOOD_TYPES, 'goldfish', 'bone', 'dog'].map((k) => `card.${k}`),
       ...BOT_PERSONALITIES.flatMap((b) => [`bot.${b}`, `botDesc.${b}`]),
+      // online: every refusal the server can send, and every sticker
+      ...ROOM_ERROR_KEYS,
+      ...EMOTES.map((e) => `emote.${e}`),
+      ...['away', 'standIn'].map((p) => `presence.${p}`),
+      ...['notFound', 'full'].map((p) => `lobby.problem.${p}`),
+      ...['connecting', 'reconnecting'].map((c) => `lobby.${c}`),
     ];
     for (const key of needed) {
       expect(thKeys.has(key), key).toBe(true);

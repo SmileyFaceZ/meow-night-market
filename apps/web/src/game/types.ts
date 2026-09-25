@@ -6,12 +6,11 @@ import type {
   PlayerId,
   PlayerView,
 } from '@meow/engine';
+import type { CatColor, EmoteId } from '@meow/protocol';
 import type { Handoff } from './handoff';
 
-export const CAT_COLORS = ['orange', 'black', 'white', 'calico'] as const;
-export type CatColor = (typeof CAT_COLORS)[number];
-
-export const NAME_MAX_LENGTH = 12;
+// Shared with the online server, so a cat or a name means the same thing everywhere.
+export { CAT_COLORS, type CatColor, NAME_MAX_LENGTH } from '@meow/protocol';
 
 export interface BotSeat {
   readonly personality: BotPersonality;
@@ -40,6 +39,28 @@ export interface ControllerSnapshot {
   readonly sharedDevice: boolean;
   /** Pass-and-play: the device should go to someone else before they can act. */
   readonly handoff: Handoff | null;
+  /** Online play only. */
+  readonly online?: OnlineExtras;
+}
+
+export type Presence = 'away' | 'standIn';
+
+export interface ShownEmote {
+  readonly key: number;
+  readonly from: PlayerId;
+  readonly id: EmoteId;
+}
+
+/** What the game screen shows only when playing online. */
+export interface OnlineExtras {
+  /** Players on the clock; `deadline` is local time in ms (null = no timer). */
+  readonly clocks: readonly { readonly playerId: PlayerId; readonly deadline: number | null }[];
+  /** Stickers on screen right now. */
+  readonly emotes: readonly ShownEmote[];
+  /** Humans who dropped out (missing = here). */
+  readonly presence: Readonly<Record<PlayerId, Presence>>;
+  /** Watching without a seat. */
+  readonly spectating: boolean;
 }
 
 /**
@@ -56,6 +77,8 @@ export interface GameController {
    * bots and automatic moves wait until it is unpaused.
    */
   readonly setPaused: (paused: boolean) => void;
+  /** Online: send a cat sticker. */
+  readonly emote?: (id: EmoteId) => void;
   /** Pass-and-play: the player named in `handoff` has taken the device. */
   readonly acceptHandoff?: () => void;
   readonly dispose: () => void;

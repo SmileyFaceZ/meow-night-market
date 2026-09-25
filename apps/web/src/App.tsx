@@ -13,8 +13,34 @@ import { type LocalSetup, seatsFromLocalSetup, seatsFromSetup, type SoloSetup } 
 import type { SeatInfo } from './game/types';
 import { LocalSetupScreen } from './screens/LocalSetup';
 import { SetupScreen } from './screens/Setup';
+import { ROOM_CODE_LENGTH } from '@meow/protocol';
+import {
+  browserSocket,
+  cleanCode,
+  createRoom,
+  type Profile,
+  RemoteController,
+  serverUrl,
+  sessionTokens,
+} from './game/online';
+import { OnlineScreen } from './screens/Online';
+import { RoomScreen } from './screens/Room';
 
-type Screen = 'home' | 'setup' | 'localSetup' | 'game' | 'result' | 'howto' | 'tutorial';
+type Screen =
+  'home' | 'setup' | 'localSetup' | 'game' | 'result' | 'howto' | 'tutorial' | 'online' | 'room';
+
+/** A shared room link: /room/ABCD */
+const ROOM_PATH = /^\/room\/([A-Za-z]+)\/?$/;
+
+function linkCodeFromPath(): string | null {
+  const match = ROOM_PATH.exec(location.pathname);
+  const code = match ? cleanCode(match[1]!) : '';
+  return code.length === ROOM_CODE_LENGTH ? code : null;
+}
+
+function setPath(path: string): void {
+  if (location.pathname !== path) history.replaceState(null, '', path);
+}
 
 /** What "play again" repeats. */
 type LastSetup = { mode: 'solo'; setup: SoloSetup } | { mode: 'local'; setup: LocalSetup };
@@ -26,12 +52,43 @@ function newSeed(): string {
 
 export function App() {
   const storage = browserStorage();
-  const [screen, setScreen] = useState<Screen>('home');
+  const [linkCode, setLinkCode] = useState(linkCodeFromPath);
+  const [screen, setScreen] = useState<Screen>(() => (linkCode ? 'online' : 'home'));
+  const [online, setOnline] = useState<{
+    controller: RemoteController;
+    profile: Profile;
+  } | null>(null);
   const [save, setSave] = useState<GameSave | null>(() => readSave(storage));
   const [controller, setController] = useState<GameController | null>(null);
   const [lastSetup, setLastSetup] = useState<LastSetup | null>(null);
 
   useEffect(() => () => controller?.dispose(), [controller]);
+  useEffect(() => () => online?.controller.dispose(), [online]);
+
+  const enterRoom = (code: string, profile: Profile) => {
+    online?.controller.dispose();
+    setOnline({
+      profile,
+      controller: new RemoteController({
+        code,
+        profile,
+        serverUrl: serverUrl(),
+        connect: browserSocket,
+        scheduler: browserScheduler,
+        tokens: sessionTokens(),
+      }),
+    });
+    setPath(`/room/${code}`);
+    setScreen('room');
+  };
+  const closeRoom = (leave: boolean) => {
+    if (leave) online?.controller.leave();
+    else online?.controller.dispose();
+    setOnline(null);
+    setLinkCode(null);
+    setPath('/');
+    setScreen('home');
+  };
 
   const startGame = (seats: readonly SeatInfo[]) => {
     clearSave(storage);
@@ -116,6 +173,28 @@ export function App() {
     }
   }
 
+  if (screen === 'room' && online) {
+    return (
+      <RoomScreen
+        controller={online.controller}
+        profile={online.profile}
+        onLeave={() => closeRoom(true)}
+        onQuit={() => closeRoom(false)}
+      />
+    );
+  }
+
+  if (screen === 'online') {
+    return (
+      <OnlineScreen
+        linkCode={linkCode}
+        onCreate={async (profile) => enterRoom(await createRoom(), profile)}
+        onJoin={enterRoom}
+        onBack={() => closeRoom(false)}
+      />
+    );
+  }
+
   if (screen === 'howto') {
     return <HowToScreen onBack={() => setScreen('home')} onTutorial={startTutorial} />;
   }
@@ -133,6 +212,7 @@ export function App() {
       save={save}
       onSolo={() => setScreen('setup')}
       onLocal={() => setScreen('localSetup')}
+      onOnline={() => setScreen('online')}
       onHowTo={() => setScreen('howto')}
       onTutorial={startTutorial}
       onContinue={() => {

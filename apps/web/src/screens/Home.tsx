@@ -13,6 +13,7 @@ export function HomeScreen({
   onContinue,
   onSolo,
   onLocal,
+  onOnline,
   onHowTo,
   onTutorial,
 }: {
@@ -20,6 +21,7 @@ export function HomeScreen({
   onContinue: () => void;
   onSolo: () => void;
   onLocal: () => void;
+  onOnline: () => void;
   onHowTo: () => void;
   onTutorial: () => void;
 }) {
@@ -90,7 +92,7 @@ export function HomeScreen({
         <Button variant="secondary" onClick={onLocal}>
           {t('mode.local')}
         </Button>
-        <Button variant="secondary" disabledReason={t('home.comingSoon')} onClick={() => {}}>
+        <Button variant="secondary" onClick={onOnline}>
           {t('mode.online')}
         </Button>
         <Button variant="secondary" onClick={onHowTo}>

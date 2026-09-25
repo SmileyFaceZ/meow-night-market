@@ -7,7 +7,7 @@ import { binMoodFor } from '../art/style';
 import { CardArt } from '../art/CardArt';
 import { CatArt, type CatMood } from '../art/CatArt';
 import type { FeedLine } from '../game/hooks';
-import type { SeatInfo } from '../game/types';
+import type { Presence, SeatInfo } from '../game/types';
 import { groupCards, sortCards } from './cardGroups';
 import { CardBack, GameCard } from './cards';
 
@@ -21,12 +21,15 @@ export function PlayerBadge({
   isYou = false,
   mood = 'normal',
   stacked = false,
+  presence = null,
   onOpen,
 }: {
   player: PublicPlayer;
   seat: SeatInfo;
   name: string;
   status: PlayerStatus;
+  /** Online: dropped out, or a bot is playing for them. */
+  presence?: Presence | null;
   isYou?: boolean;
   mood?: CatMood;
   /** Narrow layout (3 opponents on a phone): name gets the full width on its own line. */
@@ -34,8 +37,9 @@ export function PlayerBadge({
   onOpen?: () => void;
 }) {
   const { t } = useTranslation();
-  const statusText =
-    status === 'turn'
+  const statusText = presence
+    ? t(`presence.${presence}`)
+    : status === 'turn'
       ? t(isYou ? 'player.yourTurn' : 'player.thinking')
       : status === 'ready'
         ? t('player.bidReady')
@@ -43,7 +47,9 @@ export function PlayerBadge({
           ? t('player.thinking')
           : null;
   const avatar = (
-    <span className="relative size-9 shrink-0">
+    <span
+      className={`relative size-9 shrink-0 ${presence === 'away' ? 'opacity-50 grayscale' : ''}`}
+    >
       <CatArt color={seat.cat} mood={mood} />
       {player.revealedBid !== null && (
         <span
