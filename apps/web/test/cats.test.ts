@@ -18,7 +18,12 @@ describe('cats (every seat its own)', () => {
   });
 
   it('never repeats a cat at the table (solo and pass-and-play)', () => {
-    const solo = seatsFromSetup({ name: 'A', cat: 'orange', bots: [greedy, greedy, careful] });
+    const solo = seatsFromSetup({
+      name: 'A',
+      cat: 'orange',
+      bots: [greedy, greedy, careful],
+      mode: { powers: false, events: false },
+    });
     expect(new Set(solo.map((s) => s.cat)).size).toBe(4);
     const local = seatsFromLocalSetup({
       players: [
@@ -26,6 +31,7 @@ describe('cats (every seat its own)', () => {
         { kind: 'bot', bot: careful },
         { kind: 'human', name: 'B', cat: 'black' },
       ],
+      mode: { powers: false, events: false },
     });
     expect(local.map((s) => s.cat)).toEqual(['white', 'orange', 'black']);
   });
@@ -36,6 +42,7 @@ describe('cats (every seat its own)', () => {
         { kind: 'human', name: 'A', cat: 'korat' },
         { kind: 'human', name: 'B', cat: 'korat' },
       ],
+      mode: { powers: false, events: false },
     });
     expect([...clashes]).toEqual([1]);
   });

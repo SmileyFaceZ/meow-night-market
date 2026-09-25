@@ -60,6 +60,7 @@ const room = (status: RoomInfo['status']): RoomInfo => ({
   spectators: 0,
   you: 'p0',
   gameNo: 1,
+  mode: { powers: false, events: false },
   seats: [
     {
       id: 'p0',

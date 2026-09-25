@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { soundStore } from '../audio/settings';
 import { playSound } from '../audio/sound';
 import { useSoundSettings } from '../audio/useSoundSettings';
-import { Button, Modal } from './ui';
+import { Button, Modal, Switch } from './ui';
 
 /** Speaker drawn for this game; crossed out when sound is off. */
 function SpeakerIcon({ muted }: { muted: boolean }) {
@@ -27,51 +27,6 @@ function SpeakerIcon({ muted }: { muted: boolean }) {
   );
 }
 
-/** A labelled on/off switch (≥ 44px tall). */
-function Toggle({
-  label,
-  hint,
-  checked,
-  disabled = false,
-  onChange,
-}: {
-  label: string;
-  hint?: string;
-  checked: boolean;
-  disabled?: boolean;
-  onChange: (on: boolean) => void;
-}) {
-  const { t } = useTranslation();
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-disabled={disabled || undefined}
-      // the switch plays its own sample instead of the generic tap
-      data-sound="none"
-      onClick={() => !disabled && onChange(!checked)}
-      className={`flex min-h-tap w-full items-center justify-between gap-3 rounded-2xl bg-night px-3 py-2 text-left ${disabled ? 'opacity-45' : ''}`}
-    >
-      <span className="min-w-0">
-        <span className="block font-display leading-tight">{label}</span>
-        {hint && <span className="block text-xs leading-tight text-card/70">{hint}</span>}
-      </span>
-      <span className="flex shrink-0 items-center gap-2 text-sm text-card/80">
-        {checked ? t('sound.on') : t('sound.off')}
-        <span
-          aria-hidden
-          className={`relative h-7 w-12 rounded-full transition ${checked ? 'bg-lantern' : 'bg-card/25'}`}
-        >
-          <span
-            className={`absolute top-1 size-5 rounded-full bg-card shadow transition-all ${checked ? 'left-6' : 'left-1'}`}
-          />
-        </span>
-      </span>
-    </button>
-  );
-}
-
 /** All sound settings; changes apply (and are saved) immediately. */
 export function SoundPanel() {
   const { t } = useTranslation();
@@ -80,7 +35,8 @@ export function SoundPanel() {
   const percent = Math.round(settings.volume * 100);
   return (
     <div className="grid gap-2">
-      <Toggle
+      <Switch
+        silent
         label={t('sound.master')}
         checked={settings.enabled}
         onChange={(enabled) => {
@@ -112,7 +68,8 @@ export function SoundPanel() {
           className="h-tap w-full cursor-pointer accent-lantern"
         />
       </label>
-      <Toggle
+      <Switch
+        silent
         label={t('sound.clicks')}
         hint={t('sound.clicksHint')}
         checked={settings.clicks}
@@ -122,7 +79,8 @@ export function SoundPanel() {
           if (clicks) playSound('click');
         }}
       />
-      <Toggle
+      <Switch
+        silent
         label={t('sound.effects')}
         hint={t('sound.effectsHint')}
         checked={settings.effects}

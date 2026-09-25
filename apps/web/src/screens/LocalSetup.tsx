@@ -2,6 +2,7 @@ import { BOT_DIFFICULTIES, BOT_PERSONALITIES } from '@meow/engine';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CatArt } from '../art/CatArt';
+import { ModeSwitch } from '../components/ModeSwitch';
 import { Button } from '../components/ui';
 import {
   catClashes,
@@ -38,7 +39,7 @@ export function LocalSetupScreen({
   const humans = humanCount(setup);
   const setPlayer = (index: number, player: LocalPlayerSetup) => {
     setBlocked(null);
-    setSetup((s) => ({ players: s.players.map((p, i) => (i === index ? player : p)) }));
+    setSetup((s) => ({ ...s, players: s.players.map((p, i) => (i === index ? player : p)) }));
   };
   // Prefer a personality that is not at the table yet.
   const newBot = (): BotSeat => ({
@@ -116,7 +117,7 @@ export function LocalSetupScreen({
                     variant="ghost"
                     onClick={() => {
                       setBlocked(null);
-                      setSetup((s) => ({ players: s.players.filter((_, i) => i !== index) }));
+                      setSetup((s) => ({ ...s, players: s.players.filter((_, i) => i !== index) }));
                     }}
                   >
                     {t('setup.removeBot')}
@@ -230,6 +231,7 @@ export function LocalSetupScreen({
             variant="secondary"
             onClick={() =>
               setSetup((s) => ({
+                ...s,
                 players: [...s.players, { kind: 'human', name: '', cat: freeCat(s) }],
               }))
             }
@@ -238,6 +240,8 @@ export function LocalSetupScreen({
           </Button>
         )}
       </section>
+
+      <ModeSwitch mode={setup.mode} onChange={(mode) => setSetup((s) => ({ ...s, mode }))} />
 
       <div className="mt-auto grid gap-2">
         {hasSave && <p className="text-center text-sm text-card/70">{t('home.newGameConfirm')}</p>}

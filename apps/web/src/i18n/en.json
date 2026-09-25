@@ -41,7 +41,9 @@
     "empty": "Empty",
     "history": "History",
     "rematch": "Rematch",
-    "ready": "Ready!"
+    "ready": "Ready!",
+    "power": "Cat Power",
+    "event": "Market Event"
   },
   "bonus": {
     "variety": "Foodie Bonus"
@@ -65,7 +67,18 @@
   "mode": {
     "solo": "Solo",
     "local": "Pass & Play",
-    "online": "Play Online"
+    "online": "Play Online",
+    "title": "Rules",
+    "classic": "Classic",
+    "chaos": "Market Mayhem",
+    "powersHint": "Each cat has a special power, once per game",
+    "eventsHint": "A market event turns up every round"
+  },
+  "modeName": {
+    "classic": "Classic",
+    "chaos": "Market Mayhem (cat powers + market events)",
+    "powers": "Classic + cat powers",
+    "events": "Classic + market events"
   },
   "cat": {
     "orange": "Ginger",
@@ -115,7 +128,8 @@
     "personality": "Personality",
     "difficulty": "Difficulty",
     "start": "Let's go!",
-    "back": "Back"
+    "back": "Back",
+    "botCatsRandom": "With cat powers, the bots’ cats are drawn when the game starts (each cat has its own power)"
   },
   "local": {
     "intro": "Take turns on one phone: pass it to whoever’s turn it is. Bids and discards are secret — no peeking!",

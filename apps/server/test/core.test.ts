@@ -413,6 +413,25 @@ describe('rematch', () => {
 
 type TestConnOf<R extends Room> = ReturnType<R['connect']>;
 
+describe('game mode', () => {
+  it('lets the host pick Market Mayhem: the next game has powers and events', () => {
+    const room = setup();
+    const a = room.connect('Ann');
+    const b = room.connect('Bo');
+    a.say({ type: 'addBot', bot: { personality: 'greedy', difficulty: 'normal' } });
+    b.say({ type: 'setMode', powers: true, events: true });
+    expect(b.last('error')?.key).toBe('room.error.notHost');
+    a.say({ type: 'setMode', powers: true, events: true });
+    expect(b.room?.mode).toEqual({ powers: true, events: true });
+    expect(new Set(b.room?.seats.map((s) => s.cat)).size).toBe(3);
+    a.say({ type: 'start' });
+    const view = a.view!;
+    expect(view.powersOn).toBe(true);
+    expect(view.eventsOn).toBe(true);
+    expect(view.players.map((p) => p.cat)).toEqual(b.room!.seats.map((s) => s.cat));
+  });
+});
+
 describe('after a deploy', () => {
   it('carries on a game saved by an older version (fields added since are filled in)', () => {
     const room = setup();

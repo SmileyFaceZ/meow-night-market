@@ -1,4 +1,5 @@
 import { type ReactNode, type Ref, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
@@ -101,5 +102,52 @@ export function Modal({
         {children}
       </div>
     </div>
+  );
+}
+
+/** A labelled on/off switch (≥ 44px tall). */
+export function Switch({
+  label,
+  hint,
+  checked,
+  disabled = false,
+  silent = false,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  disabled?: boolean;
+  /** Plays its own sound instead of the generic tap. */
+  silent?: boolean;
+  onChange: (on: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-disabled={disabled || undefined}
+      data-sound={silent ? 'none' : undefined}
+      onClick={() => !disabled && onChange(!checked)}
+      className={`flex min-h-tap w-full items-center justify-between gap-3 rounded-2xl bg-night px-3 py-2 text-left ${disabled ? 'opacity-45' : ''}`}
+    >
+      <span className="min-w-0">
+        <span className="block font-display leading-tight">{label}</span>
+        {hint && <span className="block text-xs leading-tight text-card/70">{hint}</span>}
+      </span>
+      <span className="flex shrink-0 items-center gap-2 text-sm text-card/80">
+        {checked ? t('sound.on') : t('sound.off')}
+        <span
+          aria-hidden
+          className={`relative h-7 w-12 rounded-full transition ${checked ? 'bg-lantern' : 'bg-card/25'}`}
+        >
+          <span
+            className={`absolute top-1 size-5 rounded-full bg-card shadow transition-all ${checked ? 'left-6' : 'left-1'}`}
+          />
+        </span>
+      </span>
+    </button>
   );
 }

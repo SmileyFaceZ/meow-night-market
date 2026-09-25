@@ -281,6 +281,7 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('addBot'), bot: botSchema }),
   z.object({ type: z.literal('removeSeat'), seatId: id }),
   z.object({ type: z.literal('setTurnSeconds'), seconds: turnSeconds }),
+  z.object({ type: z.literal('setMode'), powers: z.boolean(), events: z.boolean() }),
   z.object({ type: z.literal('start') }),
   /** After a game: want (or no longer want) to play again — GAME_RULES §13. */
   z.object({ type: z.literal('ready'), ready: z.boolean() }),
@@ -316,6 +317,7 @@ export const roomInfoSchema = z.object({
   spectators: count,
   you: id.nullable(),
   gameNo: count,
+  mode: z.object({ powers: z.boolean(), events: z.boolean() }),
 });
 
 const turnClock = z.object({ playerId: id, remainingMs: count.nullable() });

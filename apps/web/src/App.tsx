@@ -14,7 +14,7 @@ import { type LocalSetup, seatsFromLocalSetup, seatsFromSetup, type SoloSetup } 
 import type { SeatInfo } from './game/types';
 import { LocalSetupScreen } from './screens/LocalSetup';
 import { SetupScreen } from './screens/Setup';
-import { ROOM_CODE_LENGTH } from '@meow/protocol';
+import { type GameMode, ROOM_CODE_LENGTH } from '@meow/protocol';
 import {
   browserSocket,
   cleanCode,
@@ -88,17 +88,23 @@ export function App() {
     setScreen('home');
   };
 
-  const startGame = (seats: readonly SeatInfo[]) => {
+  const startGame = (seats: readonly SeatInfo[], mode: GameMode) => {
     clearSave(storage);
     controller?.dispose();
-    setController(LocalController.newGame(seats, newSeed(), storage, browserScheduler));
+    setController(LocalController.newGame(seats, newSeed(), storage, browserScheduler, mode));
     setScreen('game');
   };
-  const startSolo = (setup: SoloSetup) => startGame(seatsFromSetup(setup));
-  const startLocal = (setup: LocalSetup) => startGame(seatsFromLocalSetup(setup));
+  // With cat powers the bots' cats (= their powers) are drawn at random (GAME_RULES §14).
+  const botRandom = (mode: GameMode) => (mode.powers ? Math.random : undefined);
+  const startSolo = (setup: SoloSetup) =>
+    startGame(seatsFromSetup(setup, botRandom(setup.mode)), setup.mode);
+  const startLocal = (setup: LocalSetup) =>
+    startGame(seatsFromLocalSetup(setup, botRandom(setup.mode)), setup.mode);
   /** The finished game's seats again, with a new seed (works for a resumed save too). */
   const playAgain = () => {
-    if (controller) startGame(controller.getSnapshot().seats);
+    if (!controller) return;
+    const { seats, view } = controller.getSnapshot();
+    startGame(seats, { powers: view.powersOn, events: view.eventsOn });
   };
   /** Back to the setup screen that fits the finished game (it remembers the last choices). */
   const changeSetup = () => {

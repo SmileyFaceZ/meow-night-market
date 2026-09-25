@@ -2,8 +2,9 @@ import { BOT_DIFFICULTIES, BOT_PERSONALITIES } from '@meow/engine';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CatArt } from '../art/CatArt';
+import { ModeSwitch } from '../components/ModeSwitch';
 import { Button } from '../components/ui';
-import { BOT_CAT, loadSetup, type SoloSetup, storeSetup } from '../game/setup';
+import { loadSetup, seatsFromSetup, type SoloSetup, storeSetup } from '../game/setup';
 import { type BotSeat, CAT_COLORS, NAME_MAX_LENGTH } from '../game/types';
 
 export function SetupScreen({
@@ -18,6 +19,8 @@ export function SetupScreen({
   const { t } = useTranslation();
   const [setup, setSetup] = useState<SoloSetup>(loadSetup);
   const update = (patch: Partial<SoloSetup>) => setSetup((s) => ({ ...s, ...patch }));
+  // Bots take other cats than the player's (every seat its own cat).
+  const preview = seatsFromSetup(setup);
   const setBot = (index: number, patch: Partial<BotSeat>) =>
     update({ bots: setup.bots.map((b, i) => (i === index ? { ...b, ...patch } : b)) });
 
@@ -72,11 +75,12 @@ export function SetupScreen({
 
       <section className="grid gap-2">
         <h2 className="font-display">{t('setup.opponents', { count: setup.bots.length })}</h2>
+        {setup.mode.powers && <p className="text-sm text-card/70">{t('setup.botCatsRandom')}</p>}
         {setup.bots.map((bot, index) => (
           <div key={index} className="rounded-2xl bg-night-2 p-3">
             <div className="flex items-center gap-3">
               <span className="size-12 shrink-0">
-                <CatArt color={BOT_CAT[bot.personality]} />
+                <CatArt color={preview[index + 1]!.cat} />
               </span>
               <div className="min-w-0 flex-1">
                 <p className="font-display leading-tight">{t(`bot.${bot.personality}`)}</p>
@@ -153,6 +157,8 @@ export function SetupScreen({
           </Button>
         )}
       </section>
+
+      <ModeSwitch mode={setup.mode} onChange={(mode) => update({ mode })} />
 
       <div className="mt-auto grid gap-2">
         {hasSave && <p className="text-center text-sm text-card/70">{t('home.newGameConfirm')}</p>}

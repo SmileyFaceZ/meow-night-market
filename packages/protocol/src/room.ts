@@ -87,6 +87,14 @@ export type SittingOut = 'watching' | 'waiting';
 
 export type RoomStatus = 'lobby' | 'playing' | 'ended';
 
+/** Rule set (GAME_RULES §12): classic = both off; Market Mayhem = both on. */
+export interface GameMode {
+  readonly powers: boolean;
+  readonly events: boolean;
+}
+export const CLASSIC_MODE: GameMode = { powers: false, events: false };
+export const MAYHEM_MODE: GameMode = { powers: true, events: true };
+
 export interface RoomInfo {
   readonly code: string;
   readonly status: RoomStatus;
@@ -97,6 +105,8 @@ export interface RoomInfo {
   readonly you: PlayerId | null;
   /** Games started in this room so far (a rematch starts the next one). */
   readonly gameNo: number;
+  /** Rules for the next game (the host sets them between games). */
+  readonly mode: GameMode;
 }
 
 /** Someone the game is waiting on, and how long they have left (ms; null = no timer). */

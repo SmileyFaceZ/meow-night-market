@@ -3,6 +3,7 @@ import { MAX_SEATS, type RoomInfo, TURN_SECONDS_OPTIONS } from '@meow/protocol';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { RemoteController } from '../game/online';
+import { ModeSwitch } from './ModeSwitch';
 
 /** Room settings between games: bots and the turn timer (the host changes them). */
 export function RoomSettings({
@@ -18,6 +19,10 @@ export function RoomSettings({
   const [difficulty, setDifficulty] = useState<BotDifficulty>('normal');
   return (
     <>
+      <ModeSwitch
+        mode={room.mode}
+        onChange={isHost ? (mode) => controller.send({ type: 'setMode', ...mode }) : undefined}
+      />
       {isHost && room.seats.length < MAX_SEATS && (
         <section className="grid gap-1.5">
           <h2 className="font-display">{t('lobby.addBot')}</h2>

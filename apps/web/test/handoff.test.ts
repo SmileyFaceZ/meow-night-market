@@ -20,6 +20,7 @@ const setup: LocalSetup = {
     { kind: 'bot', bot: { personality: 'sly', difficulty: 'normal' } },
     { kind: 'human', name: 'Bo', cat: 'orange' },
   ],
+  mode: { powers: false, events: false },
 };
 const seats = seatsFromLocalSetup(setup);
 
@@ -121,6 +122,7 @@ describe('pass-and-play handoff', () => {
         name: `P${i}`,
         cat,
       })),
+      mode: { powers: false, events: false },
     });
     const { scheduler } = manualScheduler();
     const controller = LocalController.newGame(four, 'four', null, scheduler);

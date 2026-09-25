@@ -17,6 +17,8 @@ import {
   BOT_DELAY_MS,
   CAT_COLORS,
   type CatColor,
+  CLASSIC_MODE,
+  type GameMode,
   type ClientMessage,
   clientMessageSchema,
   DEFAULT_TURN_SECONDS,
@@ -88,6 +90,8 @@ export interface StoredRoom {
   readonly gameNo: number;
   /** After a game: last time anyone did something (RESULT_IDLE_MS counts from here). */
   readonly idleSince: number | null;
+  /** Rules for the next game. */
+  readonly mode: GameMode;
 }
 
 /** A client connection as the room sees it; the Durable Object keeps `seatId` across hibernation. */
@@ -127,6 +131,7 @@ export function newRoom(code: string, now: number): StoredRoom {
     emptySince: now,
     gameNo: 0,
     idleSince: null,
+    mode: CLASSIC_MODE,
   };
 }
 
@@ -139,6 +144,7 @@ export function upgradeRoom(room: StoredRoom): StoredRoom {
     ...room,
     gameNo: room.gameNo ?? (room.game ? 1 : 0),
     idleSince: room.idleSince ?? null,
+    mode: room.mode ?? CLASSIC_MODE,
     seats: room.seats.map((s) => ({
       ...s,
       ready: s.ready ?? false,
@@ -345,7 +351,10 @@ export class RoomCore {
   private hostCommand(
     conn: Conn,
     seat: StoredSeat | undefined,
-    message: Extract<ClientMessage, { type: 'addBot' | 'removeSeat' | 'setTurnSeconds' | 'start' }>,
+    message: Extract<
+      ClientMessage,
+      { type: 'addBot' | 'removeSeat' | 'setTurnSeconds' | 'setMode' | 'start' }
+    >,
   ): void {
     const { room } = this;
     if (!seat?.host) return this.fail(conn, 'room.error.notHost');
@@ -361,7 +370,10 @@ export class RoomCore {
             {
               id: `p${room.nextSeatNo}`,
               name: null,
-              cat: this.freeCat(BOT_CAT[message.bot.personality]),
+              // With cat powers the cat is the power: a random free one (GAME_RULES §14).
+              cat: room.mode.powers
+                ? this.randomFreeCat()
+                : this.freeCat(BOT_CAT[message.bot.personality]),
               bot: message.bot,
               token: null,
               host: false,
@@ -387,6 +399,18 @@ export class RoomCore {
       case 'setTurnSeconds':
         this.update({ turnSeconds: message.seconds });
         break;
+      case 'setMode': {
+        const mode = { powers: message.powers, events: message.events };
+        const powersOn = mode.powers && !room.mode.powers;
+        this.update({ mode });
+        // Powers just switched on: bots draw their cats (their powers) at random.
+        if (powersOn) {
+          for (const bot of this.room.seats.filter((s) => s.bot)) {
+            this.setSeat(bot.id, { cat: this.randomFreeCat(bot.id) });
+          }
+        }
+        break;
+      }
       case 'start': {
         const first = room.status === 'lobby';
         // First game: everyone here plays. A rematch: bots, the host, and whoever is ready.
@@ -409,7 +433,14 @@ export class RoomCore {
           return { ...s, ready: false, sittingOut: watch ? 'watching' : 'waiting' };
         });
         const seed = `${room.code}-${Math.floor(this.deps.random() * 2 ** 32).toString(36)}`;
-        const game = createGame({ playerIds: players.map((s) => s.id), seed });
+        const game = createGame({
+          playerIds: players.map((s) => s.id),
+          seed,
+          ...(room.mode.powers
+            ? { cats: Object.fromEntries(players.map((s) => [s.id, s.cat])) }
+            : {}),
+          events: room.mode.events,
+        });
         this.update({
           status: 'playing',
           gameNo: room.gameNo + 1,
@@ -651,6 +682,7 @@ export class RoomCore {
         sittingOut: s.sittingOut,
       })),
       gameNo: this.room.gameNo,
+      mode: this.room.mode,
     };
   }
 
@@ -718,6 +750,12 @@ export class RoomCore {
   private freeCat(wanted: CatColor, forSeat?: PlayerId): CatColor {
     const taken = new Set(this.room.seats.filter((s) => s.id !== forSeat).map((s) => s.cat));
     return taken.has(wanted) ? (CAT_COLORS.find((c) => !taken.has(c)) ?? wanted) : wanted;
+  }
+
+  private randomFreeCat(forSeat?: PlayerId): CatColor {
+    const taken = new Set(this.room.seats.filter((s) => s.id !== forSeat).map((s) => s.cat));
+    const free = CAT_COLORS.filter((c) => !taken.has(c));
+    return free[Math.floor(this.deps.random() * free.length)] ?? CAT_COLORS[0];
   }
 
   private setSeat(id: PlayerId, patch: Partial<StoredSeat>): void {

@@ -13,6 +13,7 @@ import {
   type PlayerView,
   type Rng,
 } from '@meow/engine';
+import { CLASSIC_MODE, type GameMode } from '@meow/protocol';
 import { type Handoff, isForcedBid, isSecretPhase, nextHandoff } from './handoff';
 import { clearSave, type GameSave, type SaveStorage, writeSave } from './save';
 import type { ControllerSnapshot, GameController, SeatInfo } from './types';
@@ -101,8 +102,15 @@ export class LocalController implements GameController {
     seed: number | string,
     storage: SaveStorage | null,
     scheduler: Scheduler,
+    mode: GameMode = CLASSIC_MODE,
   ): LocalController {
-    const state = createGame({ playerIds: seats.map((s) => s.id), seed });
+    const state = createGame({
+      playerIds: seats.map((s) => s.id),
+      seed,
+      // With cat powers, each seat's cat is its power (GAME_RULES §14).
+      ...(mode.powers ? { cats: Object.fromEntries(seats.map((s) => [s.id, s.cat])) } : {}),
+      events: mode.events,
+    });
     const human = seats.find((s) => !s.bot);
     if (!human) throw new Error('a local game needs a human seat');
     return new LocalController({
