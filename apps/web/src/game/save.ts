@@ -1,4 +1,4 @@
-import type { GameConfig, GameState, PlayerId } from '@meow/engine';
+import type { GameState, PlayerId } from '@meow/engine';
 import { CAT_COLORS, type SeatInfo } from './types';
 
 // Local games (solo and pass-and-play) are saved to localStorage after every action
@@ -81,16 +81,7 @@ export function readSave(storage: SaveStorage | null): GameSave | null {
     const playersOk = ids.length === data.seats.length && ids.includes(data.viewerId);
     if (!seatsOk || !playersOk) return null;
     // Saves written before cat powers existed (GAME_RULES §14) are classic games.
-    const state = {
-      ...CLASSIC_DEFAULTS,
-      ...data.state,
-      // Older configs lack newer fields.
-      config: {
-        scavengerTiming: 'eat',
-        goodLuckEffect: 'keepDigging',
-        ...(data.state.config as Partial<GameConfig>),
-      },
-    } as GameState;
+    const state = { ...CLASSIC_DEFAULTS, ...data.state };
     return { ...(data as GameSave), state };
   } catch {
     return null;

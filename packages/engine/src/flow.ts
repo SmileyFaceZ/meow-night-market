@@ -161,16 +161,6 @@ export function endPicking(ctx: Ctx): void {
     playerById(s, s.extraOrder).hand.push(card);
     ctx.events.push({ type: 'CARD_PICKED', playerId: s.extraOrder, card: { ...card } });
   }
-  // §14 Scavenger (alternative timing): the white cat may take the leftover card.
-  const scavenger = ownerOf(s, 'scavenger');
-  if (scavenger && s.config.scavengerTiming === 'afterPick' && s.market.length > 0) {
-    openWindow(ctx, scavenger, 'scavenger');
-    return;
-  }
-  finishPicking(ctx);
-}
-
-export function finishPicking(ctx: Ctx): void {
   clearMarket(ctx);
   startTrash(ctx);
 }

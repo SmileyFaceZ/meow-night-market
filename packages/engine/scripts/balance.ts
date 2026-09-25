@@ -46,26 +46,6 @@ const D = DEFAULT_CONFIG;
 const VARIANTS: Record<string, { label: string; config: GameConfig; powers?: boolean }> = {
   base: { label: 'คลาสสิก', config: D },
   powers: { label: 'พลังแมว', config: D, powers: true },
-  powersAlt: {
-    label: 'พลังแมว — เก็บของเก่งแบบหยิบของเหลือบนแผง',
-    config: { ...D, scavengerTiming: 'afterPick' },
-    powers: true,
-  },
-  koratEnd: {
-    label: 'พลังแมว — แมวนำโชค: รอดแต่จบตา (เก็บถุง)',
-    config: { ...D, goodLuckEffect: 'endTurn' },
-    powers: true,
-  },
-  koratHalf: {
-    label: 'พลังแมว — แมวนำโชค: รอดแต่เสียครึ่งถุง',
-    config: { ...D, goodLuckEffect: 'halfBag' },
-    powers: true,
-  },
-  koratHalfEnd: {
-    label: 'พลังแมว — แมวนำโชค: รอด เสียครึ่งถุง และจบตา',
-    config: { ...D, goodLuckEffect: 'halfBagEndTurn' },
-    powers: true,
-  },
   // Add experiments here, e.g. dogs3: { label: 'หมา 3 ตัว', config: { ...D, dogCopies: 3 } },
 };
 const variantNames = values.variants.split(',');

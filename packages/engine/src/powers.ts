@@ -60,7 +60,7 @@ export interface PowerState {
 /** A moment where the game waits for one player to use a power or let it pass. */
 export interface PowerWindow {
   readonly playerId: PlayerId;
-  readonly power: 'luckySwap' | 'secondThought' | 'scavenger';
+  readonly power: 'luckySwap' | 'secondThought';
 }
 
 /** Keen Nose: the top of the bin as the sniffer knows it (secret to everyone else). */
@@ -153,11 +153,7 @@ export function canUsePowerNow(s: PowerView, playerId: PlayerId): boolean {
     case 'extraOrder':
       return s.phase === 'pick' && s.extraOrder === null && s.market.length >= 2;
     case 'scavenger':
-      return (
-        s.config.scavengerTiming === 'eat' &&
-        s.phase === 'eat' &&
-        scavengeable(s.discard).length > 0
-      );
+      return s.phase === 'eat' && scavengeable(s.discard).length > 0;
     case 'haggle':
       return (
         s.phase === 'eat' &&
@@ -184,9 +180,7 @@ export function hasEatingChoice(s: PowerView, playerId: PlayerId): boolean {
   if (findMealOptions(hand, s.config).length > 0) return true;
   const power = unusedPower(s, playerId);
   if (power === 'bigAppetite') return pairOptions(hand).length > 0;
-  if (power === 'scavenger' && s.config.scavengerTiming === 'eat') {
-    return scavengeable(s.discard).length > 0;
-  }
+  if (power === 'scavenger') return scavengeable(s.discard).length > 0;
   return false;
 }
 

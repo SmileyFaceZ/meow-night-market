@@ -30,18 +30,6 @@ export interface GameConfig {
   readonly varietyMinTypes: number;
   readonly minPlayers: number;
   readonly maxPlayers: number;
-  /**
-   * Scavenger (white cat, GAME_RULES §14): take a food card from the discard pile on your
-   * eat turn ('eat'), or take the stall's leftover card once everyone has picked ('afterPick',
-   * the alternative the user asked to test — DECISIONS 044).
-   */
-  readonly scavengerTiming: 'eat' | 'afterPick';
-  /**
-   * Good-Luck Cat (korat): after surviving the dog, keep digging ('keepDigging', the rule),
-   * keep the bag but end the turn ('endTurn'), or lose half the bag and carry on ('halfBag').
-   * The last two are balance experiments (docs/BALANCE.md).
-   */
-  readonly goodLuckEffect: 'keepDigging' | 'endTurn' | 'halfBag' | 'halfBagEndTurn';
 }
 
 export const DEFAULT_CONFIG: GameConfig = {
@@ -66,8 +54,6 @@ export const DEFAULT_CONFIG: GameConfig = {
   varietyMinTypes: 2,
   minPlayers: 2,
   maxPlayers: 4,
-  scavengerTiming: 'eat',
-  goodLuckEffect: 'keepDigging',
 };
 
 export function validateConfig(config: GameConfig): void {
@@ -146,10 +132,8 @@ export const POWER_TUNING = {
     anywayFromRound: 4,
   },
   goodLuck: {
-    /** Use the power on a dog when the bag holds at least this many cards. */
+    /** Use the power on a dog when the bag holds at least this many cards (half is lost). */
     minBag: 2,
-    /** From this round on, use it for any non-empty bag. */
-    anyBagFromRound: 4,
   },
   extraOrder: {
     /** Order the leftover card when it would be worth at least this… */

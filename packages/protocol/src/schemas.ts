@@ -86,15 +86,13 @@ const gameConfig = z.object({
   varietyMinTypes: count,
   minPlayers: count,
   maxPlayers: count,
-  scavengerTiming: z.enum(['eat', 'afterPick']),
-  goodLuckEffect: z.enum(['keepDigging', 'endTurn', 'halfBag', 'halfBagEndTurn']),
 });
 
 const catId = z.enum(CAT_IDS);
 const powerId = z.enum(POWER_IDS);
 const powerWindow = z.object({
   playerId: id,
-  power: z.enum(['luckySwap', 'secondThought', 'scavenger']),
+  power: z.enum(['luckySwap', 'secondThought']),
 });
 
 const publicPlayer = z.object({

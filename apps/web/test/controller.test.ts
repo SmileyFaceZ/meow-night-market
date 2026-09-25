@@ -128,16 +128,10 @@ describe('save & resume', () => {
     for (const key of ['powers', 'powerWindow', 'peek', 'digCount', 'extraOrder']) {
       delete raw.state[key];
     }
-    delete raw.state.config.scavengerTiming;
-    delete raw.state.config.goodLuckEffect;
     storage.setItem('mnm.solo.v1', JSON.stringify(raw));
 
     const save = readSave(storage)!;
     expect(save.state).toMatchObject({ powers: null, digCount: 0 });
-    expect(save.state.config).toMatchObject({
-      scavengerTiming: 'eat',
-      goodLuckEffect: 'keepDigging',
-    });
     const second = manualScheduler();
     const resumed = LocalController.fromSave(save, storage, second.scheduler);
     playToEnd(resumed, second.flush, 3);

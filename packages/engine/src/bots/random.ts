@@ -98,9 +98,7 @@ function randomUse(view: PlayerView, me: PlayerView['players'][number], rng: Rng
       return card ? { power: 'luckySwap', cardId: card.id } : null;
     }
     case 'scavenger': {
-      const pile =
-        view.config.scavengerTiming === 'afterPick' ? view.market : scavengeable(view.discard);
-      const card = one(pile);
+      const card = one(scavengeable(view.discard));
       return card ? { power: 'scavenger', cardId: card.id } : null;
     }
     case 'haggle': {

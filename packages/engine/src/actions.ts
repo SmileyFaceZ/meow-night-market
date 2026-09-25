@@ -7,7 +7,6 @@ import {
   endEatTurn,
   endPicking,
   endTrashTurn,
-  finishPicking,
   playerById,
   resolveClashes,
   revealBids,
@@ -148,13 +147,25 @@ function dig(ctx: Ctx, playerId: string): ErrorKey | null {
     const canThrowBone = player.hand.some((c) => c.kind === 'bone');
     ctx.events.push({ type: 'DOG_APPEARED', playerId, canThrowBone });
     // A choice to make: throw a bone, or (korat cat) use Good-Luck Cat.
-    if (canThrowBone || unusedPower(s, playerId) === 'goodLuck') s.pendingDog = card;
-    else caught(ctx, playerId, card);
+    if (canThrowBone || unusedPower(s, playerId) === 'goodLuck') {
+      s.pendingDog = card;
+    } else {
+      caught(ctx, playerId, card);
+    }
   } else {
     s.bag.push(card);
     ctx.events.push({ type: 'CARD_DUG', playerId, card: { ...card }, to: 'bag' });
   }
   return null;
+}
+
+/** Stop digging: the bag goes into the hand and the turn ends. */
+function keepBag(ctx: Ctx, playerId: string): void {
+  const { s } = ctx;
+  const cards = s.bag.splice(0);
+  playerById(s, playerId).hand.push(...cards);
+  ctx.events.push({ type: 'BAG_KEPT', playerId, cards: cards.map((c) => ({ ...c })) });
+  endTrashTurn(ctx);
 }
 
 function resolveDog(ctx: Ctx, playerId: string, useBone: boolean): ErrorKey | null {
@@ -197,10 +208,7 @@ function stop(ctx: Ctx, playerId: string): ErrorKey | null {
   if (error) return error;
   if (s.pendingDog) return 'error.dogPending';
 
-  const cards = s.bag.splice(0);
-  playerById(s, playerId).hand.push(...cards);
-  ctx.events.push({ type: 'BAG_KEPT', playerId, cards: cards.map((c) => ({ ...c })) });
-  endTrashTurn(ctx);
+  keepBag(ctx, playerId);
   return null;
 }
 
@@ -306,22 +314,15 @@ function applyPower(ctx: Ctx, playerId: string, use: PowerUse): ErrorKey | null 
       return null;
     }
     case 'scavenger': {
-      const fromStall = s.config.scavengerTiming === 'afterPick';
-      const pile = fromStall ? s.market : s.discard;
-      const index = pile.findIndex((c) => c.id === use.cardId);
-      if (index === -1 || (!fromStall && !scavengeable(pile).some((c) => c.id === use.cardId))) {
+      if (!scavengeable(s.discard).some((c) => c.id === use.cardId)) {
         return 'error.invalidPowerTarget';
       }
       spend();
-      const [card] = pile.splice(index, 1) as [Card];
+      const index = s.discard.findIndex((c) => c.id === use.cardId);
+      const [card] = s.discard.splice(index, 1) as [Card];
       player.hand.push(card);
       ctx.events.push({ type: 'CARD_SCAVENGED', playerId, card: { ...card } });
-      if (fromStall) {
-        s.powerWindow = null;
-        finishPicking(ctx);
-      } else if (!canEatAnything(s, playerId)) {
-        endEatTurn(ctx);
-      }
+      if (!canEatAnything(s, playerId)) endEatTurn(ctx);
       return null;
     }
     case 'luckySwap': {
@@ -341,22 +342,16 @@ function applyPower(ctx: Ctx, playerId: string, use: PowerUse): ErrorKey | null 
       return null;
     }
     case 'goodLuck': {
+      // The dog is scared off but snatches half the bag (rounded up); the rest is kept
+      // and the turn ends (GAME_RULES §14, chosen from balance runs — DECISIONS 046).
       const dog = s.pendingDog!;
       spend();
       s.pendingDog = null;
-      const effect = s.config.goodLuckEffect;
-      if (effect === 'halfBag' || effect === 'halfBagEndTurn') {
-        const lost = s.bag.splice(0, Math.ceil(s.bag.length / 2));
-        s.discard.push(...lost);
-        ctx.events.push({ type: 'DOG_CAUGHT', playerId, lost: lost.map((c) => ({ ...c })) });
-      }
+      const lost = s.bag.splice(0, Math.ceil(s.bag.length / 2));
+      s.discard.push(...lost);
+      ctx.events.push({ type: 'DOG_CAUGHT', playerId, lost: lost.map((c) => ({ ...c })) });
       returnDog(ctx, dog);
-      if (effect === 'endTurn' || effect === 'halfBagEndTurn') {
-        const kept = s.bag.splice(0);
-        player.hand.push(...kept);
-        ctx.events.push({ type: 'BAG_KEPT', playerId, cards: kept.map((c) => ({ ...c })) });
-        endTrashTurn(ctx);
-      }
+      keepBag(ctx, playerId);
       return null;
     }
     case 'extraOrder':
@@ -404,7 +399,6 @@ function passPower(ctx: Ctx, playerId: string): ErrorKey | null {
   if (!window || window.playerId !== playerId) return 'error.powerNotNow';
   s.powerWindow = null;
   if (window.power === 'secondThought') resolveClashes(ctx);
-  else if (window.power === 'scavenger') finishPicking(ctx);
   return null;
 }
 

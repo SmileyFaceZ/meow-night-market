@@ -16,7 +16,6 @@ import {
   P,
   patch,
   patchPlayer,
-  pickAll,
   playRandomGame,
   player,
   reachableCardIds,
@@ -183,21 +182,6 @@ describe('Scavenger (white)', () => {
     expect(player(took.state, 'a').hand.filter((c) => c.kind === 'fish')).toHaveLength(3);
     expect(current(took.state)).toBe('a'); // now a meal is possible
   });
-
-  it('alternative timing: takes the stall leftover once everyone has picked', () => {
-    const config = { ...DEFAULT_CONFIG, scavengerTiming: 'afterPick' as const };
-    const bid = bidAll(withCat('white', 'alt', config), { a: 1, b: 2, c: 3 });
-    const picked = pickAll(bid.state);
-    expect(picked.state.powerWindow).toEqual({ playerId: 'a', power: 'scavenger' });
-    const leftover = picked.state.market[0]!;
-    const took = act(picked.state, {
-      type: 'usePower',
-      playerId: 'a',
-      use: { power: 'scavenger', cardId: leftover.id },
-    });
-    expect(player(took.state, 'a').hand).toContainEqual(leftover);
-    expect(took.state.phase).toBe('trash');
-  });
 });
 
 describe('Lucky Swap (calico)', () => {
@@ -227,48 +211,36 @@ describe('Lucky Swap (calico)', () => {
 });
 
 describe('Good-Luck Cat (korat)', () => {
-  it('meets a dog without a bone and keeps the bag', () => {
+  it('meets a dog without a bone: the dog snatches half the bag (rounded up), the rest is kept, turn over', () => {
     let s = skipToTrash(withCat('orange')).state;
-    const me = current(s);
-    s = giveCat(s, me, 'korat');
-    const fish = card('fish');
-    s = patch(s, { trashDeck: [fish, card('dog'), ...s.trashDeck] });
-    s = act(s, { type: 'dig', playerId: me }).state;
-    const dog = act(s, { type: 'dig', playerId: me }).state;
-    expect(dog.pendingDog?.kind).toBe('dog');
-    const lucky = act(dog, { type: 'usePower', playerId: me, use: { power: 'goodLuck' } });
-    expect(lucky.state.pendingDog).toBeNull();
-    expect(lucky.state.bag).toEqual([fish]);
-    expect(eventTypes(lucky.events)).toEqual(['POWER_USED', 'DOG_RETURNED']);
-    expect(current(lucky.state)).toBe(me);
-  });
-});
-
-describe('Good-Luck Cat — balance experiments (config.goodLuckEffect)', () => {
-  function metDog(effect: typeof DEFAULT_CONFIG.goodLuckEffect) {
-    let s = skipToTrash(
-      withCat('orange', 'korat-exp', { ...DEFAULT_CONFIG, goodLuckEffect: effect }),
-    ).state;
     const me = current(s);
     s = giveCat(s, me, 'korat');
     const bagged = cards('fish', 'milk', 'shrimp');
     s = patch(s, { trashDeck: [...bagged, card('dog'), ...s.trashDeck] });
     for (let i = 0; i < 4; i++) s = act(s, { type: 'dig', playerId: me }).state;
-    return { s: act(s, { type: 'usePower', playerId: me, use: { power: 'goodLuck' } }).state, me };
-  }
-
-  it('halfBagEndTurn: loses half the bag (rounded up), keeps the rest, turn over', () => {
-    const { s, me } = metDog('halfBagEndTurn');
-    expect(player(s, me).hand.map((c) => c.kind)).toEqual(['shrimp']);
-    expect(current(s)).not.toBe(me);
+    expect(s.pendingDog?.kind).toBe('dog');
+    const lucky = act(s, { type: 'usePower', playerId: me, use: { power: 'goodLuck' } });
+    expect(eventTypes(lucky.events).slice(0, 4)).toEqual([
+      'POWER_USED',
+      'DOG_CAUGHT',
+      'DOG_RETURNED',
+      'BAG_KEPT',
+    ]);
+    expect(player(lucky.state, me).hand).toEqual([bagged[2]]);
+    expect(lucky.state.discard).toEqual(bagged.slice(0, 2));
+    expect(lucky.state.pendingDog).toBeNull();
+    expect(current(lucky.state)).not.toBe(me);
   });
 
-  it('endTurn keeps the whole bag; halfBag carries on digging', () => {
-    const end = metDog('endTurn');
-    expect(player(end.s, end.me).hand).toHaveLength(3);
-    const half = metDog('halfBag');
-    expect(half.s.bag.map((c) => c.kind)).toEqual(['shrimp']);
-    expect(current(half.s)).toBe(half.me);
+  it('without the power (used, or another cat) a dog and no bone still means caught', () => {
+    let s = skipToTrash(withCat('orange')).state;
+    const me = current(s);
+    s = patch(s, { powers: { ...s.powers, [me]: { cat: 'korat', used: true } } });
+    s = patch(s, { trashDeck: [card('fish'), card('dog'), ...s.trashDeck] });
+    s = act(s, { type: 'dig', playerId: me }).state;
+    const dog = act(s, { type: 'dig', playerId: me });
+    expect(eventTypes(dog.events)).toContain('DOG_CAUGHT');
+    expect(dog.state.pendingDog).toBeNull();
   });
 });
 
@@ -370,30 +342,24 @@ describe('Big Appetite (chubby)', () => {
 });
 
 describe('whole games with powers', () => {
-  it.each([2, 3, 4])(
-    'finish with every card accounted for (%i players, both Scavenger timings)',
-    (n) => {
-      for (const timing of ['eat', 'afterPick'] as const) {
-        for (let seed = 0; seed < 15; seed++) {
-          const rng = createRng(`cats:${n}:${seed}`);
-          const chosen = rng.shuffle([...CAT_IDS]).slice(0, n);
-          const cats = Object.fromEntries(P.slice(0, n).map((id, i) => [id, chosen[i]!]));
-          const config = { ...DEFAULT_CONFIG, scavengerTiming: timing };
-          let expected: number[] | null = null;
-          const { final } = playRandomGame(
-            `pw:${seed}`,
-            n,
-            (state) => {
-              const ids = allCardIds(state).sort((a, b) => a - b);
-              expected ??= ids;
-              expect(ids).toEqual(expected);
-            },
-            config,
-            cats,
-          );
-          expect(final.phase).toBe('gameOver');
-        }
-      }
-    },
-  );
+  it.each([2, 3, 4])('finish with every card accounted for (%i players)', (n) => {
+    for (let seed = 0; seed < 15; seed++) {
+      const rng = createRng(`cats:${n}:${seed}`);
+      const chosen = rng.shuffle([...CAT_IDS]).slice(0, n);
+      const cats = Object.fromEntries(P.slice(0, n).map((id, i) => [id, chosen[i]!]));
+      let expected: number[] | null = null;
+      const { final } = playRandomGame(
+        `pw:${seed}`,
+        n,
+        (state) => {
+          const ids = allCardIds(state).sort((a, b) => a - b);
+          expected ??= ids;
+          expect(ids).toEqual(expected);
+        },
+        DEFAULT_CONFIG,
+        cats,
+      );
+      expect(final.phase).toBe('gameOver');
+    }
+  });
 });

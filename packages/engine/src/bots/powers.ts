@@ -39,12 +39,11 @@ export function powerMove(policy: BotPolicy, ctx: BotCtx): Action | null {
       return dogRisk(view) >= T.keenNose.minDogRisk
         ? { type: 'usePower', playerId, use: { power: 'keenNose' } }
         : null;
-    case 'goodLuck': {
-      const bag = view.bag.length;
-      const worth =
-        bag >= T.goodLuck.minBag || (view.round >= T.goodLuck.anyBagFromRound && bag > 0);
-      return worth ? { type: 'usePower', playerId, use: { power: 'goodLuck' } } : null;
-    }
+    case 'goodLuck':
+      // Half the bag (rounded up) goes anyway, so it only pays off from 2 cards.
+      return view.bag.length >= T.goodLuck.minBag
+        ? { type: 'usePower', playerId, use: { power: 'goodLuck' } }
+        : null;
     case 'extraOrder': {
       const values = view.market.map((c) => cardValue(view, view.hand, c)).sort((a, b) => b - a);
       const lastToPick = view.pickQueue.length === 1;
@@ -114,13 +113,6 @@ function windowChoice(ctx: BotCtx): Extract<Action, { type: 'usePower' }>['use']
       if (clashing) return { power: 'secondThought', value: target };
       const climb = view.round >= T.secondThought.climbFromRound && free(bid + 1);
       return climb ? { power: 'secondThought', value: bid + 1 } : null;
-    }
-    case 'scavenger': {
-      // Alternative timing: the stall's leftover card is free — take it.
-      const card = [...view.market].sort(
-        (a, b) => cardValue(view, view.hand, b) - cardValue(view, view.hand, a),
-      )[0];
-      return card ? { power: 'scavenger', cardId: card.id } : null;
     }
   }
 }
