@@ -1,4 +1,10 @@
-import type { BotDifficulty, BotPersonality, PlayerId } from '@meow/engine';
+import {
+  type BotDifficulty,
+  type BotPersonality,
+  CAT_IDS,
+  type CatId,
+  type PlayerId,
+} from '@meow/engine';
 
 // Online rooms (docs/MULTIPLAYER.md). Numbers here are the single place to tune them.
 
@@ -45,8 +51,9 @@ export const MAX_MESSAGE_BYTES = 4_096;
 export const EMOTES = ['meow', 'yay', 'yum', 'wow', 'oops', 'hurry', 'thanks', 'gg'] as const;
 export type EmoteId = (typeof EMOTES)[number];
 
-export const CAT_COLORS = ['orange', 'black', 'white', 'calico'] as const;
-export type CatColor = (typeof CAT_COLORS)[number];
+/** The 8 cats (GAME_RULES §14) — one per seat, never two alike in a game. */
+export const CAT_COLORS = CAT_IDS;
+export type CatColor = CatId;
 
 export interface RoomBot {
   readonly personality: BotPersonality;

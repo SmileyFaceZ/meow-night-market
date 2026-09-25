@@ -161,6 +161,19 @@ describe('lobby', () => {
     expect(b.room?.seats.map((s) => s.id)).toEqual(['p1']);
   });
 
+  it('gives every seat its own cat', () => {
+    const room = setup();
+    const a = room.connect('Ann'); // calico
+    const b = room.connect('Bo'); // asked for calico too
+    expect(b.room?.seats.map((s) => s.cat)).toEqual(['calico', 'orange']);
+    a.say({ type: 'addBot', bot: { personality: 'greedy', difficulty: 'normal' } });
+    expect(new Set(a.room?.seats.map((s) => s.cat)).size).toBe(3);
+    b.say({ type: 'updateMe', name: 'Bo', cat: 'calico' });
+    expect(b.last('error')?.key).toBe('room.error.catTaken');
+    b.say({ type: 'updateMe', name: 'Bo', cat: 'korat' });
+    expect(a.room?.seats[1]?.cat).toBe('korat');
+  });
+
   it('lets people rename themselves and leave', () => {
     const room = setup();
     const a = room.connect('Ann');

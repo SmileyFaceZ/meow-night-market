@@ -327,6 +327,7 @@ export const ROOM_ERROR_KEYS = [
   'room.error.notHost',
   'room.error.notEnoughPlayers',
   'room.error.notEnoughReady',
+  'room.error.catTaken',
   'room.error.alreadyStarted',
   'room.error.notSeated',
   'room.error.badMessage',

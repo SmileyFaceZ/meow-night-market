@@ -15,11 +15,11 @@ export function useSeatName(seats: readonly SeatInfo[]) {
       const seat = seats.find((s) => s.id === id);
       if (!seat) return '';
       if (seat.bot) {
-        const personality = seat.bot.personality;
-        const twins = seats.filter((s) => s.bot?.personality === personality);
-        const base = t(`bot.${personality}`);
-        // Two bots with the same personality get a number: "Careful Snowy 2".
-        return twins.length > 1 ? `${base} ${twins.indexOf(seat) + 1}` : base;
+        // "Greedy Ginger": the bot's personality + its cat (cats are unique, so no twins).
+        return t('botName', {
+          cat: t(`catShort.${seat.cat}`),
+          trait: t(`trait.${seat.bot.personality}`),
+        });
       }
       if (seat.name?.trim()) return seat.name.trim();
       // Pass-and-play: unnamed humans are told apart by number ("Player 2").

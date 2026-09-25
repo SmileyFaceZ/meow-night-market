@@ -51,6 +51,12 @@
     "sly": "Sly Shadow",
     "careful": "Careful Snowy"
   },
+  "trait": {
+    "greedy": "Greedy",
+    "sly": "Sly",
+    "careful": "Careful"
+  },
+  "botName": "{{trait}} {{cat}}",
   "botDesc": {
     "greedy": "Bids high, digs boldly, eats the moment it can",
     "sly": "Loves clashing with the leader and eating first",
@@ -65,7 +71,21 @@
     "orange": "Ginger",
     "black": "Black",
     "white": "White",
-    "calico": "Calico"
+    "calico": "Calico",
+    "korat": "Korat",
+    "siamese": "Siamese",
+    "tabby": "Tabby",
+    "chubby": "Chubby"
+  },
+  "catShort": {
+    "orange": "Ginger",
+    "black": "Shadow",
+    "white": "Snowy",
+    "calico": "Calico",
+    "korat": "Korat",
+    "siamese": "Siamese",
+    "tabby": "Tabby",
+    "chubby": "Chubby"
   },
   "difficulty": {
     "easy": "Easy",
@@ -106,7 +126,8 @@
     "playerN": "Player {{n}}",
     "nameOf": "Nickname of player {{n}}",
     "needHumans": "You need at least {{min}} people",
-    "addPlayer": "+ Add player"
+    "addPlayer": "+ Add player",
+    "catClash": "Everyone needs a different cat"
   },
   "handoff": {
     "title": "Pass the phone to {{name}}",
@@ -204,7 +225,8 @@
       "notSeated": "You don’t have a seat in this game",
       "badMessage": "That message was not understood",
       "tooFast": "Slow down a little~",
-      "notEnoughReady": "You need at least 2 ready seats"
+      "notEnoughReady": "You need at least 2 ready seats",
+      "catTaken": "Someone already has that cat"
     }
   },
   "hint": {

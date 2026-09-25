@@ -15,6 +15,7 @@ import {
   AUTO_MOVE_MS,
   BEAT_MS,
   BOT_DELAY_MS,
+  CAT_COLORS,
   type CatColor,
   type ClientMessage,
   clientMessageSchema,
@@ -254,7 +255,9 @@ export class RoomCore {
       // Coming back: same seat, the stand-in bot steps aside.
       conn.seatId = mine.id;
       this.setSeat(mine.id, { awaySince: null, standIn: false, timedOut: false });
-      if (betweenGames(room.status)) this.setSeat(mine.id, { name, cat: message.cat });
+      if (betweenGames(room.status)) {
+        this.setSeat(mine.id, { name, cat: this.freeCat(message.cat, mine.id) });
+      }
       const hostHere = this.room.seats.some((s) => s.host && s.awaySince === null && !s.bot);
       if (!hostHere) this.makeHost(mine.id);
       conn.send({ type: 'welcome', token: mine.token!, seatId: mine.id });
@@ -269,7 +272,7 @@ export class RoomCore {
           {
             id,
             name,
-            cat: message.cat,
+            cat: this.freeCat(message.cat),
             bot: null,
             token,
             host,
@@ -320,6 +323,9 @@ export class RoomCore {
       case 'updateMe':
         if (!seat || !betweenGames(this.room.status))
           return this.fail(conn, 'room.error.alreadyStarted');
+        if (this.freeCat(message.cat, seat.id) !== message.cat) {
+          return this.fail(conn, 'room.error.catTaken');
+        }
         this.setSeat(seat.id, { name: message.name.trim() || null, cat: message.cat });
         this.touch();
         return this.broadcastRoom();
@@ -355,7 +361,7 @@ export class RoomCore {
             {
               id: `p${room.nextSeatNo}`,
               name: null,
-              cat: BOT_CAT[message.bot.personality],
+              cat: this.freeCat(BOT_CAT[message.bot.personality]),
               bot: message.bot,
               token: null,
               host: false,
@@ -706,6 +712,12 @@ export class RoomCore {
 
   private seatOf(conn: Conn): StoredSeat | undefined {
     return conn.seatId ? this.room.seats.find((s) => s.id === conn.seatId) : undefined;
+  }
+
+  /** Every seat has its own cat: `wanted` if nobody else has it, else the first free one. */
+  private freeCat(wanted: CatColor, forSeat?: PlayerId): CatColor {
+    const taken = new Set(this.room.seats.filter((s) => s.id !== forSeat).map((s) => s.cat));
+    return taken.has(wanted) ? (CAT_COLORS.find((c) => !taken.has(c)) ?? wanted) : wanted;
   }
 
   private setSeat(id: PlayerId, patch: Partial<StoredSeat>): void {

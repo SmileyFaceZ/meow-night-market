@@ -155,23 +155,27 @@ export function RematchPanel({
                 role="radiogroup"
                 aria-label={t('setup.yourCat')}
               >
-                {CAT_COLORS.map((cat) => (
-                  <button
-                    key={cat}
-                    type="button"
-                    role="radio"
-                    aria-checked={me.cat === cat}
-                    aria-label={t(`cat.${cat}`)}
-                    onClick={() =>
-                      controller.send({ type: 'updateMe', name: me.name ?? profile.name, cat })
-                    }
-                    className={`flex min-h-tap items-center justify-center rounded-2xl p-1.5 ${me.cat === cat ? 'bg-night ring-2 ring-lantern' : 'bg-night/50'}`}
-                  >
-                    <span className="size-10">
-                      <CatArt color={cat} mood={me.cat === cat ? 'happy' : 'normal'} />
-                    </span>
-                  </button>
-                ))}
+                {CAT_COLORS.map((cat) => {
+                  const taken = room.seats.some((s) => s.id !== me.id && s.cat === cat);
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      role="radio"
+                      aria-checked={me.cat === cat}
+                      aria-disabled={taken || undefined}
+                      aria-label={t(`cat.${cat}`)}
+                      onClick={() =>
+                        controller.send({ type: 'updateMe', name: me.name ?? profile.name, cat })
+                      }
+                      className={`flex min-h-tap items-center justify-center rounded-2xl p-1.5 ${me.cat === cat ? 'bg-night ring-2 ring-lantern' : 'bg-night/50'} ${taken ? 'opacity-30' : ''}`}
+                    >
+                      <span className="size-10">
+                        <CatArt color={cat} mood={me.cat === cat ? 'happy' : 'normal'} />
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </section>
             {isHost && (

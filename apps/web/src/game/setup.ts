@@ -1,5 +1,8 @@
-import { BOT_DIFFICULTIES, BOT_PERSONALITIES, type BotPersonality } from '@meow/engine';
+import { BOT_DIFFICULTIES, BOT_PERSONALITIES } from '@meow/engine';
+import { botCats } from './cats';
 import { type BotSeat, CAT_COLORS, type CatColor, NAME_MAX_LENGTH, type SeatInfo } from './types';
+
+export { BOT_CAT } from './cats';
 
 export interface SoloSetup {
   readonly name: string;
@@ -8,13 +11,6 @@ export interface SoloSetup {
 }
 
 const SETUP_KEY = 'mnm.setup.v1';
-
-/** Each bot personality has its own cat colour (matching its name). */
-export const BOT_CAT: Record<BotPersonality, CatColor> = {
-  greedy: 'orange',
-  sly: 'black',
-  careful: 'white',
-};
 
 export const DEFAULT_SETUP: SoloSetup = {
   name: '',
@@ -56,15 +52,11 @@ export function storeSetup(setup: SoloSetup): void {
   }
 }
 
-export function seatsFromSetup(setup: SoloSetup): SeatInfo[] {
+export function seatsFromSetup(setup: SoloSetup, random?: () => number): SeatInfo[] {
+  const cats = botCats([setup.cat], setup.bots, random);
   return [
     { id: 'p0', name: setup.name.trim() || null, cat: setup.cat, bot: null },
-    ...setup.bots.map((bot, i) => ({
-      id: `p${i + 1}`,
-      name: null,
-      cat: BOT_CAT[bot.personality],
-      bot,
-    })),
+    ...setup.bots.map((bot, i) => ({ id: `p${i + 1}`, name: null, cat: cats[i]!, bot })),
   ];
 }
 
@@ -94,7 +86,7 @@ export function humanCount(setup: LocalSetup): number {
   return setup.players.filter((p) => p.kind === 'human').length;
 }
 
-/** A cat colour no other human has picked yet (duplicates are allowed, just not by default). */
+/** A cat no other human has picked yet (every seat has its own cat). */
 export function freeCat(setup: LocalSetup): CatColor {
   const taken = setup.players.flatMap((p) => (p.kind === 'human' ? [p.cat] : []));
   return CAT_COLORS.find((c) => !taken.includes(c)) ?? CAT_COLORS[0];
@@ -139,10 +131,26 @@ export function storeLocalSetup(setup: LocalSetup): void {
   }
 }
 
-export function seatsFromLocalSetup(setup: LocalSetup): SeatInfo[] {
+/** Humans whose cat another human took first (they must pick again). */
+export function catClashes(setup: LocalSetup): Set<number> {
+  const seen = new Map<CatColor, number>();
+  const clashes = new Set<number>();
+  setup.players.forEach((p, i) => {
+    if (p.kind !== 'human') return;
+    if (seen.has(p.cat)) clashes.add(i);
+    else seen.set(p.cat, i);
+  });
+  return clashes;
+}
+
+export function seatsFromLocalSetup(setup: LocalSetup, random?: () => number): SeatInfo[] {
+  const humans = setup.players.flatMap((p) => (p.kind === 'human' ? [p.cat] : []));
+  const bots = setup.players.flatMap((p) => (p.kind === 'bot' ? [p.bot] : []));
+  const cats = botCats(humans, bots, random);
+  let nextBot = 0;
   return setup.players.map((p, i) =>
     p.kind === 'human'
       ? { id: `p${i}`, name: p.name.trim() || null, cat: p.cat, bot: null }
-      : { id: `p${i}`, name: null, cat: BOT_CAT[p.bot.personality], bot: p.bot },
+      : { id: `p${i}`, name: null, cat: cats[nextBot++]!, bot: p.bot },
   );
 }

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { CatArt } from '../art/CatArt';
 import { Button } from '../components/ui';
 import {
-  BOT_CAT,
+  catClashes,
   freeCat,
   humanCount,
   loadLocalSetup,
@@ -12,6 +12,7 @@ import {
   type LocalSetup,
   MAX_LOCAL_PLAYERS,
   MIN_LOCAL_HUMANS,
+  seatsFromLocalSetup,
   storeLocalSetup,
 } from '../game/setup';
 import { type BotSeat, CAT_COLORS, NAME_MAX_LENGTH } from '../game/types';
@@ -28,6 +29,10 @@ export function LocalSetupScreen({
 }) {
   const { t } = useTranslation();
   const [setup, setSetup] = useState<LocalSetup>(loadLocalSetup);
+  // Every seat has its own cat: preview the bots' cats, and flag humans sharing one.
+  const preview = seatsFromLocalSetup(setup);
+  const clashes = catClashes(setup);
+  const [takenHint, setTakenHint] = useState<number | null>(null);
   /** Seat whose "bot" switch was refused (it would leave fewer than two humans). */
   const [blocked, setBlocked] = useState<number | null>(null);
   const humans = humanCount(setup);
@@ -64,7 +69,10 @@ export function LocalSetupScreen({
           {t('local.players', { n: setup.players.length, max: MAX_LOCAL_PLAYERS })}
         </h2>
         {setup.players.map((player, index) => {
-          const cat = player.kind === 'human' ? player.cat : BOT_CAT[player.bot.personality];
+          const cat = preview[index]!.cat;
+          const takenByOthers = new Set(
+            setup.players.flatMap((p, i) => (p.kind === 'human' && i !== index ? [p.cat] : [])),
+          );
           const lastHumans = player.kind === 'human' && humans <= MIN_LOCAL_HUMANS;
           return (
             <div key={index} className="rounded-2xl bg-night-2 p-3">
@@ -150,9 +158,14 @@ export function LocalSetupScreen({
                         type="button"
                         role="radio"
                         aria-checked={player.cat === c}
+                        aria-disabled={takenByOthers.has(c) || undefined}
                         aria-label={t(`cat.${c}`)}
-                        onClick={() => setPlayer(index, { ...player, cat: c })}
-                        className={`flex min-h-tap items-center justify-center rounded-xl p-1 ${player.cat === c ? 'bg-night ring-2 ring-lantern' : 'bg-night/50'}`}
+                        onClick={() =>
+                          takenByOthers.has(c)
+                            ? setTakenHint(index)
+                            : (setTakenHint(null), setPlayer(index, { ...player, cat: c }))
+                        }
+                        className={`flex min-h-tap items-center justify-center rounded-xl p-1 ${player.cat === c ? 'bg-night ring-2 ring-lantern' : 'bg-night/50'} ${takenByOthers.has(c) ? 'opacity-30' : ''}`}
                       >
                         <span className="size-9">
                           <CatArt color={c} mood={player.cat === c ? 'happy' : 'normal'} />
@@ -160,6 +173,11 @@ export function LocalSetupScreen({
                       </button>
                     ))}
                   </div>
+                  {takenHint === index && (
+                    <p role="status" className="text-xs text-alert">
+                      {t('room.error.catTaken')}
+                    </p>
+                  )}
                 </div>
               ) : (
                 <div className="mt-2 grid gap-1.5">
@@ -224,6 +242,7 @@ export function LocalSetupScreen({
       <div className="mt-auto grid gap-2">
         {hasSave && <p className="text-center text-sm text-card/70">{t('home.newGameConfirm')}</p>}
         <Button
+          disabledReason={clashes.size > 0 ? t('local.catClash') : null}
           onClick={() => {
             storeLocalSetup(setup);
             onStart(setup);
