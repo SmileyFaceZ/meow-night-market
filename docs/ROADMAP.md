@@ -38,11 +38,11 @@
 - [x] หน้าตั้งค่าเล่นเครื่องเดียว (คน 2–4 คน + เติมบอทได้) · เล่นต่อหลังปิดเว็บได้
 
 ## เฟส 6 — เล่นกับเพื่อนออนไลน์
-- [ ] Durable Object GameRoom + protocol + zod
-- [ ] Lobby, รหัสห้อง, ลิงก์แชร์, เติมบอท
-- [ ] reconnect, ตัวจับเวลา, บอทแทนคนหลุด
-- [ ] สติกเกอร์แมว
-- [ ] Playwright test 2 ผู้เล่นจนจบเกม
+- [x] Durable Object GameRoom + protocol + zod
+- [x] Lobby, รหัสห้อง, ลิงก์แชร์, เติมบอท
+- [x] reconnect, ตัวจับเวลา, บอทแทนคนหลุด
+- [x] สติกเกอร์แมว
+- [x] Playwright test 2 ผู้เล่นจนจบเกม
 
 ## เฟส 7 — ปล่อยเกม
 - [ ] deploy server + client ตาม MULTIPLAYER.md

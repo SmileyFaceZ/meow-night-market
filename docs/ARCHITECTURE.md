@@ -35,15 +35,26 @@
 │  │  ├─ src/
 │  │  │  ├─ art/            # SVG: CardArt (ทุกการ์ด), CatArt (4 สี × 4 อารมณ์), BinArt (ถัง 4 อารมณ์), BackArt, style.ts
 │  │  │  ├─ components/     # cards (GameCard, MeowCard, CardBack), board (PlayerBadge, PriceTags, MarketStall,
-│  │  │  │                  #   TrashArea, HandView, EventFeed, EventLog), Stage (แอนิเมชันเหตุการณ์), Coach, Handoff, ui
-│  │  │  ├─ screens/        # Home, Setup, LocalSetup, Game, Result, HowTo, Tutorial (Lobby เฟส 6)
+│  │  │  │                  #   TrashArea, HandView, EventFeed, EventLog), Stage (แอนิเมชันเหตุการณ์), Coach, Handoff,
+│  │  │  │                  #   OnlineBits (ตัวจับเวลา สติกเกอร์), ui
+│  │  │  ├─ screens/        # Home, Setup, LocalSetup, Game, Result, HowTo, Tutorial, Online, Lobby, Room
 │  │  │  ├─ game/           # types (GameController), LocalController, save, setup, hooks,
-│  │  │  │                  #   stage + useStage (จังหวะเหตุการณ์/สีหน้าแมว), tutorial (บทสอน), handoff (ส่งเครื่อง)
+│  │  │  │                  #   stage + useStage (สีหน้าแมว), tutorial (บทสอน), handoff (ส่งเครื่อง),
+│  │  │  │                  #   online (RemoteController — เล่นออนไลน์)
 │  │  │  ├─ i18n/           # th.json, en.json, index.ts
 │  │  │  └─ styles/
 │  │  ├─ scripts/           # find-tutorial-seed.ts (หา seed ของบทสอน)
-│  │  └─ test/              # i18n, controller + save/resume, stage, tutorial, handoff
-│  └─ server/               # Worker + Durable Object "GameRoom"
+│  │  └─ test/              # i18n, controller + save/resume, stage, tutorial, handoff, online
+│  └─ server/               # @meow/server — Cloudflare Worker + Durable Object
+│     ├─ wrangler.jsonc     # binding ROOMS → GameRoom (SQLite), ALLOWED_ORIGINS
+│     ├─ worker-configuration.d.ts  # สร้างด้วย `wrangler types` (typecheck ใช้ --check)
+│     ├─ src/index.ts       # Worker: POST /api/rooms, GET /api/rooms/:code/ws, /api/health
+│     ├─ src/room.ts        # GameRoom: WebSocket Hibernation API + storage + alarm (บางๆ)
+│     ├─ src/core.ts        # RoomCore: ตรรกะห้องทั้งหมด (ไม่มี API ของ Cloudflare — test ด้วยนาฬิกาปลอม)
+│     └─ test/              # core (ตรรกะห้อง) + worker (Worker + DO จริงใน workerd)
+├─ packages/protocol/       # @meow/protocol — ใช้ร่วม client/server: zod schema ข้อความ, ค่าห้อง (room.ts),
+│                           #   จังหวะเหตุการณ์ (pacing.ts: beat + เวลาแสดง)
+└─ e2e/                     # Playwright: 2 คนเล่นออนไลน์จนจบเกม (`npm run test:e2e`)
 ```
 
 ## Tooling
@@ -58,7 +69,8 @@
   - `LocalController` รัน engine ในเบราว์เซอร์ (โหมดเดี่ยว / เครื่องเดียว) และขับบอท
     - เล่นเครื่องเดียว (มีคนมากกว่า 1 ที่นั่ง): จอแสดง view ของ "คนถือเครื่อง" คนเดียว · ถ้าคนที่ต้องเล่นต่อเป็นคนอื่น
       snapshot มี `handoff` → หน้าจอบัง "ส่งเครื่องให้…" จนกว่าจะกด `acceptHandoff()` (ตรรกะอยู่ที่ `game/handoff.ts`)
-  - `OnlineController` ส่ง action ไป server และรับ view กลับ
+  - `RemoteController` (`game/online.ts`) ส่ง action ไป server และรับ view กลับ · ต่อใหม่เองเมื่อเน็ตหลุด
+    · `setPaused` ไม่ทำอะไร เพราะ server เป็นคนรอจังหวะ (บอทเดินหลังเวลาแสดงเหตุการณ์ `showTimeMs`)
   → หน้าจอเกมไม่ต้องรู้ว่าเล่นโหมดไหน
 - **Action** ทุกตัวมี `type`, `playerId` — engine ตรวจสิทธิ์และความถูกต้องทุกครั้ง คืน error ที่อ่านได้ (เป็น i18n key)
 - **Phase machine (engine):** `bidding → pick → trash → eat → (discard) → รอบถัดไป | gameOver`
