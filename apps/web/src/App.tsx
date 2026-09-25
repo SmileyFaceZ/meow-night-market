@@ -8,7 +8,8 @@ import { browserStorage, clearSave, type GameSave, readSave } from './game/save'
 import { GameScreen } from './screens/Game';
 import { HomeScreen } from './screens/Home';
 import { HowToScreen } from './screens/HowTo';
-import { ResultScreen } from './screens/Result';
+import { ResultScreen, SessionScoreBar } from './screens/Result';
+import { browserSessionStorage, recordSessionGame, type SessionScore } from './game/sessionScore';
 import { type LocalSetup, seatsFromLocalSetup, seatsFromSetup, type SoloSetup } from './game/setup';
 import type { SeatInfo } from './game/types';
 import { LocalSetupScreen } from './screens/LocalSetup';
@@ -41,9 +42,6 @@ function setPath(path: string): void {
   if (location.pathname !== path) history.replaceState(null, '', path);
 }
 
-/** What "play again" repeats. */
-type LastSetup = { mode: 'solo'; setup: SoloSetup } | { mode: 'local'; setup: LocalSetup };
-
 function newSeed(): string {
   // Seed for a fresh game (UI side — the engine itself never touches Math.random).
   return `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`;
@@ -59,7 +57,8 @@ export function App() {
   } | null>(null);
   const [save, setSave] = useState<GameSave | null>(() => readSave(storage));
   const [controller, setController] = useState<GameController | null>(null);
-  const [lastSetup, setLastSetup] = useState<LastSetup | null>(null);
+  // Wins in a row for the current line-up (solo / pass-and-play), GAME_RULES §13.
+  const [sessionScore, setSessionScore] = useState<SessionScore | null>(null);
 
   useEffect(() => () => controller?.dispose(), [controller]);
   useEffect(() => () => online?.controller.dispose(), [online]);
@@ -95,18 +94,23 @@ export function App() {
     setController(LocalController.newGame(seats, newSeed(), storage, browserScheduler));
     setScreen('game');
   };
-  const startSolo = (setup: SoloSetup) => {
-    setLastSetup({ mode: 'solo', setup });
-    startGame(seatsFromSetup(setup));
-  };
-  const startLocal = (setup: LocalSetup) => {
-    setLastSetup({ mode: 'local', setup });
-    startGame(seatsFromLocalSetup(setup));
-  };
+  const startSolo = (setup: SoloSetup) => startGame(seatsFromSetup(setup));
+  const startLocal = (setup: LocalSetup) => startGame(seatsFromLocalSetup(setup));
+  /** The finished game's seats again, with a new seed (works for a resumed save too). */
   const playAgain = () => {
-    if (lastSetup?.mode === 'solo') startSolo(lastSetup.setup);
-    else if (lastSetup?.mode === 'local') startLocal(lastSetup.setup);
-    else setScreen('home');
+    if (controller) startGame(controller.getSnapshot().seats);
+  };
+  /** Back to the setup screen that fits the finished game (it remembers the last choices). */
+  const changeSetup = () => {
+    const humans = controller?.getSnapshot().seats.filter((s) => !s.bot).length ?? 1;
+    setScreen(humans > 1 ? 'localSetup' : 'setup');
+  };
+  const showResult = () => {
+    const snap = controller?.getSnapshot();
+    if (snap?.view.result) {
+      setSessionScore(recordSessionGame(browserSessionStorage(), snap.seats, snap.view.result));
+    }
+    setScreen('result');
   };
 
   const startTutorial = () => {
@@ -148,13 +152,7 @@ export function App() {
   }
 
   if (screen === 'game' && controller) {
-    return (
-      <GameScreen
-        controller={controller}
-        onShowResult={() => setScreen('result')}
-        onQuit={goHome}
-      />
-    );
+    return <GameScreen controller={controller} onShowResult={showResult} onQuit={goHome} />;
   }
 
   if (screen === 'result' && controller) {
@@ -165,7 +163,19 @@ export function App() {
           result={snapshot.view.result}
           seats={snapshot.seats}
           viewerId={snapshot.sharedDevice ? null : snapshot.view.viewer}
-          onPlayAgain={playAgain}
+          {...(controller instanceof TutorialController
+            ? {}
+            : {
+                onPlayAgain: playAgain,
+                onChangeSetup: changeSetup,
+                extra: sessionScore && (
+                  <SessionScoreBar
+                    seats={snapshot.seats}
+                    wins={sessionScore.wins}
+                    games={sessionScore.games}
+                  />
+                ),
+              })}
           onHome={goHome}
         />
       );

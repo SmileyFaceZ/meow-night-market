@@ -90,6 +90,8 @@ export class RemoteController implements GameController {
   private extras: OnlineExtras;
   private noticeId = 0;
   private emoteId = 0;
+  /** The room's game the current snapshot belongs to (a rematch starts over). */
+  private viewGameNo = -1;
 
   constructor(options: RemoteOptions) {
     this.options = options;
@@ -227,7 +229,7 @@ export class RemoteController implements GameController {
       case 'welcome':
         this.seatId = message.seatId;
         if (message.seatId !== null) this.storeToken(message.token);
-        this.setExtras({ spectating: message.seatId === null });
+        if (message.seatId === null) this.setExtras({ spectating: true });
         return;
       case 'room': {
         const presence: Record<PlayerId, Presence> = {};
@@ -235,7 +237,10 @@ export class RemoteController implements GameController {
           if (seat.standIn) presence[seat.id] = 'standIn';
           else if (!seat.connected) presence[seat.id] = 'away';
         }
-        this.extras = { ...this.extras, presence };
+        // Watching: no seat, or sitting this game out (GAME_RULES §13).
+        const mine = message.room.seats.find((s) => s.id === message.room.you);
+        const spectating = !mine || mine.sittingOut !== null;
+        this.extras = { ...this.extras, presence, spectating };
         this.update({ room: message.room, game: this.withExtras(message.room) });
         return;
       }
@@ -246,13 +251,16 @@ export class RemoteController implements GameController {
           deadline: c.remainingMs === null ? null : now + c.remainingMs,
         }));
         this.extras = { ...this.extras, clocks };
-        const previous = this.state.game;
+        // A rematch: the new game's history starts empty (its screen opens with the banner).
+        const gameNo = this.state.room?.gameNo ?? 0;
+        const previous = gameNo === this.viewGameNo ? this.state.game : null;
+        this.viewGameNo = gameNo;
         const recentEvents = [...(previous?.recentEvents ?? []), ...message.events].slice(
           -RECENT_EVENTS,
         );
         const game: ControllerSnapshot = {
           view: message.view,
-          seats: seatsOf(this.state.room),
+          seats: this.gameSeats(previous),
           recentEvents,
           eventCount: (previous?.eventCount ?? 0) + message.events.length,
           version: (previous?.version ?? 0) + 1,
@@ -289,10 +297,20 @@ export class RemoteController implements GameController {
     if (!game || room?.status === 'lobby') return null;
     return {
       ...game,
-      seats: seatsOf(room),
+      seats: this.gameSeats(game),
       version: game.version + 1,
       online: this.extras,
     };
+  }
+
+  /**
+   * Seats of the current room, plus anyone who played this game and has since left
+   * (the result still names them).
+   */
+  private gameSeats(game: ControllerSnapshot | null): SeatInfo[] {
+    const now = seatsOf(this.state.room);
+    const gone = (game?.seats ?? []).filter((old) => !now.some((s) => s.id === old.id));
+    return [...now, ...gone];
   }
 
   private setExtras(patch: Partial<OnlineExtras>): void {

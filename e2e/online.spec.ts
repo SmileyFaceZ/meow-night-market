@@ -19,7 +19,7 @@ async function newPlayer(browser: Browser) {
 
 /** One move (or one tap through an animation). Returns true once the scores are shown. */
 async function step(page: Page): Promise<boolean> {
-  if (await page.getByRole('button', { name: 'Play again' }).isVisible()) return true;
+  if (await page.getByRole('region', { name: 'Play again?' }).isVisible()) return true;
   const skip = page.getByText('Tap to skip');
   if (await skip.isVisible()) {
     await skip.click({ force: true, timeout: 1_000 }).catch(() => {});
@@ -99,15 +99,20 @@ test('two friends play a whole game online', async ({ browser }) => {
     done.guest ||= await step(guest.page);
   }
 
-  // Both see the same scores; the host takes everyone back to the lobby.
+  // Both see the same scores; then a rematch in the same room.
   const scores = async (page: Page) =>
     (await page.locator('ol li').allTextContents()).map((s) =>
       s.replace(' (You)', '').replace(/\s+/g, ' '),
     );
   expect(await scores(host.page)).toEqual(await scores(guest.page));
-  await host.page.getByRole('button', { name: 'Play again' }).click();
-  await expect(guest.page.getByText('Waiting for the host to start…')).toBeVisible();
-  await expect(host.page.getByRole('button', { name: 'Start game!' })).toBeVisible();
+  await expect(host.page.getByRole('region', { name: 'Room score' })).toBeVisible();
+  await guest.page.getByRole('button', { name: 'Rematch' }).click();
+  await expect(guest.page.getByText('Ready! Waiting for the host to start…')).toBeVisible();
+  await expect(host.page.getByText('Ready!', { exact: true })).toBeVisible();
+  await host.page.getByRole('button', { name: 'Start!' }).click();
+  for (const page of [host.page, guest.page]) {
+    await expect(page.getByText('Round 1/5')).toBeVisible();
+  }
 
   expect(host.errors).toEqual([]);
   expect(guest.errors).toEqual([]);

@@ -1,8 +1,8 @@
-import { BOT_DIFFICULTIES, BOT_PERSONALITIES, type BotDifficulty } from '@meow/engine';
-import { MAX_SEATS, MIN_SEATS_TO_START, TURN_SECONDS_OPTIONS } from '@meow/protocol';
+import { MAX_SEATS, MIN_SEATS_TO_START } from '@meow/protocol';
 import { useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CatArt } from '../art/CatArt';
+import { RoomSettings } from '../components/RoomSettings';
 import { Button } from '../components/ui';
 import { useSeatName } from '../game/hooks';
 import type { Profile, RemoteController } from '../game/online';
@@ -22,7 +22,6 @@ export function LobbyScreen({
   const { room, connection, problem, code } = online;
   const seats = room?.seats ?? [];
   const seatName = useSeatName(seats);
-  const [difficulty, setDifficulty] = useState<BotDifficulty>('normal');
   const [copied, setCopied] = useState(false);
   const link = `${location.origin}/room/${code}`;
   const me = seats.find((s) => s.id === room?.you);
@@ -147,69 +146,7 @@ export function LobbyScreen({
         ))}
       </section>
 
-      {isHost && seats.length < MAX_SEATS && (
-        <section className="grid gap-1.5">
-          <h2 className="font-display">{t('lobby.addBot')}</h2>
-          <div className="grid grid-cols-3 gap-1.5">
-            {BOT_PERSONALITIES.map((personality) => (
-              <button
-                key={personality}
-                type="button"
-                onClick={() =>
-                  controller.send({ type: 'addBot', bot: { personality, difficulty } })
-                }
-                className="min-h-tap rounded-xl border-2 border-card/30 bg-night-2 px-1 text-sm leading-tight hover:border-lantern"
-              >
-                {t(`bot.${personality}`)}
-              </button>
-            ))}
-          </div>
-          <div
-            className="grid grid-cols-2 gap-1.5"
-            role="radiogroup"
-            aria-label={t('setup.difficulty')}
-          >
-            {BOT_DIFFICULTIES.map((d) => (
-              <button
-                key={d}
-                type="button"
-                role="radio"
-                aria-checked={difficulty === d}
-                onClick={() => setDifficulty(d)}
-                className={`min-h-tap rounded-xl text-sm ${difficulty === d ? 'bg-card text-ink' : 'bg-night-2 text-card'}`}
-              >
-                {t(`difficulty.${d}`)}
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <section className="grid gap-1.5">
-        <h2 className="font-display">{t('lobby.timer')}</h2>
-        {isHost ? (
-          <div className="grid grid-cols-5 gap-1.5" role="radiogroup" aria-label={t('lobby.timer')}>
-            {TURN_SECONDS_OPTIONS.map((seconds) => (
-              <button
-                key={seconds}
-                type="button"
-                role="radio"
-                aria-checked={room?.turnSeconds === seconds}
-                onClick={() => controller.send({ type: 'setTurnSeconds', seconds })}
-                className={`min-h-tap rounded-xl text-sm ${room?.turnSeconds === seconds ? 'bg-lantern text-ink' : 'bg-night-2 text-card'}`}
-              >
-                {seconds === 0 ? t('lobby.timerOff') : t('lobby.seconds', { seconds })}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-card/80">
-            {room?.turnSeconds
-              ? t('lobby.timerIs', { seconds: room.turnSeconds })
-              : t('lobby.timerOff')}
-          </p>
-        )}
-      </section>
+      {room && <RoomSettings controller={controller} room={room} isHost={isHost} />}
 
       <div className="mt-auto grid gap-2">
         {room && room.you === null && (

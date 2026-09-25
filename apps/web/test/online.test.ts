@@ -59,6 +59,7 @@ const room = (status: RoomInfo['status']): RoomInfo => ({
   turnSeconds: 45,
   spectators: 0,
   you: 'p0',
+  gameNo: 1,
   seats: [
     {
       id: 'p0',
@@ -68,6 +69,9 @@ const room = (status: RoomInfo['status']): RoomInfo => ({
       host: true,
       connected: true,
       standIn: false,
+      ready: false,
+      wins: 0,
+      sittingOut: null,
     },
     {
       id: 'p1',
@@ -77,6 +81,9 @@ const room = (status: RoomInfo['status']): RoomInfo => ({
       host: false,
       connected: false,
       standIn: true,
+      ready: false,
+      wins: 0,
+      sittingOut: null,
     },
   ],
 });
@@ -172,6 +179,33 @@ describe('RemoteController', () => {
     expect(timers.nextDelay()).toBe(EMOTE_SHOW_MS);
     timers.flushNext();
     expect(controller.getSnapshot().online?.emotes).toEqual([]);
+  });
+
+  it('starts a rematch with a fresh history, and watches while sitting a game out', () => {
+    const { socket, controller } = setup();
+    socket().onopen?.();
+    socket().receive({ type: 'welcome', token: TOKEN, seatId: 'p0' });
+    socket().receive({ type: 'room', room: room('playing') });
+    socket().receive({
+      type: 'view',
+      view: getPlayerView(game, 'p0'),
+      events: [{ type: 'BID_PLACED', playerId: 'p1' }],
+      clocks: [],
+    });
+    expect(controller.getSnapshot().eventCount).toBe(1);
+
+    const next = { ...room('playing'), gameNo: 2 };
+    const benched = {
+      ...next,
+      seats: next.seats.map((s) => (s.id === 'p0' ? { ...s, sittingOut: 'watching' as const } : s)),
+    };
+    socket().receive({ type: 'room', room: benched });
+    socket().receive({ type: 'view', view: getPlayerView(game, null), events: [], clocks: [] });
+    expect(controller.getSnapshot().eventCount).toBe(0);
+    expect(controller.getSnapshot().online?.spectating).toBe(true);
+
+    socket().receive({ type: 'room', room: next });
+    expect(controller.getSnapshot().online?.spectating).toBe(false);
   });
 
   it('ignores anything that does not match the protocol', () => {

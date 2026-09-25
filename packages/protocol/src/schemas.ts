@@ -195,15 +195,15 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('action'), action: actionSchema }),
   z.object({ type: z.literal('emote'), id: z.enum(EMOTES) }),
   z.object({ type: z.literal('ping') }),
-  /** Lobby: change your own name / cat. */
+  /** Lobby or after a game: change your own name / cat. */
   z.object({ type: z.literal('updateMe'), name: nameSchema, cat: catSchema }),
-  /** Lobby, host only. */
+  /** Lobby or after a game, host only. `start` after a game needs 2+ ready seats. */
   z.object({ type: z.literal('addBot'), bot: botSchema }),
   z.object({ type: z.literal('removeSeat'), seatId: id }),
   z.object({ type: z.literal('setTurnSeconds'), seconds: turnSeconds }),
   z.object({ type: z.literal('start') }),
-  /** After the game, host only: everyone back to the lobby for another game. */
-  z.object({ type: z.literal('backToLobby') }),
+  /** After a game: want (or no longer want) to play again — GAME_RULES §13. */
+  z.object({ type: z.literal('ready'), ready: z.boolean() }),
   /** Give up your seat (lobby) — during a game a bot takes over. */
   z.object({ type: z.literal('leave') }),
 ]);
@@ -223,6 +223,9 @@ const roomSeat = z.object({
   host: z.boolean(),
   connected: z.boolean(),
   standIn: z.boolean(),
+  ready: z.boolean(),
+  wins: count,
+  sittingOut: z.enum(['watching', 'waiting']).nullable(),
 });
 
 export const roomInfoSchema = z.object({
@@ -232,6 +235,7 @@ export const roomInfoSchema = z.object({
   turnSeconds,
   spectators: count,
   you: id.nullable(),
+  gameNo: count,
 });
 
 const turnClock = z.object({ playerId: id, remainingMs: count.nullable() });
@@ -242,6 +246,7 @@ export const ROOM_ERROR_KEYS = [
   'room.error.full',
   'room.error.notHost',
   'room.error.notEnoughPlayers',
+  'room.error.notEnoughReady',
   'room.error.alreadyStarted',
   'room.error.notSeated',
   'room.error.badMessage',

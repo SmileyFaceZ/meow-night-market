@@ -1,4 +1,5 @@
 import type { GameResult } from '@meow/engine';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CatArt } from '../art/CatArt';
 import { Button } from '../components/ui';
@@ -10,16 +11,20 @@ export function ResultScreen({
   seats,
   viewerId,
   onPlayAgain,
-  playAgainReason = null,
+  onChangeSetup,
+  extra,
   onHome,
 }: {
   result: GameResult;
   seats: readonly SeatInfo[];
   /** Null when several players shared the screen: nobody is "you". */
   viewerId: string | null;
-  onPlayAgain: () => void;
-  /** Online: only the host can start another game; others see why. */
-  playAgainReason?: string | null;
+  /** Same settings, new game at once (absent online: the rematch panel handles it). */
+  onPlayAgain?: (() => void) | undefined;
+  /** Back to the setup screen with the current settings. */
+  onChangeSetup?: (() => void) | undefined;
+  /** Shown above the buttons: running score, or the online rematch panel. */
+  extra?: ReactNode;
   onHome: () => void;
 }) {
   const { t } = useTranslation();
@@ -28,7 +33,9 @@ export function ResultScreen({
   const winners = result.winners;
   const headline =
     winners.length === 1
-      ? t('result.winner', { name: winners[0] === viewerId ? t('term.you') : name(winners[0]) })
+      ? winners[0] === viewerId
+        ? t('result.youWin')
+        : t('result.winner', { name: name(winners[0]) })
       : t('result.sharedWin');
 
   return (
@@ -78,14 +85,53 @@ export function ResultScreen({
         })}
       </ol>
 
+      {extra}
+
       <div className="mt-auto grid gap-2">
-        <Button onClick={onPlayAgain} disabledReason={playAgainReason}>
-          {t('result.playAgain')}
-        </Button>
+        {onPlayAgain && <Button onClick={onPlayAgain}>{t('term.rematch')}</Button>}
+        {onChangeSetup && (
+          <Button variant="secondary" onClick={onChangeSetup}>
+            {t('result.changeSetup')}
+          </Button>
+        )}
         <Button variant="secondary" onClick={onHome}>
           {t('result.home')}
         </Button>
       </div>
     </main>
+  );
+}
+
+/** Wins in a row on this device for the same line-up (solo / pass-and-play). */
+export function SessionScoreBar({
+  seats,
+  wins,
+  games,
+}: {
+  seats: readonly SeatInfo[];
+  wins: Readonly<Record<string, number>>;
+  games: number;
+}) {
+  const { t } = useTranslation();
+  const name = useSeatName(seats);
+  if (games < 2) return null;
+  return (
+    <section
+      aria-label={t('result.sessionScore', { count: games })}
+      className="flex flex-wrap items-center justify-center gap-1.5 rounded-2xl bg-night-2/70 px-2 py-1.5 text-sm"
+    >
+      <span className="font-display text-lantern">
+        {t('result.sessionScore', { count: games })}
+      </span>
+      {seats.map((s) => (
+        <span key={s.id} className="flex items-center gap-1 rounded-full bg-night px-2 py-0.5">
+          <span className="size-5">
+            <CatArt color={s.cat} mood="normal" />
+          </span>
+          <span className="max-w-[6rem] truncate">{name(s.id)}</span>
+          <span className="font-display">{wins[s.id] ?? 0}</span>
+        </span>
+      ))}
+    </section>
   );
 }

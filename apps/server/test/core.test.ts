@@ -6,6 +6,7 @@ import {
   DISCONNECT_GRACE_MS,
   EMPTY_ROOM_TTL_MS,
   RATE_LIMIT,
+  RESULT_IDLE_MS,
   type RoomInfo,
   type ServerMessage,
 } from '@meow/protocol';
@@ -264,35 +265,139 @@ describe('game', () => {
     expect(watcher.last('error')?.key).toBe('room.error.notSeated');
   });
 
-  it.each([1, 2, 3])(
-    'plays whole games with people and a bot, then back to the lobby (%i)',
-    (seed) => {
-      const room = setup(`GAM${'ABC'[seed - 1]}`);
-      const a = room.connect('Ann');
-      const b = room.connect('Bo');
-      a.say({ type: 'addBot', bot: { personality: 'careful', difficulty: 'normal' } });
-      a.say({ type: 'start' });
-      const rng = createRng(seed);
-      for (let step = 0; step < 5_000 && a.room?.status === 'playing'; step++) {
-        for (const conn of [a, b]) {
-          const view = conn.view!;
-          const action = chooseRandomAction(view, rng);
-          if (action) conn.say({ type: 'action', action });
-        }
-        room.advance(2_000);
-      }
-      expect(a.room?.status).toBe('ended');
-      expect(a.view?.result?.scores).toHaveLength(3);
-      expect(b.view?.result).toEqual(a.view?.result);
+  it.each([1, 2, 3])('plays whole games with people and a bot, then a rematch (%i)', (seed) => {
+    const room = setup(`GAM${'ABC'[seed - 1]}`);
+    const a = room.connect('Ann');
+    const b = room.connect('Bo');
+    a.say({ type: 'addBot', bot: { personality: 'careful', difficulty: 'normal' } });
+    a.say({ type: 'start' });
+    const firstDeal = room.core.state.game!.trashDeck.map((c) => c.id);
+    playToEnd(room, [a, b], seed);
+    expect(a.room?.status).toBe('ended');
+    expect(a.view?.result?.scores).toHaveLength(3);
+    expect(b.view?.result).toEqual(a.view?.result);
+    const winners = a.view!.result!.winners;
+    expect(a.room?.seats.map((s) => s.wins)).toEqual(
+      a.room!.seats.map((s) => (winners.includes(s.id) ? 1 : 0)),
+    );
+    // Nobody is ready yet, except the bot.
+    expect(a.room?.seats.map((s) => s.ready)).toEqual([false, false, true]);
 
-      b.say({ type: 'backToLobby' });
-      expect(b.last('error')?.key).toBe('room.error.notHost');
-      a.say({ type: 'backToLobby' });
-      expect(b.room?.status).toBe('lobby');
-      expect(b.room?.seats).toHaveLength(3);
-    },
-  );
+    b.say({ type: 'ready', ready: true });
+    expect(a.room?.seats[1]?.ready).toBe(true);
+    b.say({ type: 'start' });
+    expect(b.last('error')?.key).toBe('room.error.notHost');
+    a.say({ type: 'start' });
+    expect(b.room).toMatchObject({ status: 'playing', gameNo: 2 });
+    expect(b.view?.round).toBe(1);
+    // A new seed every game.
+    expect(room.core.state.game!.trashDeck.map((c) => c.id)).not.toEqual(firstDeal);
+    expect(b.room?.seats.map((s) => s.sittingOut)).toEqual([null, null, null]);
+  });
 });
+
+/** Everyone seated plays random legal moves until the game ends. */
+function playToEnd(room: Room, conns: ReturnType<Room['connect']>[], seed: number) {
+  const rng = createRng(seed);
+  for (let step = 0; step < 5_000 && conns[0]!.room?.status === 'playing'; step++) {
+    for (const conn of conns) {
+      const view = conn.view;
+      if (!view?.viewer) continue;
+      const action = chooseRandomAction(view, rng);
+      if (action) conn.say({ type: 'action', action });
+    }
+    room.advance(2_000);
+  }
+  expect(conns[0]!.room?.status).toBe('ended');
+}
+
+describe('rematch', () => {
+  function finishedRoom(names: string[]) {
+    const room = setup();
+    const conns = names.map((n) => room.connect(n));
+    conns[0]!.say({ type: 'start' });
+    playToEnd(room, conns, 7);
+    return { room, conns };
+  }
+
+  it('needs two ready seats: the host counts, bots always do', () => {
+    const { conns } = finishedRoom(['Ann', 'Bo']);
+    const [a] = conns;
+    a!.say({ type: 'start' });
+    expect(a!.last('error')?.key).toBe('room.error.notEnoughReady');
+    a!.say({ type: 'addBot', bot: { personality: 'greedy', difficulty: 'easy' } });
+    a!.say({ type: 'start' });
+    expect(a!.room?.status).toBe('playing');
+  });
+
+  it('lets someone who is not ready watch, keeps their wins, and seats them again later', () => {
+    const { room, conns } = finishedRoom(['Ann', 'Bo', 'Cy']);
+    const [a, b, c] = conns as [TestConnOf<Room>, TestConnOf<Room>, TestConnOf<Room>];
+    const cWins = c.room!.seats[2]!.wins;
+    b.say({ type: 'ready', ready: true });
+    a.say({ type: 'start' });
+    expect(a.room?.seats.map((s) => s.sittingOut)).toEqual([null, null, 'watching']);
+    expect(a.view?.players.map((p) => p.id)).toEqual(['p0', 'p1']);
+    expect(c.view?.viewer).toBeNull();
+    c.say({ type: 'action', action: { type: 'bid', playerId: 'p2', value: 1 } });
+    expect(c.last('error')?.key).toBe('room.error.notSeated');
+    c.say({ type: 'emote', id: 'meow' });
+    expect(c.last('error')?.key).toBe('room.error.notSeated');
+
+    playToEnd(room, [a, b], 3);
+    expect(a.room?.seats[2]).toMatchObject({ sittingOut: null, wins: cWins, ready: false });
+    c.say({ type: 'ready', ready: true });
+    b.say({ type: 'ready', ready: true });
+    a.say({ type: 'start' });
+    expect(c.view?.viewer).toBe('p2');
+  });
+
+  it('keeps someone in the waiting room when all spectator places are taken', () => {
+    const room = setup();
+    const [a, b, c] = ['Ann', 'Bo', 'Cy'].map((n) => room.connect(n));
+    a!.say({ type: 'start' });
+    const watchers = [1, 2, 3, 4].map((i) => room.connect(`W${i}`));
+    expect(watchers.every((w) => w.last('welcome')?.seatId === null)).toBe(true);
+    playToEnd(room, [a!, b!, c!], 5);
+    b!.say({ type: 'ready', ready: true });
+    const viewsBefore = c!.inbox.filter((m) => m.type === 'view').length;
+    a!.say({ type: 'start' });
+    expect(c!.room?.seats[2]?.sittingOut).toBe('waiting');
+    expect(c!.inbox.filter((m) => m.type === 'view')).toHaveLength(viewsBefore);
+  });
+
+  it('seats a newcomer between games, not ready yet; leaving frees the seat', () => {
+    const { room, conns } = finishedRoom(['Ann', 'Bo']);
+    const newcomer = room.connect('Dee');
+    expect(newcomer.last('welcome')?.seatId).toBe('p2');
+    expect(newcomer.room?.seats[2]).toMatchObject({ name: 'Dee', ready: false, wins: 0 });
+    conns[1]!.say({ type: 'leave' });
+    expect(newcomer.room?.seats.map((s) => s.name)).toEqual(['Ann', 'Dee']);
+  });
+
+  it('lets people change their cat and the host change settings between games', () => {
+    const { conns } = finishedRoom(['Ann', 'Bo']);
+    const [a, b] = conns;
+    b!.say({ type: 'updateMe', name: 'Bobo', cat: 'white' });
+    a!.say({ type: 'setTurnSeconds', seconds: 90 });
+    expect(a!.room?.seats[1]).toMatchObject({ name: 'Bobo', cat: 'white' });
+    expect(a!.room?.turnSeconds).toBe(90);
+  });
+
+  it('counts as empty after 10 idle minutes on the results, unless someone acts', () => {
+    const { room, conns } = finishedRoom(['Ann', 'Bo']);
+    room.advance(RESULT_IDLE_MS - 1_000);
+    conns[1]!.say({ type: 'ready', ready: true });
+    room.advance(RESULT_IDLE_MS - 1_000);
+    expect(room.core.state.emptySince).toBeNull();
+    room.advance(1_000);
+    expect(room.core.state.emptySince).not.toBeNull();
+    room.advance(EMPTY_ROOM_TTL_MS);
+    expect(room.core.expired).toBe(true);
+  });
+});
+
+type TestConnOf<R extends Room> = ReturnType<R['connect']>;
 
 describe('room lifetime', () => {
   it('expires 30 minutes after the last person leaves', () => {

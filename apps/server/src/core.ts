@@ -27,12 +27,14 @@ import {
   MIN_SEATS_TO_START,
   parseMessage,
   RATE_LIMIT,
+  RESULT_IDLE_MS,
   type RoomBot,
   type RoomErrorKey,
   type RoomInfo,
   type RoomStatus,
   type ServerMessage,
   showTimeMs,
+  type SittingOut,
   STAND_IN_BOT,
   type TurnClock,
   type TurnSeconds,
@@ -55,6 +57,12 @@ export interface StoredSeat {
   readonly standIn: boolean;
   /** Ran out of time: a bot finishes this turn for them. */
   readonly timedOut: boolean;
+  /** After a game: this human wants to play again (bots always do). */
+  readonly ready: boolean;
+  /** Games won in this room — belongs to the person, so it survives sitting a game out. */
+  readonly wins: number;
+  /** Not in the current game (was not ready when it started). */
+  readonly sittingOut: SittingOut | null;
 }
 
 export interface StoredRoom {
@@ -74,6 +82,10 @@ export interface StoredRoom {
   readonly due: Readonly<Record<PlayerId, number>>;
   /** Nobody connected since then (the room is deleted after EMPTY_ROOM_TTL_MS). */
   readonly emptySince: number | null;
+  /** Games started so far. */
+  readonly gameNo: number;
+  /** After a game: last time anyone did something (RESULT_IDLE_MS counts from here). */
+  readonly idleSince: number | null;
 }
 
 /** A client connection as the room sees it; the Durable Object keeps `seatId` across hibernation. */
@@ -111,7 +123,14 @@ export function newRoom(code: string, now: number): StoredRoom {
     turnStart: {},
     due: {},
     emptySince: now,
+    gameNo: 0,
+    idleSince: null,
   };
+}
+
+/** Between games the room works like a lobby: seats, bots and settings can change. */
+function betweenGames(status: RoomStatus): boolean {
+  return status === 'lobby' || status === 'ended';
 }
 
 export class RoomCore {
@@ -187,6 +206,9 @@ export class RoomCore {
     const times: number[] = [];
     const { room } = this;
     if (room.emptySince !== null) times.push(room.emptySince + EMPTY_ROOM_TTL_MS);
+    else if (room.status === 'ended' && room.idleSince !== null) {
+      times.push(room.idleSince + RESULT_IDLE_MS);
+    }
     for (const seat of room.seats) {
       if (seat.awaySince !== null && !seat.standIn)
         times.push(seat.awaySince + DISCONNECT_GRACE_MS);
@@ -212,11 +234,11 @@ export class RoomCore {
       // Coming back: same seat, the stand-in bot steps aside.
       conn.seatId = mine.id;
       this.setSeat(mine.id, { awaySince: null, standIn: false, timedOut: false });
-      if (room.status === 'lobby') this.setSeat(mine.id, { name, cat: message.cat });
+      if (betweenGames(room.status)) this.setSeat(mine.id, { name, cat: message.cat });
       const hostHere = this.room.seats.some((s) => s.host && s.awaySince === null && !s.bot);
       if (!hostHere) this.makeHost(mine.id);
       conn.send({ type: 'welcome', token: mine.token!, seatId: mine.id });
-    } else if (room.status === 'lobby' && room.seats.length < MAX_SEATS) {
+    } else if (betweenGames(room.status) && room.seats.length < MAX_SEATS) {
       const token = this.deps.token();
       const id = `p${room.nextSeatNo}`;
       const host = !room.seats.some((s) => s.host);
@@ -234,6 +256,9 @@ export class RoomCore {
             awaySince: null,
             standIn: false,
             timedOut: false,
+            ready: false,
+            wins: 0,
+            sittingOut: null,
           },
         ],
       });
@@ -241,7 +266,7 @@ export class RoomCore {
       conn.send({ type: 'welcome', token, seatId: id });
     } else {
       const watching = this.deps.conns().filter((c) => c.seatId === SPECTATOR && c.id !== conn.id);
-      if (watching.length >= MAX_SPECTATORS) {
+      if (watching.length + this.seatsWatching() >= MAX_SPECTATORS) {
         this.fail(conn, 'room.error.full');
         conn.close(4003, 'full');
         return;
@@ -258,7 +283,7 @@ export class RoomCore {
     const seat = this.seatOf(conn);
     switch (message.type) {
       case 'action':
-        if (!seat || message.action.playerId !== seat.id)
+        if (!seat || message.action.playerId !== seat.id || !this.inGame(seat.id))
           return this.fail(conn, 'room.error.notSeated');
         if (this.room.status !== 'playing') return this.fail(conn, 'error.gameOver');
         // Acting again means they are back in time: the stand-in stops for this turn.
@@ -266,16 +291,23 @@ export class RoomCore {
         this.play(message.action, conn);
         return;
       case 'emote': {
-        if (!seat) return this.fail(conn, 'room.error.notSeated');
+        if (!seat || seat.sittingOut) return this.fail(conn, 'room.error.notSeated');
         const now = this.deps.now();
         if (now - (this.lastEmote.get(seat.id) ?? -Infinity) < EMOTE_COOLDOWN_MS) return;
         this.lastEmote.set(seat.id, now);
         return this.broadcast({ type: 'emote', from: seat.id, id: message.id });
       }
       case 'updateMe':
-        if (!seat || this.room.status !== 'lobby')
+        if (!seat || !betweenGames(this.room.status))
           return this.fail(conn, 'room.error.alreadyStarted');
         this.setSeat(seat.id, { name: message.name.trim() || null, cat: message.cat });
+        this.touch();
+        return this.broadcastRoom();
+      case 'ready':
+        if (!seat || this.room.status !== 'ended')
+          return this.fail(conn, 'room.error.alreadyStarted');
+        this.setSeat(seat.id, { ready: message.ready });
+        this.touch();
         return this.broadcastRoom();
       case 'leave':
         return this.leave(conn, seat);
@@ -287,25 +319,12 @@ export class RoomCore {
   private hostCommand(
     conn: Conn,
     seat: StoredSeat | undefined,
-    message: Extract<
-      ClientMessage,
-      { type: 'addBot' | 'removeSeat' | 'setTurnSeconds' | 'start' | 'backToLobby' }
-    >,
+    message: Extract<ClientMessage, { type: 'addBot' | 'removeSeat' | 'setTurnSeconds' | 'start' }>,
   ): void {
     const { room } = this;
     if (!seat?.host) return this.fail(conn, 'room.error.notHost');
-    if (message.type === 'backToLobby') {
-      if (room.status !== 'ended') return this.fail(conn, 'room.error.alreadyStarted');
-      this.update({
-        status: 'lobby',
-        game: null,
-        turnStart: {},
-        due: {},
-        seats: room.seats.map((s) => ({ ...s, standIn: false, timedOut: false })),
-      });
-      return this.broadcastRoom();
-    }
-    if (room.status !== 'lobby') return this.fail(conn, 'room.error.alreadyStarted');
+    if (!betweenGames(room.status)) return this.fail(conn, 'room.error.alreadyStarted');
+    this.touch();
     switch (message.type) {
       case 'addBot':
         if (room.seats.length >= MAX_SEATS) return this.fail(conn, 'room.error.full');
@@ -323,6 +342,9 @@ export class RoomCore {
               awaySince: null,
               standIn: false,
               timedOut: false,
+              ready: true,
+              wins: 0,
+              sittingOut: null,
             },
           ],
         });
@@ -340,14 +362,33 @@ export class RoomCore {
         this.update({ turnSeconds: message.seconds });
         break;
       case 'start': {
-        const present = room.seats.filter((s) => s.bot || s.awaySince === null);
-        if (present.length < MIN_SEATS_TO_START)
-          return this.fail(conn, 'room.error.notEnoughPlayers');
+        const first = room.status === 'lobby';
+        // First game: everyone here plays. A rematch: bots, the host, and whoever is ready.
+        const plays = (s: StoredSeat) =>
+          Boolean(s.bot) || (s.awaySince === null && (first || s.id === seat.id || s.ready));
+        const players = room.seats.filter(plays);
+        if (players.length < MIN_SEATS_TO_START) {
+          return this.fail(
+            conn,
+            first ? 'room.error.notEnoughPlayers' : 'room.error.notEnoughReady',
+          );
+        }
+        // The rest sit this game out: watching while there is space, otherwise waiting.
+        let places =
+          MAX_SPECTATORS - this.deps.conns().filter((c) => c.seatId === SPECTATOR).length;
+        const seats = (first ? players : room.seats).map((s): StoredSeat => {
+          if (plays(s)) return { ...s, ready: false, sittingOut: null };
+          const watch = s.awaySince === null && places > 0;
+          if (watch) places--;
+          return { ...s, ready: false, sittingOut: watch ? 'watching' : 'waiting' };
+        });
         const seed = `${room.code}-${Math.floor(this.deps.random() * 2 ** 32).toString(36)}`;
-        const game = createGame({ playerIds: present.map((s) => s.id), seed });
+        const game = createGame({ playerIds: players.map((s) => s.id), seed });
         this.update({
           status: 'playing',
-          seats: present,
+          gameNo: room.gameNo + 1,
+          idleSince: null,
+          seats,
           game,
           botRng: createRng(`bots:${seed}`).state,
           // Clients open the game with the round banner.
@@ -366,7 +407,7 @@ export class RoomCore {
 
   private leave(conn: Conn, seat: StoredSeat | undefined): void {
     const { room } = this;
-    if (seat && room.status === 'lobby') {
+    if (seat && (betweenGames(room.status) || seat.sittingOut)) {
       this.update({ seats: room.seats.filter((s) => s.id !== seat.id) });
       if (seat.host) this.passHost(seat.id, this.deps.conns());
     } else if (seat) {
@@ -393,12 +434,47 @@ export class RoomCore {
     this.update({
       game: result.state,
       showUntil: Math.max(this.room.showUntil, now) + showTimeMs(result.events),
-      status: result.state.phase === 'gameOver' ? 'ended' : 'playing',
     });
+    if (result.state.result) this.endGame(result.state.result.winners);
     this.afterChange(action.playerId);
     this.broadcastView(result.events);
     if (result.state.phase === 'gameOver') this.broadcastRoom();
     return true;
+  }
+
+  /** The game is over: count wins, and everyone is back between games (nobody ready yet). */
+  private endGame(winners: readonly PlayerId[]): void {
+    this.update({
+      status: 'ended',
+      idleSince: this.deps.now(),
+      turnStart: {},
+      due: {},
+      seats: this.room.seats.map((s) => ({
+        ...s,
+        wins: s.wins + (winners.includes(s.id) ? 1 : 0),
+        ready: false,
+        sittingOut: null,
+        standIn: false,
+        timedOut: false,
+      })),
+    });
+  }
+
+  /** Someone did something after a game: the room is not idle. */
+  private touch(): void {
+    if (this.room.status !== 'ended') return;
+    this.update({ idleSince: this.deps.now(), emptySince: null });
+  }
+
+  private inGame(id: PlayerId): boolean {
+    return (
+      this.room.status !== 'lobby' && Boolean(this.room.game?.players.some((p) => p.id === id))
+    );
+  }
+
+  /** Seated people sitting a game out as spectators (they use spectator places). */
+  private seatsWatching(): number {
+    return this.room.seats.filter((s) => s.sittingOut === 'watching').length;
   }
 
   /**
@@ -470,13 +546,19 @@ export class RoomCore {
       if (seat.awaySince === null || seat.standIn || now - seat.awaySince < DISCONNECT_GRACE_MS) {
         continue;
       }
-      if (this.room.status === 'lobby') {
-        // Nobody holds a lobby seat for someone who is gone.
+      if (betweenGames(this.room.status) || seat.sittingOut) {
+        // Nobody holds a seat between games (or a spare one) for someone who is gone.
         this.update({ seats: this.room.seats.filter((s) => s.id !== seat.id) });
       } else {
         this.setSeat(seat.id, { standIn: true });
       }
       seatsChanged = true;
+    }
+    const { idleSince, emptySince, status } = this.room;
+    if (status === 'ended' && emptySince === null && idleSince !== null) {
+      // Nobody asked for another game for a while: count as empty (deleted later).
+      if (now >= idleSince + RESULT_IDLE_MS)
+        this.update({ emptySince: idleSince + RESULT_IDLE_MS });
     }
     if (this.room.status === 'playing') {
       for (const id of this.waitingHumans()) {
@@ -538,7 +620,11 @@ export class RoomCore {
         host: s.host,
         connected: Boolean(s.bot) || s.awaySince === null,
         standIn: s.standIn,
+        ready: Boolean(s.bot) || s.ready,
+        wins: s.wins,
+        sittingOut: s.sittingOut,
       })),
+      gameNo: this.room.gameNo,
     };
   }
 
@@ -555,7 +641,9 @@ export class RoomCore {
   private sendView(conn: Conn, events: readonly GameEvent[]): void {
     const game = this.room.game;
     if (!game || conn.seatId === null) return;
-    const viewer = conn.seatId === SPECTATOR ? null : conn.seatId;
+    // Someone waiting out a game (no spectator place) does not see it.
+    if (this.seatOf(conn)?.sittingOut === 'waiting') return;
+    const viewer = conn.seatId !== SPECTATOR && this.inGame(conn.seatId) ? conn.seatId : null;
     conn.send({
       type: 'view',
       view: getPlayerView(game, viewer),

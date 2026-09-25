@@ -38,7 +38,9 @@
     "hand": "Your hand",
     "you": "You",
     "empty": "Empty",
-    "history": "History"
+    "history": "History",
+    "rematch": "Rematch",
+    "ready": "Ready!"
   },
   "bonus": {
     "variety": "Foodie Bonus"
@@ -164,6 +166,21 @@
     "away": "Dropped out…",
     "standIn": "Bot playing for them"
   },
+  "rematch": {
+    "title": "Play again?",
+    "notReady": "Not ready",
+    "cancelReady": "Not this time",
+    "waitHost": "Ready! Waiting for the host to start…",
+    "start": "Start!",
+    "needReady": "You need at least {{min}} ready seats (bots are always ready)",
+    "confirmTitle": "Start the next game?",
+    "sitsOut": "{{name}} isn’t ready and will watch this game from the sidelines",
+    "notYet": "Wait",
+    "settings": "Room settings / change cat",
+    "score": "Room score",
+    "waitingTitle": "The sidelines are full for this game",
+    "waitingText": "Hang on in the room — when this game ends, tap \"Rematch\" to join the next one."
+  },
   "emote": {
     "title": "Send a sticker",
     "said": "{{name}}: {{text}}",
@@ -185,7 +202,8 @@
       "alreadyStarted": "The game has already started",
       "notSeated": "You don’t have a seat in this game",
       "badMessage": "That message was not understood",
-      "tooFast": "Slow down a little~"
+      "tooFast": "Slow down a little~",
+      "notEnoughReady": "You need at least 2 ready seats"
     }
   },
   "hint": {
@@ -259,15 +277,17 @@
   "result": {
     "title": "Market closed! Final scores",
     "winner": "{{name}} wins!",
+    "youWin": "You win!",
     "sharedWin": "A shared win!",
     "mealPoints": "Meals",
     "bonus": "Foodie",
     "total": "Total",
     "handLeft": "In hand",
     "foodTypes": "{{count}} kinds eaten",
-    "playAgain": "Play again",
     "home": "Home",
-    "waitHost": "Waiting for the host to start another game"
+    "changeSetup": "Change setup",
+    "sessionScore_one": "Streak ({{count}} game)",
+    "sessionScore_other": "Streak ({{count}} games)"
   },
   "error": {
     "gameOver": "The game is over",

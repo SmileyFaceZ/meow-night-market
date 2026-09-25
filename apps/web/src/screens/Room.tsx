@@ -1,11 +1,14 @@
 import { useState, useSyncExternalStore } from 'react';
-import { useTranslation } from 'react-i18next';
+import { RematchPanel, RoomScore, WaitingOutScreen } from '../components/Rematch';
 import type { Profile, RemoteController } from '../game/online';
 import { GameScreen } from './Game';
 import { LobbyScreen } from './Lobby';
 import { ResultScreen } from './Result';
 
-/** An online room: the lobby until the game starts, then the game, then the result. */
+/**
+ * An online room: the lobby before the first game, then games one after another. After a
+ * game the result screen doubles as the waiting room for a rematch (GAME_RULES §13).
+ */
 export function RoomScreen({
   controller,
   profile,
@@ -19,34 +22,41 @@ export function RoomScreen({
   /** Close the game screen but keep the seat (a bot stands in after a minute). */
   onQuit: () => void;
 }) {
-  const { t } = useTranslation();
   const online = useSyncExternalStore(controller.subscribe, controller.getOnline);
   const { room, game, notice } = online;
-  const [showResult, setShowResult] = useState(false);
-  const inGame = room !== null && room.status !== 'lobby' && game !== null;
-  // Back in the lobby (host started "play again"): forget the old result screen.
-  if (!inGame && showResult) setShowResult(false);
+  // Which game's result is on screen (a new game goes back to the table).
+  const [resultOf, setResultOf] = useState<number | null>(null);
 
-  if (!inGame) return <LobbyScreen controller={controller} profile={profile} onLeave={onLeave} />;
-
-  const isHost = room.seats.some((s) => s.id === room.you && s.host);
-  if (showResult && game.view.result) {
+  if (!room || room.status === 'lobby' || !game) {
+    return <LobbyScreen controller={controller} profile={profile} onLeave={onLeave} />;
+  }
+  const me = room.seats.find((s) => s.id === room.you);
+  if (room.status === 'playing' && me?.sittingOut === 'waiting') {
+    return <WaitingOutScreen room={room} cat={me.cat} onLeave={onLeave} />;
+  }
+  if (room.status === 'ended' && resultOf === room.gameNo && game.view.result) {
     return (
       <ResultScreen
         result={game.view.result}
-        seats={game.seats}
+        seats={game.seats.filter((s) => game.view.players.some((p) => p.id === s.id))}
         viewerId={game.view.viewer}
-        playAgainReason={isHost ? null : t('result.waitHost')}
-        onPlayAgain={() => controller.send({ type: 'backToLobby' })}
+        extra={
+          <>
+            <RoomScore seats={room.seats} />
+            <RematchPanel controller={controller} room={room} profile={profile} />
+          </>
+        }
         onHome={onLeave}
       />
     );
   }
   return (
     <GameScreen
+      // A rematch is a new game: fresh screen state, round banner and all.
+      key={room.gameNo}
       controller={controller}
       notice={notice}
-      onShowResult={() => setShowResult(true)}
+      onShowResult={() => setResultOf(room.gameNo)}
       onQuit={onQuit}
     />
   );

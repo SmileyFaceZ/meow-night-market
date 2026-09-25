@@ -76,9 +76,18 @@ export class GameRoom extends DurableObject<Env> {
   override async alarm(): Promise<void> {
     if (!this.core) return;
     this.core.handleAlarm();
-    if (this.core.expired && this.ctx.getWebSockets().length === 0) {
-      // Nobody came back for 30 minutes: forget the room (its code becomes free).
+    if (this.core.expired) {
+      // Nobody came back (or nobody asked for another game) for long enough: forget the
+      // room, its code becomes free. Anyone still connected is told it is gone.
       this.core = null;
+      for (const ws of this.ctx.getWebSockets()) {
+        send(ws, { type: 'error', key: 'room.error.notFound' });
+        try {
+          ws.close(4004, 'room expired');
+        } catch {
+          // already closed
+        }
+      }
       await this.ctx.storage.deleteAlarm();
       await this.ctx.storage.deleteAll();
       return;

@@ -23,6 +23,11 @@ export const DISCONNECT_GRACE_MS = 60_000;
 export const STAND_IN_BOT = { personality: 'careful', difficulty: 'normal' } as const;
 /** Rooms nobody is connected to are deleted after this long. */
 export const EMPTY_ROOM_TTL_MS = 30 * 60_000;
+/**
+ * A finished game nobody asks to play again for this long counts as an empty room
+ * (the EMPTY_ROOM_TTL_MS countdown starts; anyone doing something stops it) — GAME_RULES §13.
+ */
+export const RESULT_IDLE_MS = 10 * 60_000;
 
 /** Bots "think" this long (GAME_RULES §9), after the screen has shown the last events. */
 export const BOT_DELAY_MS = { min: 600, max: 1200 } as const;
@@ -60,7 +65,18 @@ export interface RoomSeat {
   readonly connected: boolean;
   /** A bot is playing for this human (dropped out) until they come back. */
   readonly standIn: boolean;
+  /** After a game: wants to play again (bots always do). */
+  readonly ready: boolean;
+  /** Games won in this room (GAME_RULES §13 › สกอร์ประจำห้อง). */
+  readonly wins: number;
+  /**
+   * Not playing the current game (was not ready when it started): watching as a spectator,
+   * or waiting in the room when the spectator places were full.
+   */
+  readonly sittingOut: SittingOut | null;
 }
+
+export type SittingOut = 'watching' | 'waiting';
 
 export type RoomStatus = 'lobby' | 'playing' | 'ended';
 
@@ -72,6 +88,8 @@ export interface RoomInfo {
   readonly spectators: number;
   /** The receiving client's seat, or null when watching. */
   readonly you: PlayerId | null;
+  /** Games started in this room so far (a rematch starts the next one). */
+  readonly gameNo: number;
 }
 
 /** Someone the game is waiting on, and how long they have left (ms; null = no timer). */
