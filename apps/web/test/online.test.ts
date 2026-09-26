@@ -39,7 +39,7 @@ function setup(stored: Record<string, string> = {}) {
   };
   const controller = new RemoteController({
     code: 'ABCD',
-    profile: { name: 'Ann', cat: 'calico' },
+    profile: { name: 'Ann' },
     origin: 'https://meow.example',
     connect: (url) => {
       const socket = new FakeSocket(url);
@@ -97,7 +97,7 @@ describe('RemoteController', () => {
     expect(socket().url).toBe('wss://meow.example/api/rooms/ABCD/ws');
     expect(controller.getOnline().connection).toBe('connecting');
     socket().onopen?.();
-    expect(socket().sent).toEqual([{ type: 'hello', name: 'Ann', cat: 'calico', token: TOKEN }]);
+    expect(socket().sent).toEqual([{ type: 'hello', name: 'Ann', token: TOKEN }]);
     expect(controller.getOnline().connection).toBe('open');
   });
 

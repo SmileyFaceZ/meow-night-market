@@ -94,12 +94,9 @@ export function App() {
     setController(LocalController.newGame(seats, newSeed(), storage, browserScheduler, mode));
     setScreen('game');
   };
-  // With cat powers the bots' cats (= their powers) are drawn at random (GAME_RULES §14).
-  const botRandom = (mode: GameMode) => (mode.powers ? Math.random : undefined);
-  const startSolo = (setup: SoloSetup) =>
-    startGame(seatsFromSetup(setup, botRandom(setup.mode)), setup.mode);
-  const startLocal = (setup: LocalSetup) =>
-    startGame(seatsFromLocalSetup(setup, botRandom(setup.mode)), setup.mode);
+
+  const startSolo = (setup: SoloSetup) => startGame(seatsFromSetup(setup), setup.mode);
+  const startLocal = (setup: LocalSetup) => startGame(seatsFromLocalSetup(setup), setup.mode);
   /** The finished game's seats again, with a new seed (works for a resumed save too). */
   const playAgain = () => {
     if (!controller) return;

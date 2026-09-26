@@ -1,4 +1,4 @@
-import { BOT_DIFFICULTIES, BOT_PERSONALITIES, type BotDifficulty } from '@meow/engine';
+import { BOT_DIFFICULTIES, type BotDifficulty } from '@meow/engine';
 import { MAX_SEATS, type RoomInfo, TURN_SECONDS_OPTIONS } from '@meow/protocol';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -6,6 +6,7 @@ import type { RemoteController } from '../game/online';
 import { DEFAULT_SPEED } from '@meow/protocol';
 import { ModeSwitch } from './ModeSwitch';
 import { SpeedSwitch } from './SpeedSwitch';
+import { Button } from './ui';
 
 /** Room settings between games: bots and the turn timer (the host changes them). */
 export function RoomSettings({
@@ -32,20 +33,7 @@ export function RoomSettings({
       {isHost && room.seats.length < MAX_SEATS && (
         <section className="grid gap-1.5">
           <h2 className="font-display">{t('lobby.addBot')}</h2>
-          <div className="grid grid-cols-3 gap-1.5">
-            {BOT_PERSONALITIES.map((personality) => (
-              <button
-                key={personality}
-                type="button"
-                onClick={() =>
-                  controller.send({ type: 'addBot', bot: { personality, difficulty } })
-                }
-                className="min-h-tap rounded-xl border-2 border-card/30 bg-night-2 px-1 text-sm leading-tight hover:border-lantern"
-              >
-                {t(`bot.${personality}`)}
-              </button>
-            ))}
-          </div>
+          <p className="text-xs text-card/70">{t('lobby.botRandom')}</p>
           <div
             className="grid grid-cols-2 gap-1.5"
             role="radiogroup"
@@ -64,6 +52,12 @@ export function RoomSettings({
               </button>
             ))}
           </div>
+          <Button
+            variant="secondary"
+            onClick={() => controller.send({ type: 'addBot', bot: { difficulty } })}
+          >
+            {t('lobby.addBotButton')}
+          </Button>
         </section>
       )}
 

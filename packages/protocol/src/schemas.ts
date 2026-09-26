@@ -270,7 +270,8 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('hello'),
     name: nameSchema,
-    cat: catSchema,
+    /** Older clients still send one; without it a random free cat is given (DECISIONS 052). */
+    cat: catSchema.optional(),
     token: tokenSchema.optional(),
   }),
   z.object({ type: z.literal('action'), action: actionSchema }),
@@ -279,7 +280,14 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   /** Lobby or after a game: change your own name / cat. */
   z.object({ type: z.literal('updateMe'), name: nameSchema, cat: catSchema }),
   /** Lobby or after a game, host only. `start` after a game needs 2+ ready seats. */
-  z.object({ type: z.literal('addBot'), bot: botSchema }),
+  /** Personality optional: the room draws one (and always a free cat) — DECISIONS 052. */
+  z.object({
+    type: z.literal('addBot'),
+    bot: z.object({
+      personality: z.enum(BOT_PERSONALITIES).optional(),
+      difficulty: z.enum(BOT_DIFFICULTIES),
+    }),
+  }),
   z.object({ type: z.literal('removeSeat'), seatId: id }),
   z.object({ type: z.literal('setTurnSeconds'), seconds: turnSeconds }),
   z.object({ type: z.literal('setMode'), powers: z.boolean(), events: z.boolean() }),

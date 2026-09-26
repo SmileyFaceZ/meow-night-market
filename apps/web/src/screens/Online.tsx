@@ -1,14 +1,14 @@
 import { ROOM_CODE_LENGTH, ROOM_CODE_PATTERN } from '@meow/protocol';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CatArt } from '../art/CatArt';
 import { Button } from '../components/ui';
 import { cleanCode, hasSeatToken, type Profile } from '../game/online';
 import { loadSetup, storeSetup } from '../game/setup';
-import { CAT_COLORS, NAME_MAX_LENGTH } from '../game/types';
+import { NAME_MAX_LENGTH } from '../game/types';
 
 /**
- * "Play online": choose a nickname and cat, then create a room or join one by code.
+ * "Play online": choose a nickname, then create a room or join one by code (the cat is
+ * picked in the waiting room — DECISIONS 052).
  * Opened from a shared link (/room/ABCD), it goes straight to joining that room.
  */
 export function OnlineScreen({
@@ -24,13 +24,12 @@ export function OnlineScreen({
 }) {
   const { t } = useTranslation();
   const [profile, setProfile] = useState<Profile>(() => {
-    const { name, cat } = loadSetup();
-    return { name, cat };
+    return { name: loadSetup().name };
   });
   const [code, setCode] = useState(linkCode ?? '');
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-  const remember = () => storeSetup({ ...loadSetup(), name: profile.name, cat: profile.cat });
+  const remember = () => storeSetup({ ...loadSetup(), name: profile.name });
   const codeReady = ROOM_CODE_PATTERN.test(code);
 
   // A refresh inside a room: this tab still holds the seat, so go straight back in.
@@ -64,23 +63,7 @@ export function OnlineScreen({
           }
           className="min-h-tap rounded-2xl border-2 border-card/30 bg-night-2 px-4 text-lg text-card placeholder:text-card/40 focus:border-lantern"
         />
-        <div className="grid grid-cols-4 gap-2" role="radiogroup" aria-label={t('setup.yourCat')}>
-          {CAT_COLORS.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              role="radio"
-              aria-checked={profile.cat === cat}
-              aria-label={t(`cat.${cat}`)}
-              onClick={() => setProfile((p) => ({ ...p, cat }))}
-              className={`flex min-h-tap items-center justify-center rounded-2xl p-1.5 ${profile.cat === cat ? 'bg-night-2 ring-2 ring-lantern' : 'bg-night-2/50'}`}
-            >
-              <span className="size-11">
-                <CatArt color={cat} mood={profile.cat === cat ? 'happy' : 'normal'} />
-              </span>
-            </button>
-          ))}
-        </div>
+        <p className="text-sm text-card/70">{t('online.catInRoom')}</p>
       </section>
 
       {linkCode ? (

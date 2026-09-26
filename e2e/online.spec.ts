@@ -79,7 +79,9 @@ test('two friends play a whole game online', async ({ browser }) => {
   await guest.page.goto(`/room/${code}`);
   await guest.page.getByLabel('Your nickname').fill('Bo');
   await guest.page.getByRole('button', { name: `Join room ${code}` }).click();
-  await expect(host.page.getByText('Bo', { exact: true })).toBeVisible();
+  await expect(
+    host.page.getByRole('region', { name: 'Seats' }).getByText('Bo', { exact: true }),
+  ).toBeVisible();
   await expect(guest.page.getByText('Waiting for the host to start…')).toBeVisible();
 
   // No turn timer, so a slow test machine never hands a turn to a bot.

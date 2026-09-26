@@ -2,6 +2,7 @@ import type { Action, PlayerId } from '@meow/engine';
 import {
   type ClientMessage,
   type EmoteId,
+  type RoomSeat,
   parseMessage,
   ROOM_CODE_ALPHABET,
   ROOM_CODE_LENGTH,
@@ -13,6 +14,7 @@ import {
 import type { Scheduler } from './LocalController';
 import type {
   CatColor,
+  CatHolder,
   ControllerSnapshot,
   GameController,
   OnlineExtras,
@@ -40,9 +42,22 @@ export interface OnlineState {
   readonly notice: { readonly id: number; readonly key: string } | null;
 }
 
+/** Who else holds each cat in a room (people's cats are theirs; bots' can be taken). */
+export function seatCatHolders(
+  seats: readonly RoomSeat[],
+  me: PlayerId | null,
+  name: (id: PlayerId) => string,
+): Partial<Record<CatColor, CatHolder>> {
+  const holders: Partial<Record<CatColor, CatHolder>> = {};
+  for (const seat of seats) {
+    if (seat.id !== me) holders[seat.cat] = { name: name(seat.id), bot: seat.bot !== null };
+  }
+  return holders;
+}
+
+/** What you bring into a room: just a name (the cat is picked inside — DECISIONS 052). */
 export interface Profile {
   readonly name: string;
-  readonly cat: CatColor;
 }
 
 /** The parts of WebSocket we use (tests pass a fake). */
@@ -180,7 +195,6 @@ export class RemoteController implements GameController {
       this.send({
         type: 'hello',
         name: this.options.profile.name,
-        cat: this.options.profile.cat,
         ...(token ? { token } : {}),
       });
       this.schedulePing();

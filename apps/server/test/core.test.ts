@@ -64,6 +64,14 @@ function setup(code = 'ABCD') {
     conn.say({ type: 'hello', name, cat: 'calico', ...(token ? { token } : {}) });
     return conn;
   };
+  /** Connect and send this exact hello (e.g. no cat, as newer clients do). */
+  const connectRaw = (hello: Extract<ClientMessage, { type: 'hello' }>) => {
+    const conn = new TestConn();
+    conns.push(conn);
+    core.handleOpen();
+    conn.say(hello);
+    return conn;
+  };
   const disconnect = (conn: TestConn) => {
     conn.open = false;
     core.handleClose(conn);
@@ -82,6 +90,7 @@ function setup(code = 'ABCD') {
   return {
     core,
     connect,
+    connectRaw,
     disconnect,
     advance,
     get now() {
@@ -125,8 +134,20 @@ describe('lobby', () => {
     a.say({ type: 'addBot', bot: { personality: 'sly', difficulty: 'normal' } });
     a.say({ type: 'setTurnSeconds', seconds: 60 });
     expect(b.room?.seats.map((s) => s.bot?.personality ?? s.name)).toEqual(['Ann', 'Bo', 'sly']);
-    expect(b.room?.seats[2]?.cat).toBe('black');
     expect(b.room?.turnSeconds).toBe(60);
+  });
+
+  it('adds a bot with just a difficulty: random personality and a free cat', () => {
+    const room = setup();
+    const a = room.connect('Ann');
+    for (let i = 0; i < 3; i++) a.say({ type: 'addBot', bot: { difficulty: 'easy' } });
+    const bots = a.room!.seats.filter((s) => s.bot);
+    expect(bots).toHaveLength(3);
+    for (const bot of bots) {
+      expect(['greedy', 'sly', 'careful']).toContain(bot.bot!.personality);
+      expect(bot.bot!.difficulty).toBe('easy');
+    }
+    expect(new Set(a.room!.seats.map((s) => s.cat)).size).toBe(4);
   });
 
   it('needs two seats to start', () => {
@@ -163,17 +184,44 @@ describe('lobby', () => {
     expect(b.room?.seats.map((s) => s.id)).toEqual(['p1']);
   });
 
-  it('gives every seat its own cat', () => {
+  it('gives every seat its own cat; people come before bots (DECISIONS 052)', () => {
     const room = setup();
-    const a = room.connect('Ann'); // calico
-    const b = room.connect('Bo'); // asked for calico too
-    expect(b.room?.seats.map((s) => s.cat)).toEqual(['calico', 'orange']);
-    a.say({ type: 'addBot', bot: { personality: 'greedy', difficulty: 'normal' } });
+    const a = room.connect('Ann'); // asked for calico (an older client)
+    const b = room.connect('Bo'); // asked for calico too: gets a random free one
+    const [annCat, boCat] = b.room!.seats.map((s) => s.cat);
+    expect(annCat).toBe('calico');
+    expect(boCat).not.toBe('calico');
+    a.say({ type: 'addBot', bot: { difficulty: 'normal' } });
     expect(new Set(a.room?.seats.map((s) => s.cat)).size).toBe(3);
+    // another person's cat: refused
     b.say({ type: 'updateMe', name: 'Bo', cat: 'calico' });
     expect(b.last('error')?.key).toBe('room.error.catTaken');
-    b.say({ type: 'updateMe', name: 'Bo', cat: 'korat' });
-    expect(a.room?.seats[1]?.cat).toBe('korat');
+    // a bot's cat: Bo gets it, the bot draws a free one
+    const botCat = a.room!.seats[2]!.cat;
+    b.say({ type: 'updateMe', name: 'Bo', cat: botCat });
+    const seats = a.room!.seats;
+    expect(seats[1]!.cat).toBe(botCat);
+    expect(seats[2]!.cat).not.toBe(botCat);
+    expect(new Set(seats.map((s) => s.cat)).size).toBe(3);
+  });
+
+  it('newer clients join without a cat and get a random free one', () => {
+    const room = setup();
+    const a = room.connect('Ann');
+    for (const name of ['Bo', 'Cy', 'Dee']) room.connectRaw({ type: 'hello', name });
+    const cats = a.room!.seats.map((s) => s.cat);
+    expect(cats).toHaveLength(4);
+    expect(new Set(cats).size).toBe(4);
+  });
+
+  it('keeps the chosen cat when someone reconnects without one', () => {
+    const room = setup();
+    const a = room.connect('Ann');
+    a.say({ type: 'updateMe', name: 'Ann', cat: 'tabby' });
+    const token = a.token!;
+    room.disconnect(a);
+    const back = room.connectRaw({ type: 'hello', name: 'Ann', token });
+    expect(back.room?.seats[0]?.cat).toBe('tabby');
   });
 
   it('lets people rename themselves and leave', () => {

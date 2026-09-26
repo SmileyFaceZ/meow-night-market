@@ -2,7 +2,9 @@ import { MAX_SEATS, MIN_SEATS_TO_START } from '@meow/protocol';
 import { useState, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CatArt } from '../art/CatArt';
+import { CatPicker } from '../components/CatPicker';
 import { RoomSettings } from '../components/RoomSettings';
+import { seatCatHolders } from '../game/online';
 import { Button } from '../components/ui';
 import { useSeatName } from '../game/hooks';
 import type { Profile, RemoteController } from '../game/online';
@@ -31,7 +33,7 @@ export function LobbyScreen({
     return (
       <main className="mx-auto flex min-h-dvh max-w-xl flex-col items-center justify-center gap-5 px-4 text-center">
         <span className="size-28">
-          <CatArt color={profile.cat} mood="shocked" />
+          <CatArt color="calico" mood="shocked" />
         </span>
         <p className="font-display text-xl">{t(`lobby.problem.${problem}`, { code })}</p>
         <Button onClick={onLeave}>{t('result.home')}</Button>
@@ -146,6 +148,23 @@ export function LobbyScreen({
         ))}
       </section>
 
+      {room && me && (
+        <section className="grid gap-1.5">
+          <h2 className="font-display">{t('cats.title')}</h2>
+          <CatPicker
+            value={me.cat}
+            holders={seatCatHolders(seats, me.id, seatName)}
+            powers={room.mode.powers}
+            onPick={(cat) => controller.send({ type: 'updateMe', name: me.name ?? '', cat })}
+          />
+          {online.notice?.key === 'room.error.catTaken' && (
+            <p role="status" className="text-sm text-alert">
+              {t('room.error.catTaken')}
+            </p>
+          )}
+        </section>
+      )}
+
       {room && <RoomSettings controller={controller} room={room} isHost={isHost} />}
 
       <div className="mt-auto grid gap-2">
@@ -155,7 +174,7 @@ export function LobbyScreen({
         {room && room.you === null && seats.length < MAX_SEATS && (
           <Button
             variant="secondary"
-            onClick={() => controller.send({ type: 'hello', name: profile.name, cat: profile.cat })}
+            onClick={() => controller.send({ type: 'hello', name: profile.name })}
           >
             {t('lobby.takeSeat')}
           </Button>

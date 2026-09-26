@@ -1,12 +1,10 @@
 import { MIN_SEATS_TO_START, type RoomInfo, type RoomSeat } from '@meow/protocol';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CAT_POWER } from '@meow/engine';
 import { CatArt } from '../art/CatArt';
-import { PowerInfo } from './Mayhem';
+import { CatPicker } from './CatPicker';
 import { useSeatName } from '../game/hooks';
-import type { Profile, RemoteController } from '../game/online';
-import { CAT_COLORS } from '../game/types';
+import { type Profile, type RemoteController, seatCatHolders } from '../game/online';
 import { RoomSettings } from './RoomSettings';
 import { Button, Modal } from './ui';
 
@@ -151,35 +149,15 @@ export function RematchPanel({
         >
           <div className="grid gap-4">
             <section className="grid gap-1.5">
-              <h2 className="font-display">{t('setup.yourCat')}</h2>
-              <div
-                className="grid grid-cols-4 gap-2"
-                role="radiogroup"
-                aria-label={t('setup.yourCat')}
-              >
-                {CAT_COLORS.map((cat) => {
-                  const taken = room.seats.some((s) => s.id !== me.id && s.cat === cat);
-                  return (
-                    <button
-                      key={cat}
-                      type="button"
-                      role="radio"
-                      aria-checked={me.cat === cat}
-                      aria-disabled={taken || undefined}
-                      aria-label={t(`cat.${cat}`)}
-                      onClick={() =>
-                        controller.send({ type: 'updateMe', name: me.name ?? profile.name, cat })
-                      }
-                      className={`flex min-h-tap items-center justify-center rounded-2xl p-1.5 ${me.cat === cat ? 'bg-night ring-2 ring-lantern' : 'bg-night/50'} ${taken ? 'opacity-30' : ''}`}
-                    >
-                      <span className="size-10">
-                        <CatArt color={cat} mood={me.cat === cat ? 'happy' : 'normal'} />
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              {room.mode.powers && <PowerInfo power={CAT_POWER[me.cat]} compact />}
+              <h2 className="font-display">{t('cats.title')}</h2>
+              <CatPicker
+                value={me.cat}
+                holders={seatCatHolders(room.seats, me.id, name)}
+                powers={room.mode.powers}
+                onPick={(cat) =>
+                  controller.send({ type: 'updateMe', name: me.name ?? profile.name, cat })
+                }
+              />
             </section>
             {isHost && (
               <section className="grid gap-1.5">

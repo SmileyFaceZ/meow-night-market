@@ -12,6 +12,12 @@ import type { Handoff } from './handoff';
 // Shared with the online server, so a cat or a name means the same thing everywhere.
 export { CAT_COLORS, type CatColor, NAME_MAX_LENGTH } from '@meow/protocol';
 
+/** Who else sits with a cat: a person's cat is theirs; a bot's can be taken (DECISIONS 052). */
+export interface CatHolder {
+  readonly name: string;
+  readonly bot: boolean;
+}
+
 export interface BotSeat {
   readonly personality: BotPersonality;
   readonly difficulty: BotDifficulty;

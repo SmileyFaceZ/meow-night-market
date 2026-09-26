@@ -128,8 +128,7 @@
     "personality": "Personality",
     "difficulty": "Difficulty",
     "start": "Let's go!",
-    "back": "Back",
-    "botCatsRandom": "With cat powers, the bots’ cats are drawn when the game starts (each cat has its own power)"
+    "back": "Back"
   },
   "local": {
     "intro": "Take turns on one phone: pass it to whoever’s turn it is. Bids and discards are secret — no peeking!",
@@ -167,7 +166,8 @@
     "joinRoom": "Join room {{code}}",
     "watching": "Watching your friends play~",
     "timeLeft": "{{seconds}}s left",
-    "timeLeftOf": "{{name}}: {{seconds}}s left"
+    "timeLeftOf": "{{name}}: {{seconds}}s left",
+    "catInRoom": "You pick your cat in the waiting room"
   },
   "lobby": {
     "title": "Waiting room",
@@ -196,7 +196,9 @@
     "problem": {
       "notFound": "Room {{code}} not found — it may have expired",
       "full": "Room {{code}} is full"
-    }
+    },
+    "addBotButton": "+ Add a bot",
+    "botRandom": "The bot’s personality and cat are drawn at random"
   },
   "presence": {
     "away": "Dropped out…",
@@ -576,5 +578,13 @@
   },
   "history": {
     "open": "Tap to see everything that happened"
+  },
+  "cats": {
+    "title": "Pick your cat",
+    "takenBy": "{{name}}’s cat",
+    "botHas": "{{name}} · tap to take it",
+    "taken": "{{name}} already has this cat",
+    "change": "Change cat",
+    "pickFor": "Cat for {{name}}"
   }
 }

@@ -1,6 +1,7 @@
 import {
   type Action,
   applyAction,
+  BOT_PERSONALITIES,
   chooseBotAction,
   createGame,
   createRng,
@@ -303,7 +304,9 @@ export class RoomCore {
       conn.seatId = mine.id;
       this.setSeat(mine.id, { awaySince: null, standIn: false, timedOut: false });
       if (betweenGames(room.status)) {
-        this.setSeat(mine.id, { name, cat: this.freeCat(message.cat, mine.id) });
+        this.setSeat(mine.id, { name });
+        // Older clients send the cat from their profile; newer ones choose it in the room.
+        if (message.cat) this.claimCat(mine.id, message.cat);
       }
       const hostHere = this.room.seats.some((s) => s.host && s.awaySince === null && !s.bot);
       if (!hostHere) this.makeHost(mine.id);
@@ -319,7 +322,11 @@ export class RoomCore {
           {
             id,
             name,
-            cat: this.freeCat(message.cat),
+            // A random free cat; they pick their own in the waiting room (DECISIONS 052).
+            cat:
+              message.cat && !this.room.seats.some((s) => s.cat === message.cat)
+                ? message.cat
+                : this.randomFreeCat(),
             bot: null,
             token,
             host,
@@ -374,10 +381,9 @@ export class RoomCore {
       case 'updateMe':
         if (!seat || !betweenGames(this.room.status))
           return this.fail(conn, 'room.error.alreadyStarted');
-        if (this.freeCat(message.cat, seat.id) !== message.cat) {
-          return this.fail(conn, 'room.error.catTaken');
-        }
-        this.setSeat(seat.id, { name: message.name.trim() || null, cat: message.cat });
+        // People before bots: a bot holding this cat draws another; a person keeps theirs.
+        if (!this.claimCat(seat.id, message.cat)) return this.fail(conn, 'room.error.catTaken');
+        this.setSeat(seat.id, { name: message.name.trim() || null });
         this.touch();
         return this.broadcastRoom();
       case 'ready':
@@ -415,11 +421,14 @@ export class RoomCore {
             {
               id: `p${room.nextSeatNo}`,
               name: null,
-              // With cat powers the cat is the power: a random free one (GAME_RULES §14).
-              cat: room.mode.powers
-                ? this.randomFreeCat()
-                : this.freeCat(BOT_CAT[message.bot.personality]),
-              bot: message.bot,
+              // A random free cat and (unless asked for one) a random personality.
+              cat: this.randomFreeCat(),
+              bot: {
+                personality:
+                  message.bot.personality ??
+                  BOT_PERSONALITIES[Math.floor(this.deps.random() * BOT_PERSONALITIES.length)]!,
+                difficulty: message.bot.difficulty,
+              },
               token: null,
               host: false,
               awaySince: null,
@@ -448,15 +457,7 @@ export class RoomCore {
         this.update({ speed: message.speed });
         break;
       case 'setMode': {
-        const mode = { powers: message.powers, events: message.events };
-        const powersOn = mode.powers && !room.mode.powers;
-        this.update({ mode });
-        // Powers just switched on: bots draw their cats (their powers) at random.
-        if (powersOn) {
-          for (const bot of this.room.seats.filter((s) => s.bot)) {
-            this.setSeat(bot.id, { cat: this.randomFreeCat(bot.id) });
-          }
-        }
+        this.update({ mode: { powers: message.powers, events: message.events } });
         break;
       }
       case 'start': {
@@ -821,10 +822,16 @@ export class RoomCore {
     return conn.seatId ? this.room.seats.find((s) => s.id === conn.seatId) : undefined;
   }
 
-  /** Every seat has its own cat: `wanted` if nobody else has it, else the first free one. */
-  private freeCat(wanted: CatColor, forSeat?: PlayerId): CatColor {
-    const taken = new Set(this.room.seats.filter((s) => s.id !== forSeat).map((s) => s.cat));
-    return taken.has(wanted) ? (CAT_COLORS.find((c) => !taken.has(c)) ?? wanted) : wanted;
+  /**
+   * Give this seat the cat it asked for. Every seat has its own cat; people come before
+   * bots, so a bot holding it draws another free one. False if another person has it.
+   */
+  private claimCat(seatId: PlayerId, wanted: CatColor): boolean {
+    const holder = this.room.seats.find((s) => s.id !== seatId && s.cat === wanted);
+    if (holder && !holder.bot) return false;
+    this.setSeat(seatId, { cat: wanted });
+    if (holder) this.setSeat(holder.id, { cat: this.randomFreeCat(holder.id) });
+    return true;
   }
 
   private randomFreeCat(forSeat?: PlayerId): CatColor {
@@ -856,10 +863,3 @@ export class RoomCore {
 }
 
 export type { RoomErrorKey };
-
-/** Bots keep their personality's cat colour online too. */
-const BOT_CAT: Record<RoomBot['personality'], CatColor> = {
-  greedy: 'orange',
-  sly: 'black',
-  careful: 'white',
-};
