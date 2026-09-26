@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import type { ServerMessage } from '@meow/protocol';
-import { type Conn, newRoom, RoomCore, type StoredRoom } from './core.ts';
+import { alarmTime, type Conn, newRoom, RoomCore, type StoredRoom } from './core.ts';
 
 /** What a connection remembers across hibernation (≤ 16 KB). */
 interface Attachment {
@@ -101,6 +101,7 @@ export class GameRoom extends DurableObject<Env> {
       random: () => crypto.getRandomValues(new Uint32Array(1))[0]! / 2 ** 32,
       token: () => newToken(),
       conns: () => this.ctx.getWebSockets().map((ws) => this.conn(ws)),
+      warn: (event, data) => console.warn(JSON.stringify({ warn: event, ...data })),
     });
   }
 
@@ -126,18 +127,18 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   /**
-   * Persist the room if it changed, and make sure we wake up for whatever is due next.
-   * Each setAlarm/deleteAlarm is a billed row write, so the alarm only ever moves earlier
-   * and is never deleted: an early or stale alarm just wakes the room, which finds nothing
-   * due and sets the next one (docs/DEPLOY.md › โควตาแพ็กเกจฟรี).
+   * Persist the room if it changed, and make sure we wake up for whatever is due next
+   * (alarmTime: never deleted, only moved earlier, always strictly in the future —
+   * docs/DEPLOY.md › โควตาแพ็กเกจฟรี). Inside alarm() getAlarm() is null, so the next
+   * alarm is always set there.
    */
   private async save(): Promise<void> {
     if (!this.core) return;
     if (this.core.takeChanged()) await this.ctx.storage.put(STORAGE_KEY, this.core.state);
     const wake = this.core.nextWake();
     if (wake === null) return;
-    const current = await this.ctx.storage.getAlarm();
-    if (current === null || wake < current) await this.ctx.storage.setAlarm(wake);
+    const at = alarmTime(wake, await this.ctx.storage.getAlarm(), Date.now());
+    if (at !== null) await this.ctx.storage.setAlarm(at);
   }
 }
 

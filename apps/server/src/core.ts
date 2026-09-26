@@ -111,6 +111,32 @@ export interface RoomDeps {
   token(): string;
   /** Every open connection. */
   conns(): readonly Conn[];
+  /** Timing warnings (something ran much later than planned) — Workers Logs in production. */
+  warn?(event: string, data: Record<string, unknown>): void;
+}
+
+/**
+ * An alarm may run a little before its time (it fires on the whole millisecond, and
+ * machines' clocks differ slightly): anything due this soon counts as due now, so every
+ * alarm makes progress and the next one is always later than the one running.
+ */
+export const ALARM_EARLY_MS = 50;
+/** Log an automatic move that ran this much later than planned. */
+const LATE_WARN_MS = 2_000;
+
+/**
+ * When to set the room's alarm, or null to leave it (docs/MULTIPLAYER.md › นาฬิกาของห้อง).
+ * Always a whole millisecond after `now` + ALARM_EARLY_MS: re-arming at the time of the alarm that
+ * is running makes production skip it until a much later retry — bots stalled until
+ * someone sent a message (fix/playtest-1). The alarm only ever moves earlier, since each
+ * set is a billed row write; an early alarm just wakes the room to set the next one.
+ */
+export function alarmTime(wake: number | null, current: number | null, now: number): number | null {
+  if (wake === null) return null;
+  // Anything due by now + ALARM_EARLY_MS was just handled, so this is also later than the
+  // alarm that may be running right now.
+  const at = Math.max(Math.ceil(wake), Math.floor(now) + ALARM_EARLY_MS + 1);
+  return current === null || at < current ? at : null;
 }
 
 const SPECTATOR = '';
@@ -187,7 +213,8 @@ export class RoomCore {
   /** The room is empty for good: storage can be wiped. */
   get expired(): boolean {
     const { emptySince } = this.room;
-    return emptySince !== null && this.deps.now() - emptySince >= EMPTY_ROOM_TTL_MS;
+    const now = this.deps.now() + ALARM_EARLY_MS;
+    return emptySince !== null && now - emptySince >= EMPTY_ROOM_TTL_MS;
   }
 
   // ---------------------------------------------------------------- connections
@@ -544,13 +571,16 @@ export class RoomCore {
     const waiting = pendingActors(game);
     const turnStart: Record<PlayerId, number> = {};
     const due: Record<PlayerId, number> = {};
+    // A mover planned now (e.g. a stand-in after a turn timer ran out) thinks from now on,
+    // not from a screen that finished long ago.
+    const from = Math.max(this.room.showUntil, this.deps.now());
     for (const id of waiting) {
       turnStart[id] = this.room.turnStart[id] ?? this.room.showUntil;
       if (this.movesAutomatically(id)) {
         const previous = this.room.due[id];
         due[id] =
           previous === undefined || id === actor || previous < this.room.showUntil
-            ? this.room.showUntil + this.thinkTime(id)
+            ? from + this.thinkTime(id)
             : previous;
       }
     }
@@ -579,7 +609,10 @@ export class RoomCore {
   private thinkTime(id: PlayerId): number {
     const seat = this.room.seats.find((s) => s.id === id);
     if (!seat?.bot && !seat?.standIn && !seat?.timedOut) return AUTO_MOVE_MS;
-    return BOT_DELAY_MS.min + this.deps.random() * (BOT_DELAY_MS.max - BOT_DELAY_MS.min);
+    // Whole milliseconds: alarms are set on whole milliseconds (see alarmTime).
+    return Math.round(
+      BOT_DELAY_MS.min + this.deps.random() * (BOT_DELAY_MS.max - BOT_DELAY_MS.min),
+    );
   }
 
   /** Humans the game waits on who play for themselves (they have a turn timer). */
@@ -597,7 +630,8 @@ export class RoomCore {
 
   /** Apply everything that is due by now: stand-ins, timeouts, bot moves, room expiry. */
   private runClock(): void {
-    const now = this.deps.now();
+    // Everything due within ALARM_EARLY_MS counts as due (the alarm may run a hair early).
+    const now = this.deps.now() + ALARM_EARLY_MS;
     let seatsChanged = false;
     for (const seat of [...this.room.seats]) {
       if (seat.awaySince === null || seat.standIn || now - seat.awaySince < DISCONNECT_GRACE_MS) {
@@ -643,6 +677,8 @@ export class RoomCore {
     const seat = this.room.seats.find((s) => s.id === id);
     const player = game.players.find((p) => p.id === id);
     if (!seat || !player) return false;
+    const lateMs = this.deps.now() - this.room.due[id]!;
+    if (lateMs > LATE_WARN_MS) this.deps.warn?.('autoMoveLate', { id, lateMs, phase: game.phase });
     let action: Action | null;
     if (this.isForcedBid(id)) {
       action = { type: 'bid', playerId: id, value: player.meowLeft[0]! };

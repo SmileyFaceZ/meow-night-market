@@ -12,7 +12,7 @@ import {
   type ServerMessage,
 } from '@meow/protocol';
 import { describe, expect, it } from 'vitest';
-import { type Conn, newRoom, RoomCore } from '../src/core.ts';
+import { ALARM_EARLY_MS, alarmTime, type Conn, newRoom, RoomCore } from '../src/core.ts';
 
 /** A room with a fake clock and fake connections that record what they receive. */
 function setup(code = 'ABCD') {
@@ -480,7 +480,8 @@ describe('room lifetime', () => {
     const room = setup();
     const a = room.connect('Ann');
     room.disconnect(a);
-    room.advance(EMPTY_ROOM_TTL_MS - 1);
+    // (an alarm counts as on time up to ALARM_EARLY_MS before it is due)
+    room.advance(EMPTY_ROOM_TTL_MS - ALARM_EARLY_MS - 1);
     expect(room.core.expired).toBe(false);
     room.advance(1);
     expect(room.core.expired).toBe(true);
@@ -492,4 +493,98 @@ describe('room lifetime', () => {
     room.connect('Ann');
     expect(room.core.nextWake()).toBeNull();
   });
+});
+
+/**
+ * The room as the Durable Object runs it in production: every event rebuilds the room from
+ * storage (hibernation), alarms are whole milliseconds, may run a little early, and an
+ * alarm re-armed for the moment of the one that is running is lost (what stalled bots
+ * until someone sent a message — fix/playtest-1).
+ */
+function productionRoom(earlyMs: number) {
+  let now = 1_000_000;
+  const rng = createRng('alarm-test');
+  const late: number[] = [];
+  const inbox: ServerMessage[] = [];
+  const conn: Conn = {
+    id: 'c0',
+    seatId: null,
+    send: (m) => inbox.push(m),
+    close: () => {},
+  };
+  const deps = {
+    now: () => now,
+    random: () => rng.next(),
+    token: () => 'token-000000000000',
+    conns: () => [conn],
+    warn: (_event: string, data: Record<string, unknown>) => late.push(Number(data.lateMs)),
+  };
+  let stored = newRoom('ABCD', now);
+  let alarm: number | null = null;
+  let lost = 0;
+  const event = (inAlarm: boolean, run: (core: RoomCore) => void) => {
+    const core = new RoomCore(structuredClone(stored), deps);
+    run(core);
+    stored = core.state;
+    const at = alarmTime(core.nextWake(), inAlarm ? null : alarm, now);
+    if (at !== null) alarm = at;
+  };
+  const say = (message: ClientMessage) =>
+    event(false, (core) => core.handleMessage(conn, JSON.stringify(message)));
+  /** Let alarms (and only alarms) run until `ms` from now. */
+  const runAlarms = (ms: number) => {
+    const end = now + ms;
+    for (let guard = 0; guard < 10_000 && alarm !== null && alarm <= end; guard++) {
+      const scheduled = alarm;
+      alarm = null;
+      now = Math.max(now, scheduled - earlyMs);
+      event(true, (core) => core.handleAlarm());
+      if (alarm !== null && alarm <= scheduled) {
+        alarm = null; // re-armed for the running alarm's own time: production skips it
+        lost++;
+      }
+    }
+  };
+  return {
+    say,
+    runAlarms,
+    get room() {
+      return stored;
+    },
+    get lost() {
+      return lost;
+    },
+    late,
+    views: () => inbox.filter((m) => m.type === 'view').length,
+  };
+}
+
+describe('alarms (production timing)', () => {
+  it('never re-arms at or before the alarm that is running', () => {
+    expect(alarmTime(null, null, 1000)).toBeNull();
+    // a fractional due time (older rooms) reached a hair early: pushed past the window
+    expect(alarmTime(1000.6, null, 1000)).toBe(1000 + ALARM_EARLY_MS + 1);
+    expect(alarmTime(5000.2, null, 1000)).toBe(5001);
+    // outside an alarm: only ever moved earlier (each set is a billed write)
+    expect(alarmTime(5000, 4000, 1000)).toBeNull();
+    expect(alarmTime(3000, 4000, 1000)).toBe(3000);
+  });
+
+  for (const earlyMs of [0, 1, 20]) {
+    it(`bots and turn timers keep going with nobody sending anything (alarm ${earlyMs} ms early)`, () => {
+      const room = productionRoom(earlyMs);
+      room.say({ type: 'hello', name: 'Ann', cat: 'calico' });
+      room.say({ type: 'setMode', powers: true, events: true });
+      for (let i = 0; i < 3; i++) {
+        room.say({ type: 'addBot', bot: { personality: 'greedy', difficulty: 'normal' } });
+      }
+      room.say({ type: 'start' });
+      // Ann never plays: her 45 s turn timer runs out each time and a bot finishes for her.
+      room.runAlarms(60 * 60_000);
+      expect(room.room.status).toBe('ended');
+      expect(room.lost).toBe(0);
+      expect(room.late).toEqual([]);
+      expect(room.views()).toBeGreaterThan(50);
+    });
+  }
 });

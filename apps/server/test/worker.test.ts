@@ -94,4 +94,27 @@ describe('worker', () => {
     expect(revealed.events.some((e) => e.type === 'BIDS_REVEALED')).toBe(true);
     ann.ws.close();
   });
+
+  it('a bot moves on its own after the room hibernates (no messages needed)', async () => {
+    const code = await createRoom();
+    const ann = await join(code);
+    ann.say({ type: 'hello', name: 'Ann', cat: 'calico' });
+    await ann.next('welcome');
+    ann.say({ type: 'addBot', bot: { personality: 'greedy', difficulty: 'normal' } });
+    await ann.next('room');
+    await ann.next('room');
+    ann.say({ type: 'start' });
+    await ann.next('view');
+    ann.say({ type: 'action', action: { type: 'bid', playerId: 'p0', value: 3 } });
+    await ann.next('view');
+
+    // Torn down with its bot still to move; nobody sends anything from here on.
+    await evictDurableObject(env.ROOMS.getByName(code));
+    const started = Date.now();
+    const revealed = await ann.next('view');
+    expect(revealed.events.some((e) => e.type === 'BIDS_REVEALED')).toBe(true);
+    // round banner + bot thinking time, not a stall (it used to wait for any message)
+    expect(Date.now() - started).toBeLessThan(6_000);
+    ann.ws.close();
+  }, 15_000);
 });

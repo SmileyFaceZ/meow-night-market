@@ -61,6 +61,10 @@ Server → Client
   `setWebSocketAutoResponse` สำหรับ ping) — ห้องหลับได้ระหว่างรอ จึงแทบไม่เสียค่าใช้จ่าย
 - Alarm ตัวเดียวต่อห้อง: เวลาที่เร็วที่สุดของ บอทถึงตา / หมดเวลา / หลุดครบ 60 วิ / ห้องว่างครบ 30 นาที ·
   เลื่อนได้แค่เร็วขึ้นและไม่ลบ (ทุก setAlarm/deleteAlarm = 1 แถวที่เขียน ซึ่งเป็นโควตาที่ตึงที่สุด — DEPLOY.md)
+  · **นาฬิกาของห้อง (DECISIONS 050):** เวลาทุกอย่างเป็นมิลลิวินาทีเต็ม · alarm ที่ดังเร็วกว่ากำหนดไม่เกิน 50 ms
+  (`ALARM_EARLY_MS`) นับว่าถึงเวลาแล้ว · alarm ใหม่ตั้งหลัง "ตอนนี้ + 50 ms" เสมอ (`alarmTime` ใน core.ts) —
+  ห้ามตั้งซ้ำเวลาเดียวกับ alarm ที่กำลังทำงาน production จะข้ามไปจนรอบ retry ถัดไป (~1 นาที)
+  · บอท/ตัวแทนที่ช้ากว่ากำหนดเกิน 2 วินาทีเขียน `{"warn":"autoMoveLate"}` ลง Workers Logs
 - state ทั้งห้องเก็บเป็นค่าเดียวใน `ctx.storage` (โหลดใหม่ใน constructor ทุกครั้งที่ห้องตื่น) · test ด้วย
   `@cloudflare/vitest-plugin` (รันใน workerd จริง รวมการ evict ห้องแล้วเล่นต่อ)
 - type ของ Worker สร้างด้วย `wrangler types` (Cloudflare แนะนำแทน `@cloudflare/workers-types`)
