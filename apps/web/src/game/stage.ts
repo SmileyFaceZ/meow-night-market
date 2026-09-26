@@ -5,15 +5,19 @@ import type { CatMood } from '../art/CatArt';
 // Beats and their timing live in @meow/protocol (the online server paces bots by them);
 // this module adds what only the screen needs: new-event tracking and cat faces.
 export {
-  BEAT_MS,
   type Beat,
   type BeatKind,
   beatDuration,
   CLASH_EXTRA_MS,
   isBlocking,
   isOwnLightBeat,
+  isPinned,
+  openingBeats,
   OWN_MOVE_MS,
+  type Pace,
+  POPUP_MIN_MS,
   toBeats,
+  TOAST_MS,
 } from '@meow/protocol';
 
 /** Which of the recent events are new since the UI last looked. */

@@ -6,7 +6,7 @@ import type {
   PlayerId,
   PlayerView,
 } from '@meow/engine';
-import type { CatColor, EmoteId } from '@meow/protocol';
+import type { CatColor, EmoteId, GameSpeed } from '@meow/protocol';
 import type { Handoff } from './handoff';
 
 // Shared with the online server, so a cat or a name means the same thing everywhere.
@@ -61,6 +61,10 @@ export interface OnlineExtras {
   readonly presence: Readonly<Record<PlayerId, Presence>>;
   /** Watching without a seat. */
   readonly spectating: boolean;
+  /** The room's game speed (the host picks it). */
+  readonly speed: GameSpeed;
+  /** Local time (ms) before which nobody may act: everyone is reading an announcement. */
+  readonly openAt: number;
 }
 
 /**

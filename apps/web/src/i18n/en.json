@@ -240,7 +240,8 @@
       "badMessage": "That message was not understood",
       "tooFast": "Slow down a little~",
       "notEnoughReady": "You need at least 2 ready seats",
-      "catTaken": "Someone already has that cat"
+      "catTaken": "Someone already has that cat",
+      "notYet": "Wait until everyone has read the announcement"
     }
   },
   "hint": {
@@ -282,7 +283,8 @@
   },
   "reason": {
     "digDisabled": "Only guard dogs left and the discard pile is empty — nothing to dig",
-    "discardCount": "Choose exactly {{count}}"
+    "discardCount": "Choose exactly {{count}}",
+    "readingNow": "Everyone is still reading the announcement…"
   },
   "trash": {
     "status": "{{count}} left · {{dogs}} dogs",
@@ -329,7 +331,8 @@
     "dogsAway_one": "{{count}} dog shelters from the rain",
     "dogsAway_other": "{{count}} dogs shelter from the rain",
     "dogsBack_one": "The sheltering dog is back in the bin",
-    "dogsBack_other": "The sheltering dogs are back in the bin"
+    "dogsBack_other": "The sheltering dogs are back in the bin",
+    "passStart": "Gusty Wind! Everyone passes a card"
   },
   "result": {
     "title": "Market closed! Final scores",
@@ -382,7 +385,10 @@
     "powerUsed": "{{power}}!",
     "eventTitle": "Round {{round}} event",
     "restored": "Cat powers restored",
-    "snore": "Zzz"
+    "snore": "Zzz",
+    "passStart": "Everyone secretly picks 1 card to pass to the next cat",
+    "gotIt": "Got it",
+    "closesIn": "Closes by itself soon"
   },
   "bin": {
     "calm": "All quiet",
@@ -559,5 +565,16 @@
     "back": "Back",
     "done": "Got it!",
     "open": "What is Market Mayhem?"
+  },
+  "speed": {
+    "title": "Game speed",
+    "slow": "Slow",
+    "normal": "Normal",
+    "fast": "Fast",
+    "hint": "How long announcements stay up and how fast bots play",
+    "hostPicks": "The host picks the speed"
+  },
+  "history": {
+    "open": "Tap to see everything that happened"
   }
 }

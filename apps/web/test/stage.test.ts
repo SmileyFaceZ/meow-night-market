@@ -2,14 +2,16 @@ import type { GameEvent } from '@meow/engine';
 import { describe, expect, it } from 'vitest';
 import {
   beatDuration,
-  BEAT_MS,
-  CLASH_EXTRA_MS,
   isBlocking,
+  isPinned,
+  openingBeats,
   moodsWhenBeatEnds,
   moodsWhenBeatStarts,
   newEvents,
   OWN_MOVE_MS,
+  POPUP_MIN_MS,
   toBeats,
+  TOAST_MS,
 } from '../src/game/stage';
 
 const fish = { id: 1, kind: 'fish' } as const;
@@ -31,7 +33,8 @@ describe('stage beats', () => {
         clashes: [{ value: 3, playerIds: ['a', 'b'] }],
       },
     ]);
-    expect(beatDuration(beats[0]!)).toBe(BEAT_MS.reveal + CLASH_EXTRA_MS);
+    const calm = { ...beats[0]!, clashes: [] } as const;
+    expect(beatDuration(beats[0]!)).toBeGreaterThan(beatDuration(calm)); // the clash lands
   });
 
   it('keeps the key moments and drops bookkeeping events', () => {
@@ -47,9 +50,27 @@ describe('stage beats', () => {
     expect(toBeats(events).map((b) => b.kind)).toEqual(['dug', 'dog', 'caught', 'skipped']);
   });
 
-  it('every beat stays up long enough to read (≥ 0.6 s)', () => {
-    for (const ms of Object.values(BEAT_MS)) expect(ms).toBeGreaterThanOrEqual(600);
-    expect(BEAT_MS.skipped).toBeGreaterThanOrEqual(1000);
+  it('popups stay ≥ 3 s (DECISIONS 051); toasts long enough to read (≥ 0.6 s)', () => {
+    for (const ms of Object.values(TOAST_MS)) expect(ms).toBeGreaterThanOrEqual(600);
+    const round = { kind: 'round', round: 1, tieOrder: ['a'] } as const;
+    expect(beatDuration(round, null, { speed: 'fast', lang: 'en' })).toBe(POPUP_MIN_MS);
+  });
+
+  it('opens a game with its first event card, then the round banner', () => {
+    const base = { round: 1, tieOrder: ['a', 'b'] };
+    expect(openingBeats({ ...base, event: null }).map((b) => b.kind)).toEqual(['round']);
+    expect(openingBeats({ ...base, event: 'blackout' }).map((b) => b.kind)).toEqual([
+      'event',
+      'round',
+    ]);
+  });
+
+  it('rules-changing popups wait for "Got it" (solo, pass-and-play)', () => {
+    expect(isPinned({ kind: 'event', round: 1, event: 'gustyWind' })).toBe(true);
+    const [start] = toBeats([{ type: 'PHASE_STARTED', phase: 'pass', turnOrder: ['a', 'b'] }]);
+    expect(start).toEqual({ kind: 'passStart', passers: ['a', 'b'] });
+    expect(isPinned(start!)).toBe(true);
+    expect(isPinned({ kind: 'round', round: 1, tieOrder: [] })).toBe(false);
   });
 
   it('finds only the events the UI has not seen yet', () => {
@@ -66,11 +87,12 @@ describe('stage beats', () => {
   it('announces big moments; small moves are toasts; your own small moves are quick', () => {
     const dug = { kind: 'dug', playerId: 'b', card: fish } as const;
     expect(isBlocking(dug, 'a')).toBe(false);
-    expect(isBlocking({ kind: 'skipped', playerId: 'b' }, 'a')).toBe(true);
-    expect(isBlocking({ kind: 'bone', playerId: 'b' }, 'a')).toBe(true);
-    expect(isBlocking({ kind: 'bone', playerId: 'a' }, 'a')).toBe(false);
+    // only the big moments cover the board; meals, skips and bones are toasts now
+    expect(isBlocking({ kind: 'dog', playerId: 'b', canThrowBone: true }, 'a')).toBe(true);
+    expect(isBlocking({ kind: 'skipped', playerId: 'b' }, 'a')).toBe(false);
+    expect(isBlocking({ kind: 'bone', playerId: 'b' }, 'a')).toBe(false);
     expect(beatDuration({ ...dug, playerId: 'a' }, 'a')).toBe(OWN_MOVE_MS);
-    expect(beatDuration(dug, 'a')).toBe(BEAT_MS.dug);
+    expect(beatDuration(dug, 'a')).toBe(TOAST_MS.dug);
   });
 
   it('cat faces: full and happy last the round, shock fades, a new round resets', () => {
@@ -105,6 +127,6 @@ describe('stage beats', () => {
     expect(isBlocking(gift!, null)).toBe(false);
     const [power] = toBeats([{ type: 'POWER_USED', playerId: 'a', power: 'goodLuck' }]);
     expect(isBlocking(power!, null)).toBe(true);
-    expect(BEAT_MS.event).toBeGreaterThanOrEqual(2000);
+    expect(beatDuration(event!)).toBeGreaterThanOrEqual(POPUP_MIN_MS);
   });
 });

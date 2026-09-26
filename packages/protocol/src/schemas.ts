@@ -12,6 +12,7 @@ import {
   type PlayerView,
 } from '@meow/engine';
 import { z } from 'zod';
+import { GAME_SPEEDS } from './pacing.ts';
 import {
   CAT_COLORS,
   type EmoteId,
@@ -282,6 +283,7 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('removeSeat'), seatId: id }),
   z.object({ type: z.literal('setTurnSeconds'), seconds: turnSeconds }),
   z.object({ type: z.literal('setMode'), powers: z.boolean(), events: z.boolean() }),
+  z.object({ type: z.literal('setSpeed'), speed: z.enum(GAME_SPEEDS) }),
   z.object({ type: z.literal('start') }),
   /** After a game: want (or no longer want) to play again — GAME_RULES §13. */
   z.object({ type: z.literal('ready'), ready: z.boolean() }),
@@ -318,6 +320,7 @@ export const roomInfoSchema = z.object({
   you: id.nullable(),
   gameNo: count,
   mode: z.object({ powers: z.boolean(), events: z.boolean() }),
+  speed: z.enum(GAME_SPEEDS).optional(),
 });
 
 const turnClock = z.object({ playerId: id, remainingMs: count.nullable() });
@@ -334,6 +337,8 @@ export const ROOM_ERROR_KEYS = [
   'room.error.notSeated',
   'room.error.badMessage',
   'room.error.tooFast',
+  /** An action before the latest announcement has had its reading time (DECISIONS 051). */
+  'room.error.notYet',
 ] as const;
 export type RoomErrorKey = (typeof ROOM_ERROR_KEYS)[number];
 
@@ -346,6 +351,8 @@ export const serverMessageSchema = z.discriminatedUnion('type', [
     view: playerViewSchema,
     events: z.array(gameEventSchema),
     clocks: z.array(turnClock),
+    /** Actions open again in this many ms (everyone is still reading an announcement). */
+    openInMs: count.optional(),
   }),
   z.object({ type: z.literal('emote'), from: id, id: z.enum(EMOTES) }),
   z.object({ type: z.literal('error'), key: z.enum([...ERROR_KEYS, ...ROOM_ERROR_KEYS]) }),
@@ -360,6 +367,7 @@ export type ServerMessage =
       readonly view: PlayerView;
       readonly events: readonly GameEvent[];
       readonly clocks: readonly TurnClock[];
+      readonly openInMs?: number | undefined;
     }
   | { readonly type: 'emote'; readonly from: string; readonly id: EmoteId }
   | { readonly type: 'error'; readonly key: ErrorKey | RoomErrorKey }

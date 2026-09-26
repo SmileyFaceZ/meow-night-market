@@ -1,6 +1,6 @@
 import type { Card, GameConfig, PlayerId } from '@meow/engine';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { useEffect } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BinArt } from '../art/BinArt';
 import { CatArt, type CatMood } from '../art/CatArt';
@@ -11,12 +11,14 @@ import type { Beat } from '../game/stage';
 import type { SeatInfo } from '../game/types';
 import type { StagedBeat } from '../game/useStage';
 import { GameCard, MeowCard } from './cards';
+import { Button } from './ui';
 
 type NameOf = (id: PlayerId | null | undefined) => string;
 
 /**
- * Plays the current beat over the board. Blocking beats dim the board and a tap (or
- * Enter/Space/Esc) skips them; light beats are a small non-blocking toast.
+ * Plays the current beat over the board. Popups dim the board and a tap (or
+ * Enter/Space/Esc) closes them early; a thin bar shows when they close by themselves.
+ * Pinned popups (solo / pass-and-play) wait for "Got it". Other beats are small toasts.
  */
 export function Stage({
   staged,
@@ -39,7 +41,8 @@ export function Stage({
   useEffect(() => {
     if (!staged?.blocking) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+      const keys = staged.pinned ? ['Enter', ' '] : ['Enter', ' ', 'Escape'];
+      if (keys.includes(e.key)) {
         e.preventDefault();
         onSkip();
       }
@@ -52,7 +55,8 @@ export function Stage({
   const who = (id: PlayerId) => (id === viewer ? t('term.you') : name(id));
 
   return (
-    <AnimatePresence>
+    // mode="wait": the next popup comes in only after this one has gone (never overlapping).
+    <AnimatePresence mode="wait">
       {staged && (
         <motion.div
           key={staged.id}
@@ -61,7 +65,7 @@ export function Stage({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: reduced ? 0 : 0.15 }}
-          onClick={staged.blocking ? onSkip : undefined}
+          onClick={staged.blocking && !staged.pinned ? onSkip : undefined}
           role="status"
           aria-live="assertive"
         >
@@ -84,15 +88,56 @@ export function Stage({
               config={config}
               reduced={reduced}
             />
-            {staged.blocking && (
-              <p className="mt-3 text-xs text-card/50" aria-hidden>
-                {t('stage.tapToSkip')}
-              </p>
+            {staged.pinned ? (
+              <Button className="mt-4 w-full" onClick={onSkip}>
+                {t('stage.gotIt')}
+              </Button>
+            ) : (
+              staged.blocking && (
+                <>
+                  <TimeBar key={staged.id} ms={staged.duration} reduced={reduced} />
+                  <p className="mt-1.5 text-xs text-card/50" aria-hidden>
+                    {t('stage.tapToSkip')}
+                  </p>
+                </>
+              )
             )}
           </motion.div>
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+/** How long until the popup closes by itself (whole seconds when motion is reduced). */
+function TimeBar({ ms, reduced }: { ms: number; reduced: boolean }) {
+  const { t } = useTranslation();
+  return (
+    <span
+      className="mt-3 block h-1.5 overflow-hidden rounded-full bg-card/15"
+      role="progressbar"
+      aria-label={t('stage.closesIn')}
+    >
+      <span
+        className="block h-full origin-left rounded-full bg-lantern"
+        style={{
+          animation: `mnm-shrink ${ms}ms ${reduced ? `steps(${Math.max(1, Math.round(ms / 1000))}, end)` : 'linear'} forwards`,
+        }}
+      />
+    </span>
+  );
+}
+
+/** A compact one-line toast: small picture(s), then the sentence. */
+function ToastRow({ art, text, sub }: { art: ReactNode; text: string; sub?: string | undefined }) {
+  return (
+    <div className="flex items-center justify-center gap-2.5 text-left">
+      <span className="flex shrink-0 items-center gap-1">{art}</span>
+      <span className="min-w-0">
+        <span className="block font-display text-base leading-snug">{text}</span>
+        {sub && <span className="block text-xs text-card/75">{sub}</span>}
+      </span>
+    </div>
   );
 }
 
@@ -153,9 +198,9 @@ function BeatContent({
           <p className="mt-2 text-sm text-card/80">{t('term.tieOrder')}</p>
           <div className="mt-1 flex justify-center gap-2">
             {beat.tieOrder.map((id, i) => (
-              <span key={id} className="flex flex-col items-center text-xs">
+              <span key={id} className="flex w-20 flex-col items-center text-xs">
                 <Cat seat={seatOf(id)} size="size-10" />
-                <span className="font-display">
+                <span className="w-full truncate text-center font-display">
                   {i + 1}. {who(id)}
                 </span>
               </span>
@@ -282,81 +327,47 @@ function BeatContent({
 
     case 'meal':
       return (
-        <>
-          <div className="flex items-end justify-center gap-3">
-            <div className="flex -space-x-5">
-              {beat.meal.cards.map((card, i) => (
-                <motion.span
-                  key={card.id}
-                  initial={{ x: 0, y: 0, scale: 1, opacity: 1 }}
-                  animate={reduced ? {} : { x: 40 + i * 6, y: -10, scale: 0.2, opacity: 0 }}
-                  transition={{ delay: 0.35 + i * 0.08, duration: 0.5, ease: 'easeIn' }}
-                >
-                  <MiniCard card={card} className="w-11" />
-                </motion.span>
-              ))}
-            </div>
-            <motion.span
-              initial={reduced ? false : { scale: 1 }}
-              animate={reduced ? {} : { scale: [1, 1, 1.15, 1] }}
-              transition={{ duration: 1, times: [0, 0.6, 0.8, 1] }}
-            >
-              <Cat seat={seatOf(beat.playerId)} mood="full" size="size-16" />
-            </motion.span>
-          </div>
-          <motion.p
-            className="mt-1 font-display text-4xl text-lantern"
-            initial={reduced ? false : { y: 10, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: reduced ? 0 : 0.8 }}
-          >
-            +{beat.meal.points}
-          </motion.p>
-          {line(
-            t(beat.meal.big ? 'feed.bigMeal' : 'feed.meal', {
-              name: who(beat.playerId),
-              food: t(`card.${beat.meal.food}`),
-              points: beat.meal.points,
-            }),
-            'good',
-          )}
-          <p className="mt-1 text-sm text-card/80">
-            {t('stage.priceDrop', {
-              food: t(`card.${beat.meal.food}`),
-              from: beat.meal.price,
-              to: beat.newPrice,
-            })}
-          </p>
-        </>
+        <ToastRow
+          art={
+            <>
+              <Cat seat={seatOf(beat.playerId)} mood="full" size="size-10" />
+              <MiniCard card={beat.meal.cards[0]!} className="w-8" />
+            </>
+          }
+          text={t(beat.meal.big ? 'feed.bigMeal' : 'feed.meal', {
+            name: who(beat.playerId),
+            food: t(`card.${beat.meal.food}`),
+            points: beat.meal.points,
+          })}
+          sub={t('stage.priceDrop', {
+            food: t(`card.${beat.meal.food}`),
+            from: beat.meal.price,
+            to: beat.newPrice,
+          })}
+        />
       );
 
     case 'skipped':
       return (
-        <>
-          <Cat seat={seatOf(beat.playerId)} mood="normal" />
-          {line(t('feed.skipped', { name: who(beat.playerId) }))}
-        </>
+        <ToastRow
+          art={<Cat seat={seatOf(beat.playerId)} size="size-10" />}
+          text={t('feed.skipped', { name: who(beat.playerId) })}
+        />
       );
 
     case 'bone':
       return (
-        <>
-          <div className="flex items-center justify-center gap-2">
-            <Cat seat={seatOf(beat.playerId)} mood="happy" size="size-12" />
-            <motion.span
-              initial={reduced ? false : { x: -30, y: 0, rotate: 0 }}
-              animate={reduced ? {} : { x: 40, y: [0, -30, 0], rotate: 360 }}
-              transition={{ duration: 0.7 }}
-              className="inline-block w-10"
-            >
-              <GameCard kind="bone" size="fill" />
-            </motion.span>
-            <span className="inline-block w-12">
-              <GameCard kind="dog" size="fill" />
-            </span>
-          </div>
-          {line(t('feed.bone', { name: who(beat.playerId) }), 'good')}
-        </>
+        <ToastRow
+          art={
+            <>
+              <Cat seat={seatOf(beat.playerId)} mood="happy" size="size-10" />
+              <span className="inline-block w-8">
+                <GameCard kind="bone" size="fill" />
+              </span>
+            </>
+          }
+          text={t('feed.bone', { name: who(beat.playerId) })}
+        />
       );
 
     case 'dug':
@@ -417,14 +428,16 @@ function BeatContent({
 
     case 'discarded':
       return (
-        <div className="flex flex-col items-center">
-          <div className="flex -space-x-4 opacity-70">
-            {beat.cards.map((card) => (
-              <MiniCard key={card.id} card={card} className="w-9" />
-            ))}
-          </div>
-          {line(t('feed.discarded', { name: who(beat.playerId), count: beat.cards.length }))}
-        </div>
+        <ToastRow
+          art={
+            <span className="flex -space-x-4 opacity-80">
+              {beat.cards.slice(0, 3).map((card) => (
+                <MiniCard key={card.id} card={card} className="w-8" />
+              ))}
+            </span>
+          }
+          text={t('feed.discarded', { name: who(beat.playerId), count: beat.cards.length })}
+        />
       );
 
     case 'gameOver':
@@ -479,70 +492,28 @@ function BeatContent({
 
     case 'bidChanged':
       return (
-        <>
-          <div className="flex items-center justify-center gap-2">
-            <Cat seat={seatOf(beat.playerId)} mood="happy" size="size-12" />
-            <motion.span
-              initial={{ opacity: 1 }}
-              animate={reduced ? { opacity: 0.5 } : { opacity: 0.4, scale: 0.8 }}
-              transition={{ delay: 0.3 }}
-            >
-              <MeowCard value={beat.from} label={String(beat.from)} />
-            </motion.span>
-            <span className="font-display text-2xl" aria-hidden>
-              →
-            </span>
-            <motion.span
-              initial={reduced ? false : { scale: 0, rotate: 30 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{
-                delay: reduced ? 0 : 0.45,
-                type: 'spring',
-                stiffness: 420,
-                damping: 13,
-              }}
-            >
-              <MeowCard value={beat.to} label={String(beat.to)} />
-            </motion.span>
-          </div>
-          {line(
-            t('feed.bidChanged', { name: who(beat.playerId), from: beat.from, to: beat.to }),
-            'good',
-          )}
-        </>
+        <ToastRow
+          art={<Cat seat={seatOf(beat.playerId)} mood="happy" size="size-10" />}
+          text={t('feed.bidChanged', { name: who(beat.playerId), from: beat.from, to: beat.to })}
+        />
       );
 
     case 'swapped':
       return (
-        <>
-          <div className="flex items-center justify-center gap-3">
-            <motion.span
-              initial={{ opacity: 1, y: 0 }}
-              animate={reduced ? { opacity: 0.4 } : { opacity: 0.3, y: 16, rotate: -12 }}
-              transition={{ delay: 0.35, duration: 0.5 }}
-            >
-              <MiniCard card={beat.out} />
-            </motion.span>
-            <span className="font-display text-2xl" aria-hidden>
-              →
-            </span>
-            <motion.span
-              initial={reduced ? false : { y: -20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: reduced ? 0 : 0.6, type: 'spring', stiffness: 380, damping: 16 }}
-            >
-              <MiniCard card={beat.in} />
-            </motion.span>
-          </div>
-          {line(
-            t('feed.swapped', {
-              name: who(beat.playerId),
-              out: t(`card.${beat.out.kind}`),
-              in: t(`card.${beat.in.kind}`),
-            }),
-            'good',
-          )}
-        </>
+        <ToastRow
+          art={
+            <>
+              <MiniCard card={beat.out} className="w-8" />
+              <span aria-hidden>→</span>
+              <MiniCard card={beat.in} className="w-8" />
+            </>
+          }
+          text={t('feed.swapped', {
+            name: who(beat.playerId),
+            out: t(`card.${beat.out.kind}`),
+            in: t(`card.${beat.in.kind}`),
+          })}
+        />
       );
 
     case 'scavenged':
@@ -580,22 +551,14 @@ function BeatContent({
 
     case 'restored':
       return (
-        <>
-          <motion.span
-            className="mx-auto block size-16"
-            initial={reduced ? false : { scale: 0.3, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 14 }}
-          >
-            <EventIcon event="fullMoon" />
-          </motion.span>
-          <div className="mt-2 flex justify-center gap-2">
-            {beat.playerIds.map((id) => (
-              <Cat key={id} seat={seatOf(id)} mood="happy" size="size-10" />
-            ))}
-          </div>
-          {line(t('stage.restored'), 'good')}
-        </>
+        <ToastRow
+          art={
+            <span className="inline-block size-9">
+              <EventIcon event="fullMoon" />
+            </span>
+          }
+          text={t('stage.restored')}
+        />
       );
 
     // ── market events ──
@@ -641,6 +604,22 @@ function BeatContent({
             </motion.span>
           </div>
           {line(t('feed.slept', { name: who(beat.playerId) }), 'good')}
+        </>
+      );
+
+    case 'passStart':
+      return (
+        <>
+          <span className="mx-auto block size-16">
+            <EventIcon event="gustyWind" />
+          </span>
+          <p className="mt-2 font-display text-2xl text-lantern">{t('eventName.gustyWind')}</p>
+          <p className="mt-1 text-base leading-snug text-card">{t('stage.passStart')}</p>
+          <div className="mt-2 flex justify-center gap-2" aria-hidden>
+            {beat.passers.map((id) => (
+              <Cat key={id} seat={seatOf(id)} size="size-9" />
+            ))}
+          </div>
         </>
       );
 

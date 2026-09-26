@@ -5,6 +5,7 @@ import {
   type CatId,
   type PlayerId,
 } from '@meow/engine';
+import type { GameSpeed } from './pacing.ts';
 
 // Online rooms (docs/MULTIPLAYER.md). Numbers here are the single place to tune them.
 
@@ -107,6 +108,8 @@ export interface RoomInfo {
   readonly gameNo: number;
   /** Rules for the next game (the host sets them between games). */
   readonly mode: GameMode;
+  /** How long announcements stay up and how fast bots play (the host's choice). */
+  readonly speed?: GameSpeed | undefined;
 }
 
 /** Someone the game is waiting on, and how long they have left (ms; null = no timer). */

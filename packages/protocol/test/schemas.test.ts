@@ -10,13 +10,15 @@ import {
 } from '@meow/engine';
 import { describe, expect, it } from 'vitest';
 import {
-  BEAT_MS,
+  beatDuration,
+  POPUP_MIN_MS,
+  TOAST_MS,
   clientMessageSchema,
   parseMessage,
   ROOM_CODE_ALPHABET,
   ROOM_CODE_PATTERN,
   serverMessageSchema,
-  showTimeMs,
+  showTiming,
 } from '../src/index.ts';
 
 describe('server messages', () => {
@@ -109,17 +111,43 @@ describe('room codes', () => {
 });
 
 describe('pacing', () => {
-  it('adds up how long the screen shows a batch of events', () => {
-    expect(showTimeMs([])).toBe(0);
-    expect(showTimeMs([{ type: 'BID_PLACED', playerId: 'p0' }])).toBe(0);
-    const round: GameEvent = {
-      type: 'ROUND_STARTED',
-      round: 2,
-      tieOrder: ['p0'],
-      market: [],
-      faceDown: 0,
-    };
-    const skipped: GameEvent = { type: 'TURN_SKIPPED', playerId: 'p0' };
-    expect(showTimeMs([round, skipped])).toBe(BEAT_MS.round + BEAT_MS.skipped);
+  const round: GameEvent = {
+    type: 'ROUND_STARTED',
+    round: 2,
+    tieOrder: ['p0', 'p1', 'p2', 'p3'],
+    market: [],
+    faceDown: 0,
+  };
+  const skipped: GameEvent = { type: 'TURN_SKIPPED', playerId: 'p0' };
+
+  it('adds up how long the screens show a batch, and when its last popup ends', () => {
+    expect(showTiming([])).toEqual({ totalMs: 0, popupEndMs: 0 });
+    expect(showTiming([{ type: 'BID_PLACED', playerId: 'p0' }]).totalMs).toBe(0);
+    const banner = beatDuration({ kind: 'round', round: 2, tieOrder: round.tieOrder });
+    expect(showTiming([round, skipped])).toEqual({
+      totalMs: banner + TOAST_MS.skipped!,
+      popupEndMs: banner,
+    });
+  });
+
+  it('popups stay at least 3 s at every speed, longer with more to read, longest in Thai', () => {
+    const dog = { kind: 'dog', playerId: 'p0', canThrowBone: false } as const;
+    const event = { kind: 'event', round: 1, event: 'gustyWind' } as const;
+    for (const speed of ['slow', 'normal', 'fast'] as const) {
+      expect(beatDuration(dog, null, { speed, lang: 'en' })).toBeGreaterThanOrEqual(POPUP_MIN_MS);
+    }
+    const th = beatDuration(event, null, { speed: 'normal', lang: 'th' });
+    const en = beatDuration(event, null, { speed: 'normal', lang: 'en' });
+    expect(th).toBeGreaterThan(en);
+    expect(beatDuration(event)).toBe(Math.max(th, en)); // the server waits for the slowest
+    expect(beatDuration(event, null, { speed: 'slow', lang: 'th' })).toBeGreaterThan(th);
+    expect(beatDuration(event, null, { speed: 'fast', lang: 'th' })).toBeLessThan(th);
+  });
+
+  it('toasts scale with the speed', () => {
+    const pick = { kind: 'pick', playerId: 'p1', card: { id: 1, kind: 'fish' } } as const;
+    expect(beatDuration(pick, null, { speed: 'fast', lang: 'th' })).toBe(
+      Math.round(TOAST_MS.pick! * 0.7),
+    );
   });
 });

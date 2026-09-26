@@ -376,15 +376,23 @@ export function EventFeed({ lines }: { lines: readonly FeedLine[] }) {
 }
 
 /** Full event history for the desktop side panel, newest at the bottom. */
-export function EventLog({ lines }: { lines: readonly FeedLine[] }) {
+export function EventLog({
+  lines,
+  bare = false,
+}: {
+  lines: readonly FeedLine[];
+  /** Inside a dialog that already has the title and background. */
+  bare?: boolean;
+}) {
   const { t } = useTranslation();
   const endRef = useRef<HTMLLIElement>(null);
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: 'nearest' });
   }, [lines.length]);
   return (
-    <section className="rounded-3xl bg-night-2/70 p-3">
-      <h2 className="mb-2 font-display text-sm text-card/80">{t('term.history')}</h2>
+    <section className={bare ? '' : 'rounded-3xl bg-night-2/70 p-3'}>
+      {!bare && <h2 className="mb-2 font-display text-sm text-card/80">{t('term.history')}</h2>}
+      {lines.length === 0 && <p className="text-sm text-card/60">{t('term.empty')}</p>}
       <ol className="max-h-[70dvh] space-y-1 overflow-y-auto pr-1 text-sm leading-snug">
         {lines.map((line, i) => (
           <li

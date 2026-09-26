@@ -8,6 +8,7 @@ import {
   type RoomInfo,
   type ServerMessage,
   serverMessageSchema,
+  DEFAULT_SPEED,
 } from '@meow/protocol';
 import type { Scheduler } from './LocalController';
 import type {
@@ -103,7 +104,14 @@ export class RemoteController implements GameController {
       game: null,
       notice: null,
     };
-    this.extras = { clocks: [], emotes: [], presence: {}, spectating: false };
+    this.extras = {
+      clocks: [],
+      emotes: [],
+      presence: {},
+      spectating: false,
+      speed: DEFAULT_SPEED,
+      openAt: 0,
+    };
     this.open();
   }
 
@@ -240,7 +248,8 @@ export class RemoteController implements GameController {
         // Watching: no seat, or sitting this game out (GAME_RULES §13).
         const mine = message.room.seats.find((s) => s.id === message.room.you);
         const spectating = !mine || mine.sittingOut !== null;
-        this.extras = { ...this.extras, presence, spectating };
+        const speed = message.room.speed ?? DEFAULT_SPEED;
+        this.extras = { ...this.extras, presence, spectating, speed };
         this.update({ room: message.room, game: this.withExtras(message.room) });
         return;
       }
@@ -250,7 +259,7 @@ export class RemoteController implements GameController {
           playerId: c.playerId,
           deadline: c.remainingMs === null ? null : now + c.remainingMs,
         }));
-        this.extras = { ...this.extras, clocks };
+        this.extras = { ...this.extras, clocks, openAt: now + (message.openInMs ?? 0) };
         // A rematch: the new game's history starts empty (its screen opens with the banner).
         const gameNo = this.state.room?.gameNo ?? 0;
         const previous = gameNo === this.viewGameNo ? this.state.game : null;

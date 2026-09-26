@@ -163,6 +163,8 @@ export function describeEvent(
       };
     case 'DOG_SLEPT':
       return { key: 'feed.slept', params: { name: name(event.playerId) }, tone: 'good' };
+    case 'PHASE_STARTED':
+      return event.phase === 'pass' ? { key: 'feed.passStart', params: {}, tone: 'info' } : null;
     case 'CARDS_PASSED':
       return { key: 'feed.passed', params: {}, tone: 'info' };
     default:

@@ -13,7 +13,11 @@ import {
 } from '@meow/engine';
 import {
   AUTO_MOVE_MS,
-  BEAT_MS,
+  beatsTiming,
+  DEFAULT_SPEED,
+  type GameSpeed,
+  openingBeats,
+  SPEED_FACTOR,
   BOT_DELAY_MS,
   CAT_COLORS,
   type CatColor,
@@ -37,7 +41,7 @@ import {
   type RoomInfo,
   type RoomStatus,
   type ServerMessage,
-  showTimeMs,
+  showTiming,
   type SittingOut,
   STAND_IN_BOT,
   type TurnClock,
@@ -92,6 +96,10 @@ export interface StoredRoom {
   readonly idleSince: number | null;
   /** Rules for the next game. */
   readonly mode: GameMode;
+  /** Pacing: announcement reading time and bot speed (the host picks). */
+  readonly speed: GameSpeed;
+  /** Nobody may act before this: everyone is still reading the latest popup. */
+  readonly openAt: number;
 }
 
 /** A client connection as the room sees it; the Durable Object keeps `seatId` across hibernation. */
@@ -121,6 +129,8 @@ export interface RoomDeps {
  * alarm makes progress and the next one is always later than the one running.
  */
 export const ALARM_EARLY_MS = 50;
+/** Actions this close to the end of an announcement are let through (network latency). */
+const OPEN_SLACK_MS = 250;
 /** Log an automatic move that ran this much later than planned. */
 const LATE_WARN_MS = 2_000;
 
@@ -158,6 +168,8 @@ export function newRoom(code: string, now: number): StoredRoom {
     gameNo: 0,
     idleSince: null,
     mode: CLASSIC_MODE,
+    speed: DEFAULT_SPEED,
+    openAt: now,
   };
 }
 
@@ -171,6 +183,8 @@ export function upgradeRoom(room: StoredRoom): StoredRoom {
     gameNo: room.gameNo ?? (room.game ? 1 : 0),
     idleSince: room.idleSince ?? null,
     mode: room.mode ?? CLASSIC_MODE,
+    speed: room.speed ?? DEFAULT_SPEED,
+    openAt: room.openAt ?? 0,
     seats: room.seats.map((s) => ({
       ...s,
       ready: s.ready ?? false,
@@ -342,6 +356,10 @@ export class RoomCore {
         if (!seat || message.action.playerId !== seat.id || !this.inGame(seat.id))
           return this.fail(conn, 'room.error.notSeated');
         if (this.room.status !== 'playing') return this.fail(conn, 'error.gameOver');
+        // Everyone gets to read the latest announcement first (a little slack for latency).
+        if (this.deps.now() < this.room.openAt - OPEN_SLACK_MS) {
+          return this.fail(conn, 'room.error.notYet');
+        }
         // Acting again means they are back in time: the stand-in stops for this turn.
         if (seat.timedOut) this.setSeat(seat.id, { timedOut: false });
         this.play(message.action, conn);
@@ -380,7 +398,7 @@ export class RoomCore {
     seat: StoredSeat | undefined,
     message: Extract<
       ClientMessage,
-      { type: 'addBot' | 'removeSeat' | 'setTurnSeconds' | 'setMode' | 'start' }
+      { type: 'addBot' | 'removeSeat' | 'setTurnSeconds' | 'setSpeed' | 'setMode' | 'start' }
     >,
   ): void {
     const { room } = this;
@@ -425,6 +443,9 @@ export class RoomCore {
       }
       case 'setTurnSeconds':
         this.update({ turnSeconds: message.seconds });
+        break;
+      case 'setSpeed':
+        this.update({ speed: message.speed });
         break;
       case 'setMode': {
         const mode = { powers: message.powers, events: message.events };
@@ -475,8 +496,8 @@ export class RoomCore {
           seats,
           game,
           botRng: createRng(`bots:${seed}`).state,
-          // Clients open the game with the round banner.
-          showUntil: this.deps.now() + BEAT_MS.round,
+          // Clients open the game with its first event card and the round banner.
+          ...this.openingTimes(game),
           turnStart: {},
           due: {},
         });
@@ -515,15 +536,32 @@ export class RoomCore {
       return false;
     }
     const now = this.deps.now();
+    const from = Math.max(this.room.showUntil, now);
+    const { totalMs, popupEndMs } = showTiming(result.events, this.room.speed);
     this.update({
       game: result.state,
-      showUntil: Math.max(this.room.showUntil, now) + showTimeMs(result.events),
+      showUntil: from + totalMs,
+      ...(popupEndMs > 0 ? { openAt: from + popupEndMs } : {}),
     });
     if (result.state.result) this.endGame(result.state.result.winners);
     this.afterChange(action.playerId);
     this.broadcastView(result.events);
     if (result.state.phase === 'gameOver') this.broadcastRoom();
     return true;
+  }
+
+  /** When the screens finish the opening beats of a new game. */
+  private openingTimes(game: GameState): { showUntil: number; openAt: number } {
+    const { totalMs, popupEndMs } = beatsTiming(
+      openingBeats({
+        round: game.round,
+        tieOrder: game.tieOrder,
+        event: game.events?.current ?? null,
+      }),
+      this.room.speed,
+    );
+    const now = this.deps.now();
+    return { showUntil: now + totalMs, openAt: now + popupEndMs };
   }
 
   /** The game is over: count wins, and everyone is back between games (nobody ready yet). */
@@ -610,9 +648,8 @@ export class RoomCore {
     const seat = this.room.seats.find((s) => s.id === id);
     if (!seat?.bot && !seat?.standIn && !seat?.timedOut) return AUTO_MOVE_MS;
     // Whole milliseconds: alarms are set on whole milliseconds (see alarmTime).
-    return Math.round(
-      BOT_DELAY_MS.min + this.deps.random() * (BOT_DELAY_MS.max - BOT_DELAY_MS.min),
-    );
+    const think = BOT_DELAY_MS.min + this.deps.random() * (BOT_DELAY_MS.max - BOT_DELAY_MS.min);
+    return Math.round(think * SPEED_FACTOR[this.room.speed]);
   }
 
   /** Humans the game waits on who play for themselves (they have a turn timer). */
@@ -719,6 +756,7 @@ export class RoomCore {
       })),
       gameNo: this.room.gameNo,
       mode: this.room.mode,
+      speed: this.room.speed,
     };
   }
 
@@ -743,6 +781,7 @@ export class RoomCore {
       view: getPlayerView(game, viewer),
       events,
       clocks: this.clocks(),
+      openInMs: Math.max(0, Math.round(this.room.openAt - this.deps.now())),
     });
   }
 

@@ -31,6 +31,8 @@ import type { GameController, SeatInfo } from '../game/types';
 import { CoachBubble } from '../components/Coach';
 import { HandoffCover } from '../components/Handoff';
 import { SoundPanel } from '../components/SoundSettings';
+import { SpeedSwitch } from '../components/SpeedSwitch';
+import { speedStore, useLocalSpeed } from '../game/speed';
 import { playSound } from '../audio/sound';
 import { EmotePicker, EmoteToasts, TurnTimer } from '../components/OnlineBits';
 import {
@@ -53,7 +55,7 @@ export interface CoachProps {
 }
 
 type GameModal =
-  'discard' | 'menu' | 'emote' | 'event' | 'scavenge' | 'haggle' | { player: string };
+  'discard' | 'menu' | 'emote' | 'event' | 'scavenge' | 'haggle' | 'history' | { player: string };
 
 const HIGHLIGHT =
   'rounded-2xl ring-4 ring-lantern ring-offset-2 ring-offset-night animate-pulse relative z-20';
@@ -173,8 +175,12 @@ export function GameScreen({
     view.powerWindow && me && view.powerWindow.playerId === me.id ? view.powerWindow : null;
   const castPower = (use: Parameters<typeof powerAction>[1]) =>
     me ? act(powerAction(me.id, use)) : false;
-  const onMarketPick =
-    myWindow?.power === 'luckySwap'
+  // Online: nobody acts until everyone has had time to read the latest popup (DECISIONS 051).
+  const reading = useReading(online?.openAt ?? 0);
+  const localSpeed = useLocalSpeed();
+  const onMarketPick = reading
+    ? undefined
+    : myWindow?.power === 'luckySwap'
       ? (cardId: CardId) => castPower({ power: 'luckySwap', cardId })
       : view.phase === 'pick' && myTurn && me && !view.powerWindow
         ? (cardId: CardId) => act({ type: 'pick', playerId: me.id, cardId })
@@ -309,7 +315,14 @@ export function GameScreen({
           </div>
           {view.peek && <PeekStrip cards={view.peek.cards} />}
           <div className="lg:hidden">
-            <EventFeed lines={feed} />
+            <button
+              type="button"
+              className="block w-full rounded-xl text-left"
+              aria-label={t('history.open')}
+              onClick={() => setModal('history')}
+            >
+              <EventFeed lines={feed} />
+            </button>
           </div>
 
           {/* me (spectators only get the result button) */}
@@ -345,21 +358,25 @@ export function GameScreen({
                 />
               )}
               <div className="mt-3 space-y-2">
-                <Actions
-                  view={view}
-                  myTurn={myTurn}
-                  bid={bid}
-                  setBid={setBid}
-                  toDiscard={toDiscard}
-                  clearDiscard={() => setToDiscard([])}
-                  toPass={toPass}
-                  clearPass={() => setToPass(null)}
-                  openModal={setModal}
-                  castPower={castPower}
-                  act={act}
-                  onShowResult={onShowResult}
-                  hl={hl}
-                />
+                {reading && needsMe ? (
+                  <p className="text-center text-sm text-card/70">{t('reason.readingNow')}</p>
+                ) : (
+                  <Actions
+                    view={view}
+                    myTurn={myTurn}
+                    bid={bid}
+                    setBid={setBid}
+                    toDiscard={toDiscard}
+                    clearDiscard={() => setToDiscard([])}
+                    toPass={toPass}
+                    clearPass={() => setToPass(null)}
+                    openModal={setModal}
+                    castPower={castPower}
+                    act={act}
+                    onShowResult={onShowResult}
+                    hl={hl}
+                  />
+                )}
                 {error && (
                   <p role="alert" className="text-center text-sm text-alert">
                     {error}
@@ -473,8 +490,23 @@ export function GameScreen({
                 {t('action.quit')}
               </Button>
             </div>
+            <div className="mt-4">
+              <SpeedSwitch
+                speed={online ? online.speed : localSpeed}
+                onChange={online ? undefined : speedStore.set}
+              />
+            </div>
             <h3 className="mt-4 mb-2 font-display text-lantern">{t('sound.title')}</h3>
             <SoundPanel />
+          </Modal>
+        )}
+        {modal === 'history' && (
+          <Modal
+            title={t('term.history')}
+            onClose={() => setModal(null)}
+            closeLabel={t('action.close')}
+          >
+            <EventLog lines={feed} bare />
           </Modal>
         )}
         {opened && (
@@ -870,4 +902,16 @@ function bestMealOptions(options: readonly MealOption[]): MealOption[] {
     if (!existing || (existing.usesGoldfish && !option.usesGoldfish)) byShape.set(key, option);
   }
   return [...byShape.values()];
+}
+
+/** True until `openAt` (local ms time); re-renders when it passes. */
+function useReading(openAt: number): boolean {
+  const [now, setNow] = useState(() => Date.now());
+  const reading = openAt > now;
+  useEffect(() => {
+    if (!reading) return;
+    const timer = window.setTimeout(() => setNow(Date.now()), openAt - Date.now() + 20);
+    return () => window.clearTimeout(timer);
+  }, [openAt, reading]);
+  return reading;
 }

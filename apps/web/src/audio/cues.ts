@@ -92,6 +92,7 @@ export function soundForBeat(beat: Beat, viewer: PlayerId | null): SoundId | nul
     case 'price':
       return 'pop';
     case 'event':
+    case 'passStart':
       return 'event';
     case 'slept':
       return 'skip';

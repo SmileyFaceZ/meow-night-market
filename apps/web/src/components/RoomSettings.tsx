@@ -3,7 +3,9 @@ import { MAX_SEATS, type RoomInfo, TURN_SECONDS_OPTIONS } from '@meow/protocol';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { RemoteController } from '../game/online';
+import { DEFAULT_SPEED } from '@meow/protocol';
 import { ModeSwitch } from './ModeSwitch';
+import { SpeedSwitch } from './SpeedSwitch';
 
 /** Room settings between games: bots and the turn timer (the host changes them). */
 export function RoomSettings({
@@ -22,6 +24,10 @@ export function RoomSettings({
       <ModeSwitch
         mode={room.mode}
         onChange={isHost ? (mode) => controller.send({ type: 'setMode', ...mode }) : undefined}
+      />
+      <SpeedSwitch
+        speed={room.speed ?? DEFAULT_SPEED}
+        onChange={isHost ? (speed) => controller.send({ type: 'setSpeed', speed }) : undefined}
       />
       {isHost && room.seats.length < MAX_SEATS && (
         <section className="grid gap-1.5">

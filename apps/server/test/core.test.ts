@@ -1,6 +1,5 @@
 import { chooseRandomAction, createRng, type PlayerView } from '@meow/engine';
 import {
-  BEAT_MS,
   BOT_DELAY_MS,
   type ClientMessage,
   DISCONNECT_GRACE_MS,
@@ -12,6 +11,7 @@ import {
   type ServerMessage,
 } from '@meow/protocol';
 import { describe, expect, it } from 'vitest';
+import { POPUP_MIN_MS } from '@meow/protocol';
 import { ALARM_EARLY_MS, alarmTime, type Conn, newRoom, RoomCore } from '../src/core.ts';
 
 /** A room with a fake clock and fake connections that record what they receive. */
@@ -96,6 +96,8 @@ function startTwoPlayers(room: Room) {
   const a = room.connect('Ann');
   const b = room.connect('Bo');
   a.say({ type: 'start' });
+  // Everyone reads the opening round banner before anyone may act (DECISIONS 051).
+  room.advance(a.last('view')!.openInMs!);
   return { a, b };
 }
 
@@ -229,11 +231,13 @@ describe('game', () => {
     a.say({ type: 'addBot', bot: { personality: 'greedy', difficulty: 'normal' } });
     const startedAt = room.now;
     a.say({ type: 'start' });
-    room.advance(BEAT_MS.round + BOT_DELAY_MS.min - 1);
+    const banner = a.last('view')!.openInMs!;
+    expect(banner).toBeGreaterThanOrEqual(POPUP_MIN_MS);
+    room.advance(banner + BOT_DELAY_MS.min - 1);
     expect(a.view?.players.find((p) => p.id === 'p1')?.hasBid).toBe(false);
     room.advance(BOT_DELAY_MS.max - BOT_DELAY_MS.min + 1);
     expect(a.view?.players.find((p) => p.id === 'p1')?.hasBid).toBe(true);
-    expect(room.now - startedAt).toBeGreaterThanOrEqual(BEAT_MS.round + BOT_DELAY_MS.min);
+    expect(room.now - startedAt).toBeGreaterThanOrEqual(banner + BOT_DELAY_MS.min);
   });
 
   it('shows who is on the clock and plays for someone who runs out of time', () => {
@@ -243,9 +247,10 @@ describe('game', () => {
     expect(a.last('error')?.key).toBe('room.error.alreadyStarted');
     const clocks = b.last('view')!.clocks;
     expect(clocks.map((c) => c.playerId)).toEqual(['p0', 'p1']);
-    expect(clocks[0]!.remainingMs).toBe(45_000 + BEAT_MS.round);
+    // the timer starts once the opening banner has been read
+    expect(clocks[0]!.remainingMs).toBe(45_000 + b.last('view')!.openInMs!);
     a.say({ type: 'action', action: { type: 'bid', playerId: 'p0', value: 2 } });
-    room.advance(45_000 + BEAT_MS.round + BOT_DELAY_MS.max);
+    room.advance(45_000 + BOT_DELAY_MS.max);
     expect(a.view?.phase).not.toBe('bidding');
     expect(b.room?.seats.find((s) => s.id === 'p1')?.standIn).toBe(false);
   });
@@ -587,4 +592,51 @@ describe('alarms (production timing)', () => {
       expect(room.views()).toBeGreaterThan(50);
     });
   }
+});
+
+describe('announcements and speed (DECISIONS 051)', () => {
+  it('refuses moves until everyone has had time to read the latest popup', () => {
+    const room = setup();
+    const a = room.connect('Ann');
+    room.connect('Bo');
+    a.say({ type: 'start' });
+    const openIn = a.last('view')!.openInMs!;
+    a.say({ type: 'action', action: { type: 'bid', playerId: 'p0', value: 2 } });
+    expect(a.last('error')?.key).toBe('room.error.notYet');
+    expect(a.view?.yourBid).toBeNull();
+    room.advance(openIn);
+    a.say({ type: 'action', action: { type: 'bid', playerId: 'p0', value: 2 } });
+    expect(a.view?.yourBid).toBe(2);
+  });
+
+  it('opens a Market Mayhem game with its first event card before the round banner', () => {
+    const classic = setup();
+    const a = classic.connect('Ann');
+    classic.connect('Bo');
+    a.say({ type: 'start' });
+    const mayhem = setup();
+    const c = mayhem.connect('Cat');
+    mayhem.connect('Dee');
+    c.say({ type: 'setMode', powers: true, events: true });
+    c.say({ type: 'start' });
+    expect(c.last('view')!.openInMs!).toBeGreaterThan(a.last('view')!.openInMs! + POPUP_MIN_MS - 1);
+  });
+
+  it('the host sets the speed for everyone; slower means longer popups', () => {
+    const times: Record<string, number> = {};
+    for (const speed of ['slow', 'normal', 'fast'] as const) {
+      const room = setup();
+      const a = room.connect('Ann');
+      const b = room.connect('Bo');
+      b.say({ type: 'setSpeed', speed });
+      expect(b.last('error')?.key).toBe('room.error.notHost');
+      a.say({ type: 'setSpeed', speed });
+      expect(b.room?.speed).toBe(speed);
+      a.say({ type: 'start' });
+      times[speed] = a.last('view')!.openInMs!;
+    }
+    expect(times.slow).toBeGreaterThan(times.normal!);
+    expect(times.normal).toBeGreaterThan(times.fast!);
+    expect(times.fast).toBeGreaterThanOrEqual(POPUP_MIN_MS);
+  });
 });

@@ -97,3 +97,13 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* Popup time bar (components/Stage.tsx): full width → nothing as the popup runs out. */
+@keyframes mnm-shrink {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}

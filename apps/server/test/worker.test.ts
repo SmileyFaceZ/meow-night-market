@@ -80,6 +80,8 @@ describe('worker', () => {
     const first = await ann.next('view');
     expect(first.view.phase).toBe('bidding');
     expect(first.view.viewer).toBe('p0');
+    // Nobody may act until the opening banner has been read.
+    await new Promise((resolve) => setTimeout(resolve, first.openInMs ?? 0));
 
     // Everything must come back from storage after the object is torn down.
     const stub = env.ROOMS.getByName(code);
@@ -93,7 +95,7 @@ describe('worker', () => {
     const revealed = await ann.next('view');
     expect(revealed.events.some((e) => e.type === 'BIDS_REVEALED')).toBe(true);
     ann.ws.close();
-  });
+  }, 20_000);
 
   it('a bot moves on its own after the room hibernates (no messages needed)', async () => {
     const code = await createRoom();
@@ -104,7 +106,8 @@ describe('worker', () => {
     await ann.next('room');
     await ann.next('room');
     ann.say({ type: 'start' });
-    await ann.next('view');
+    const opening = await ann.next('view');
+    await new Promise((resolve) => setTimeout(resolve, opening.openInMs ?? 0));
     ann.say({ type: 'action', action: { type: 'bid', playerId: 'p0', value: 3 } });
     await ann.next('view');
 
@@ -116,5 +119,5 @@ describe('worker', () => {
     // round banner + bot thinking time, not a stall (it used to wait for any message)
     expect(Date.now() - started).toBeLessThan(6_000);
     ann.ws.close();
-  }, 15_000);
+  }, 20_000);
 });

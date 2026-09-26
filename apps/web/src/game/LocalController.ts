@@ -1,3 +1,5 @@
+import { SPEED_FACTOR } from '@meow/protocol';
+import { speedStore } from './speed';
 import {
   type Action,
   applyAction,
@@ -223,11 +225,12 @@ export class LocalController implements GameController {
       const seat = this.seats.find((s) => s.id === id);
       if (seat?.bot) {
         const { min, max } = BOT_DELAY_MS;
+        const factor = SPEED_FACTOR[speedStore.get()];
         this.timers.set(
           id,
           this.scheduler.setTimeout(
             () => this.playBot(id),
-            min + this.scheduler.random() * (max - min),
+            (min + this.scheduler.random() * (max - min)) * factor,
           ),
         );
       } else if (seat) {

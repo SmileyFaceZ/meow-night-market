@@ -5,6 +5,8 @@ import { CAT_POWER } from '@meow/engine';
 import { CatArt } from '../art/CatArt';
 import { PowerInfo } from '../components/Mayhem';
 import { ModeSwitch } from '../components/ModeSwitch';
+import { SpeedSwitch } from '../components/SpeedSwitch';
+import { speedStore, useLocalSpeed } from '../game/speed';
 import { Button } from '../components/ui';
 import { loadSetup, seatsFromSetup, type SoloSetup, storeSetup } from '../game/setup';
 import { type BotSeat, CAT_COLORS, NAME_MAX_LENGTH } from '../game/types';
@@ -19,6 +21,7 @@ export function SetupScreen({
   onBack: () => void;
 }) {
   const { t } = useTranslation();
+  const speed = useLocalSpeed();
   const [setup, setSetup] = useState<SoloSetup>(loadSetup);
   const update = (patch: Partial<SoloSetup>) => setSetup((s) => ({ ...s, ...patch }));
   // Bots take other cats than the player's (every seat its own cat).
@@ -166,6 +169,7 @@ export function SetupScreen({
       </section>
 
       <ModeSwitch mode={setup.mode} onChange={(mode) => update({ mode })} />
+      <SpeedSwitch speed={speed} onChange={speedStore.set} />
 
       <div className="mt-auto grid gap-2">
         {hasSave && <p className="text-center text-sm text-card/70">{t('home.newGameConfirm')}</p>}
